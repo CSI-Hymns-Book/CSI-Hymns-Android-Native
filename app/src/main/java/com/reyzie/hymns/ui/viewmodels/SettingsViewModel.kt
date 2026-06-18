@@ -1,0 +1,145 @@
+package com.reyzie.hymns.ui.viewmodels
+
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.reyzie.hymns.cast.CastService
+import com.reyzie.hymns.data.AppConfigRepository
+import com.reyzie.hymns.data.RemoteAppConfig
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+enum class ThemeMode {
+    SYSTEM, LIGHT, DARK
+}
+
+class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+    private val prefs = application.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+    private val githubSyncService = com.reyzie.hymns.data.GitHubSyncService(application)
+    private val christmasCarolsDB = com.reyzie.hymns.data.ChristmasCarolsDB(application)
+    private val appConfigRepository = AppConfigRepository(context = application)
+
+    private val _remoteAppConfig = MutableStateFlow(RemoteAppConfig())
+    val remoteAppConfig: StateFlow<RemoteAppConfig> = _remoteAppConfig.asStateFlow()
+
+    init {
+        refreshAppConfig()
+    }
+
+    fun refreshAppConfig() {
+        viewModelScope.launch {
+            try {
+                val remote = appConfigRepository.fetchRemoteConfig()
+                _remoteAppConfig.value = remote
+                CastService.getInstance().applyRemoteConfig(getApplication(), remote)
+                applyChristmasFromRemote(remote.isChristmasTime)
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsViewModel", "Error fetching app_config", e)
+                loadLocalChristmasMode()
+            }
+        }
+    }
+
+    private fun applyChristmasFromRemote(remoteValue: Boolean?) {
+        if (appConfigRepository.hasManualChristmasOverride()) {
+            _isChristmasMode.value = prefs.getBoolean("christmas_mode", false)
+            return
+        }
+        if (remoteValue != null) {
+            setChristmasModeLocal(remoteValue, fromRemote = true)
+        } else {
+            loadLocalChristmasMode()
+        }
+    }
+
+    private fun loadLocalChristmasMode() {
+        val cached = appConfigRepository.cachedChristmasRemote()
+        if (!appConfigRepository.hasManualChristmasOverride() && cached != null) {
+            setChristmasModeLocal(cached, fromRemote = true)
+            return
+        }
+        val hasKey = prefs.contains("christmas_mode")
+        if (!hasKey) {
+            val calendar = java.util.Calendar.getInstance()
+            val month = calendar.get(java.util.Calendar.MONTH) + 1
+            val day = calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            val isSeason = month == 12 || (month == 1 && day <= 6)
+            setChristmasModeLocal(isSeason, fromRemote = false)
+        } else {
+            _isChristmasMode.value = prefs.getBoolean("christmas_mode", false)
+        }
+    }
+
+    private fun setChristmasModeLocal(enabled: Boolean, fromRemote: Boolean) {
+        prefs.edit().putBoolean("christmas_mode", enabled).apply()
+        _isChristmasMode.value = enabled
+        if (enabled) {
+            viewModelScope.launch {
+                val carols = githubSyncService.pullFromGitHub()
+                if (carols != null) {
+                    christmasCarolsDB.upsertCarols(carols)
+                }
+            }
+        }
+    }
+
+    private val _themeMode = MutableStateFlow(ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name))
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _isAmoledBlack = MutableStateFlow(prefs.getBoolean("amoled_black", false))
+    val isAmoledBlack: StateFlow<Boolean> = _isAmoledBlack.asStateFlow()
+
+    private val _themeColor = MutableStateFlow(prefs.getInt("theme_color", 0xFF6750A4.toInt()))
+    val themeColor: StateFlow<Int> = _themeColor.asStateFlow()
+
+    private val _isPageFlipEnabled = MutableStateFlow(prefs.getBoolean("page_flip", false))
+    val isPageFlipEnabled: StateFlow<Boolean> = _isPageFlipEnabled.asStateFlow()
+
+    private val _isChristmasMode = MutableStateFlow(prefs.getBoolean("christmas_mode", false))
+    val isChristmasMode: StateFlow<Boolean> = _isChristmasMode.asStateFlow()
+
+    private val _privacyAccepted = MutableStateFlow(prefs.getInt("privacy_accepted", -1))
+    val privacyAccepted: StateFlow<Int> = _privacyAccepted.asStateFlow()
+
+    fun setThemeMode(mode: ThemeMode) {
+        prefs.edit().putString("theme_mode", mode.name).apply()
+        _themeMode.value = mode
+    }
+
+    fun setAmoledBlack(enabled: Boolean) {
+        prefs.edit().putBoolean("amoled_black", enabled).apply()
+        _isAmoledBlack.value = enabled
+    }
+
+    fun setThemeColor(color: Int) {
+        prefs.edit().putInt("theme_color", color).apply()
+        _themeColor.value = color
+    }
+
+    fun setPageFlipEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean("page_flip", enabled).apply()
+        _isPageFlipEnabled.value = enabled
+    }
+
+    fun setChristmasMode(enabled: Boolean) {
+        appConfigRepository.setManualChristmasOverride(true)
+        prefs.edit().putBoolean("christmas_mode", enabled).apply()
+        _isChristmasMode.value = enabled
+        if (enabled) {
+            viewModelScope.launch {
+                val carols = githubSyncService.pullFromGitHub()
+                if (carols != null) {
+                    christmasCarolsDB.upsertCarols(carols)
+                }
+            }
+        }
+    }
+
+    fun setPrivacyAccepted(accepted: Int) {
+        prefs.edit().putInt("privacy_accepted", accepted).apply()
+        _privacyAccepted.value = accepted
+    }
+}

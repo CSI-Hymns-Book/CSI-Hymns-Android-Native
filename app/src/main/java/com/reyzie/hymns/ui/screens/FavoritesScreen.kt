@@ -1,0 +1,205 @@
+package com.reyzie.hymns.ui.screens
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.reyzie.hymns.data.Hymn
+import com.reyzie.hymns.data.Keerthane
+import com.reyzie.hymns.ui.viewmodels.FavoritesViewModel
+import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
+import com.reyzie.hymns.ui.widgets.StandardButtonGroup
+import com.reyzie.hymns.utils.HapticFeedbackManager
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun FavoritesScreen(
+    viewModel: FavoritesViewModel = viewModel(),
+    onHymnClick: (Hymn) -> Unit = {},
+    onKeerthaneClick: (Keerthane) -> Unit = {},
+    onMenuClick: () -> Unit = {}
+) {
+    val favoriteHymns by viewModel.favoriteHymns.collectAsState()
+    val favoriteKeerthanes by viewModel.favoriteKeerthanes.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(pageCount = { 2 })
+
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        topBar = {
+            ExpressiveScreenTopBar(
+                title = "My Favorites",
+                onMenuClick = onMenuClick
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            StandardButtonGroup(
+                buttonCount = 2,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Button(
+                    index = 0,
+                    onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        scope.launch { pagerState.animateScrollToPage(0) }
+                    },
+                    icon = Icons.Default.FormatListNumbered,
+                    label = "Hymns",
+                    isSelected = pagerState.currentPage == 0
+                )
+                Button(
+                    index = 1,
+                    onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        scope.launch { pagerState.animateScrollToPage(1) }
+                    },
+                    icon = Icons.Default.MusicNote,
+                    label = "Keerthanes",
+                    isSelected = pagerState.currentPage == 1
+                )
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                beyondViewportPageCount = 1
+            ) { page ->
+                when (page) {
+                    0 -> FavoritesListPane(
+                        isEmpty = favoriteHymns.isEmpty(),
+                        emptyTitle = "No Favorite Hymns",
+                        emptyHint = "Tap the heart on any hymn detail screen to save it here."
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 12.dp,
+                                bottom = 100.dp
+                            )
+                        ) {
+                            items(favoriteHymns, key = { "hymn-${it.number}" }) { hymn ->
+                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                            }
+                        }
+                    }
+                    else -> FavoritesListPane(
+                        isEmpty = favoriteKeerthanes.isEmpty(),
+                        emptyTitle = "No Favorite Keerthanes",
+                        emptyHint = "Tap the heart on any keerthane detail screen to save it here."
+                    ) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 12.dp,
+                                bottom = 100.dp
+                            )
+                        ) {
+                            items(favoriteKeerthanes, key = { "k-${it.number}" }) { keerthane ->
+                                KeerthaneListTile(
+                                    keerthane = keerthane,
+                                    onClick = { onKeerthaneClick(keerthane) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoritesListPane(
+    isEmpty: Boolean,
+    emptyTitle: String,
+    emptyHint: String,
+    content: @Composable () -> Unit
+) {
+    if (isEmpty) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+        ) {
+            Surface(
+                modifier = Modifier.size(80.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = emptyTitle,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = emptyHint,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    } else {
+        content()
+    }
+}

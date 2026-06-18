@@ -1,0 +1,45 @@
+# Gradle
+.gradle/
+build/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Kotlin
+.kotlin/
+
+# Local configuration
+local.properties
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Generated files
+generated/
+
+# Environment files
+.env
+.env.*
+
+# Keystore files (Android)
+*.jks
+*.keystore
+
+# Temporary files
+tmp/
+temp/
+
+# VS Code
+.vscode/
+
+# Cursor
+.cursor/
+
+# Compiled files
+*.class
