@@ -29,6 +29,9 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private val _groupedHymns = MutableStateFlow<Map<String, List<Hymn>>>(emptyMap())
     val groupedHymns: StateFlow<Map<String, List<Hymn>>> = _groupedHymns.asStateFlow()
 
+    private val _meterKeys = MutableStateFlow<List<String>>(emptyList())
+    val meterKeys: StateFlow<List<String>> = _meterKeys.asStateFlow()
+
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -155,6 +158,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 _groupedHymns.value = filteredGroups
+                _meterKeys.value = filteredGroups.keys.sorted()
                 _filteredHymns.value = filteredGroups.values.flatten()
             } else {
                 _filteredHymns.value = currentHymns.filter { hymn ->
@@ -183,6 +187,11 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         _groupedHymns.value = grouped
+        _meterKeys.value = grouped.keys.sorted()
         _filteredHymns.value = grouped.values.flatten()
+    }
+
+    fun meterIndexForKey(key: String): Int = _groupedHymns.value.keys.toList().let { keys ->
+        if (key in keys) keys.indexOf(key) else _meterKeys.value.indexOf(key)
     }
 }

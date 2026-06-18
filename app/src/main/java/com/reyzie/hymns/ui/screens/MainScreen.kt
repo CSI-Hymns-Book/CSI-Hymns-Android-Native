@@ -30,6 +30,7 @@ import com.reyzie.hymns.ui.navigation.mainScreens
 import com.reyzie.hymns.ui.viewmodels.AudioViewModel
 import com.reyzie.hymns.ui.viewmodels.SettingsViewModel
 import com.reyzie.hymns.ui.widgets.HymnsFloatingToolbar
+import com.reyzie.hymns.ui.widgets.MenuShowcaseOverlay
 import com.reyzie.hymns.ui.motion.ExpressiveOverlayScreen
 import com.reyzie.hymns.ui.motion.PredictiveExpressiveBackHandler
 import com.reyzie.hymns.ui.motion.expressiveBackEnter
@@ -74,6 +75,7 @@ fun MainScreen(
     var showChangelog by remember { mutableStateOf(false) }
     var showAboutApp by remember { mutableStateOf(false) }
     var showProfileEdit by remember { mutableStateOf(false) }
+    var showMenuShowcase by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         OnboardingPrefs.migrateFromLegacy(context)
@@ -113,16 +115,30 @@ fun MainScreen(
         if (decision.requiresUpdate) {
             forceUpdateDecision = decision
         }
+        var willShowChangelog = false
         if (OnboardingPrefs.isPendingChangelogAfterOnboarding(context)) {
-            changelogService.getLatestChangelog()?.let { welcomeChangelogEntry = it }
+            changelogService.getLatestChangelog()?.let {
+                welcomeChangelogEntry = it
+                willShowChangelog = true
+            }
             OnboardingPrefs.clearPendingChangelogAfterOnboarding(context)
             changelogService.markFirstLaunchHandled()
         } else if (changelogService.shouldShowChangelog()) {
-            changelogService.getLatestChangelog()?.let { welcomeChangelogEntry = it }
+            changelogService.getLatestChangelog()?.let {
+                welcomeChangelogEntry = it
+                willShowChangelog = true
+            }
         }
         val acks = ticketAckService.getUnacknowledgedResolvedTickets()
         if (acks.isNotEmpty()) {
             resolvedTicketAcks = acks
+        }
+        if (
+            !willShowChangelog &&
+            OnboardingPrefs.isPendingMenuShowcase(context) &&
+            !OnboardingPrefs.isMenuShowcaseDone(context)
+        ) {
+            showMenuShowcase = true
         }
     }
 
@@ -132,6 +148,9 @@ fun MainScreen(
             onDismiss = {
                 changelogService.markChangelogAsShown()
                 welcomeChangelogEntry = null
+                if (OnboardingPrefs.isPendingMenuShowcase(context) && !OnboardingPrefs.isMenuShowcaseDone(context)) {
+                    showMenuShowcase = true
+                }
             }
         )
     }
@@ -557,12 +576,20 @@ fun MainScreen(
                 item = selectedCommonCategory,
                 onDismiss = { selectedCommonCategory = null }
             ) { categoryName ->
-                CategoryDetailScreen(
-                    categoryId = -1,
-                    categoryName = categoryName,
-                    onBackClick = { selectedCommonCategory = null },
-                    onAddSongsClick = { }
-                )
+                Box(Modifier.fillMaxSize()) {
+                    OccasionCategoryScreen(
+                        categoryName = categoryName,
+                        onBackClick = { selectedCommonCategory = null },
+                        onHymnClick = { hymn ->
+                            selectedCommonCategory = null
+                            selectedHymn = hymn
+                        },
+                        onKeerthaneClick = { keerthane ->
+                            selectedCommonCategory = null
+                            selectedKeerthane = keerthane
+                        },
+                    )
+                }
             }
 
             ExpressiveOverlayScreen(
@@ -585,6 +612,15 @@ fun MainScreen(
                     categoryId = category.first,
                     categoryName = category.second,
                     onBackClick = { pickSongsForCategory = null }
+                )
+            }
+
+            if (showMenuShowcase) {
+                MenuShowcaseOverlay(
+                    onDismiss = {
+                        OnboardingPrefs.markMenuShowcaseDone(context)
+                        showMenuShowcase = false
+                    }
                 )
             }
         }

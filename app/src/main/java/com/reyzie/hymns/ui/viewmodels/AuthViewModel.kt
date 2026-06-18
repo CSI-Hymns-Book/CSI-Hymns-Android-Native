@@ -91,6 +91,59 @@ class AuthViewModel : ViewModel() {
         }
     }
 
+    fun signInWithEmail(
+        email: String,
+        password: String,
+        onStart: () -> Unit = {},
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            try {
+                onStart()
+                supabaseService.signInWithEmail(email.trim(), password)
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Sign in failed")
+            }
+        }
+    }
+
+    fun signUpWithEmail(
+        email: String,
+        password: String,
+        onStart: () -> Unit = {},
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            try {
+                onStart()
+                supabaseService.signUpWithEmail(email.trim(), password)
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Sign up failed")
+            }
+        }
+    }
+
+    fun resetPassword(
+        email: String,
+        onStart: () -> Unit = {},
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            try {
+                onStart()
+                supabaseService.resetPasswordForEmail(email.trim())
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.localizedMessage ?: "Could not send reset email")
+            }
+        }
+    }
+
     fun signOut() {
         viewModelScope.launch {
             supabaseService.signOut()

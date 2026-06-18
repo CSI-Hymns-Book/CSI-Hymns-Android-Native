@@ -4,6 +4,8 @@ package com.reyzie.hymns.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.ComponentActivity
+import com.reyzie.hymns.data.InAppUpdateManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -270,14 +272,34 @@ fun SettingsScreen(
                     icon = Icons.Default.CloudDownload,
                     onClick = {
                         scope.launch {
-                            val service = com.reyzie.hymns.data.ForceUpdateService(context)
-                            val decision = service.getDecision()
-                            if (!decision.requiresUpdate) {
-                                android.widget.Toast.makeText(context, "You are on the latest version!", android.widget.Toast.LENGTH_SHORT).show()
-                            } else {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(decision.androidStoreUrl ?: "https://play.google.com/store/apps/details?id=${context.packageName}"))
-                                context.startActivity(intent)
+                            val activity = context as? ComponentActivity
+                            if (activity == null) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "Unable to check for updates",
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
+                                return@launch
                             }
+                            val forceService = com.reyzie.hymns.data.ForceUpdateService(context)
+                            val decision = forceService.getDecision()
+                            if (decision.requiresUpdate) {
+                                InAppUpdateManager.openPlayStore(context)
+                                return@launch
+                            }
+                            InAppUpdateManager.checkForUpdate(
+                                activity = activity,
+                                onUpToDate = {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "You're on the latest version!",
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
+                                onPlayStoreFallback = {
+                                    InAppUpdateManager.openPlayStore(context)
+                                },
+                            )
                         }
                     }
                 )

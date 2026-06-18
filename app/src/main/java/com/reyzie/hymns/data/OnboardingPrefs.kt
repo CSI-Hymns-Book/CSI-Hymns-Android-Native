@@ -33,6 +33,21 @@ object OnboardingPrefs {
             .putBoolean(WELCOME_COMPLETED, true)
             .putInt(PRIVACY_ACCEPTED_LOCAL, privacyAccepted)
             .putBoolean(PENDING_CHANGELOG_AFTER_ONBOARDING, pendingChangelog)
+            .putBoolean(PENDING_MENU_SHOWCASE, true)
+            .apply()
+    }
+
+    fun isPendingMenuShowcase(context: Context): Boolean =
+        context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
+            .getBoolean(PENDING_MENU_SHOWCASE, false)
+
+    fun isMenuShowcaseDone(context: Context): Boolean =
+        context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
+            .getBoolean(MENU_SHOWCASE_DONE, false)
+
+    fun markMenuShowcaseDone(context: Context) {
+        context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE).edit()
+            .putBoolean(MENU_SHOWCASE_DONE, true)
             .putBoolean(PENDING_MENU_SHOWCASE, false)
             .apply()
     }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -36,6 +37,8 @@ import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
 import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
 import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
+import com.reyzie.hymns.ui.widgets.JumpToMeterSheet
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +57,10 @@ fun HymnsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showJumpToMeter by remember { mutableStateOf(false) }
 
     LaunchedEffect(statusMessage) {
         statusMessage?.let { message ->
@@ -69,7 +75,20 @@ fun HymnsScreen(
         topBar = {
             ExpressiveScreenTopBar(
                 title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
-                onMenuClick = onSettingsClick
+                onMenuClick = onSettingsClick,
+                actions = {
+                    if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
+                        IconButton(onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            showJumpToMeter = true
+                        }) {
+                            Icon(
+                                Icons.Default.FormatListBulleted,
+                                contentDescription = "Jump to meter",
+                            )
+                        }
+                    }
+                },
             )
         }
     ) { innerPadding ->
@@ -166,6 +185,7 @@ fun HymnsScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -208,6 +228,20 @@ fun HymnsScreen(
                 }
             }
         }
+    }
+
+    if (showJumpToMeter) {
+        JumpToMeterSheet(
+            meters = groupedHymns.keys.sorted(),
+            onMeterSelected = { meter ->
+                showJumpToMeter = false
+                val index = viewModel.meterIndexForKey(meter)
+                if (index >= 0) {
+                    scope.launch { listState.animateScrollToItem(index) }
+                }
+            },
+            onDismiss = { showJumpToMeter = false },
+        )
     }
 }
 }

@@ -92,6 +92,24 @@ class SupabaseService private constructor() {
         client.auth.signInWith(Google, redirectUrl = "com.reyzie.hymns://callback")
     }
 
+    suspend fun signInWithEmail(email: String, password: String) = withContext(Dispatchers.IO) {
+        client.auth.signInWith(Email) {
+            this.email = email
+            this.password = password
+        }
+    }
+
+    suspend fun signUpWithEmail(email: String, password: String) = withContext(Dispatchers.IO) {
+        client.auth.signUpWith(Email) {
+            this.email = email
+            this.password = password
+        }
+    }
+
+    suspend fun resetPasswordForEmail(email: String) = withContext(Dispatchers.IO) {
+        client.auth.resetPasswordForEmail(email)
+    }
+
     suspend fun signOut() = withContext(Dispatchers.IO) {
         client.auth.signOut()
     }

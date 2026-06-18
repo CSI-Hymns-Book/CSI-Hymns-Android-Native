@@ -36,6 +36,17 @@ fun AuthScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    var showEmailAuth by remember { mutableStateOf(false) }
+
+    if (showEmailAuth) {
+        EmailAuthScreen(
+            viewModel = viewModel,
+            onAuthComplete = onAuthComplete,
+            onBackClick = { showEmailAuth = false },
+        )
+        return
+    }
+
     LaunchedEffect(sessionStatus) {
         if (sessionStatus is SessionStatus.Authenticated) {
             isLoading = false
@@ -155,7 +166,7 @@ fun AuthScreen(
                         }
                         
                         OutlinedButton(
-                            onClick = { /* TODO: Navigate to Email Screen */ },
+                            onClick = { showEmailAuth = true },
                             enabled = !isLoading,
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(vertical = 12.dp)

@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
@@ -34,6 +36,7 @@
     </queries>
 
     <application
+        android:name=".HymnsApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -72,16 +75,8 @@
         </activity>
 
         <meta-data
-            android:name="onesignal_app_id"
-            android:value="29f2a6ba-3f56-4ffe-8075-3b70d7440b13"/>
-        
-        <meta-data
             android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
             android:value="com.reyzie.hymns.cast.HymnCastOptionsProvider" />
-
-        <service android:name="com.onesignal.NotificationExtenderService"
-             android:permission="android.permission.BIND_JOB_SERVICE"
-             android:exported="false"/>
 
         <service
             android:name="com.google.android.gms.cast.framework.media.MediaNotificationService"
