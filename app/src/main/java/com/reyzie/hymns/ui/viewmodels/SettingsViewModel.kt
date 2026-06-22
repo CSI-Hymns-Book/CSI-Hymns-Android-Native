@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.reyzie.hymns.carols.data.repository.CarolsRepository
 import com.reyzie.hymns.cast.CastService
 import com.reyzie.hymns.data.AppConfigRepository
 import com.reyzie.hymns.data.RemoteAppConfig
@@ -18,8 +19,7 @@ enum class ThemeMode {
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-    private val githubSyncService = com.reyzie.hymns.data.GitHubSyncService(application)
-    private val christmasCarolsDB = com.reyzie.hymns.data.ChristmasCarolsDB(application)
+    private val carolsRepository = CarolsRepository.getInstance(application)
     private val appConfigRepository = AppConfigRepository(context = application)
 
     private val _remoteAppConfig = MutableStateFlow(RemoteAppConfig())
@@ -27,6 +27,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refreshAppConfig()
+        if (prefs.getBoolean("christmas_mode", false)) {
+            syncChristmasCarols()
+        }
     }
 
     fun refreshAppConfig() {
@@ -77,11 +80,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         prefs.edit().putBoolean("christmas_mode", enabled).apply()
         _isChristmasMode.value = enabled
         if (enabled) {
-            viewModelScope.launch {
-                val carols = githubSyncService.pullFromGitHub()
-                if (carols != null) {
-                    christmasCarolsDB.upsertCarols(carols)
-                }
+            syncChristmasCarols()
+        }
+    }
+
+    private fun syncChristmasCarols() {
+        viewModelScope.launch {
+            try {
+                carolsRepository.refresh()
+            } catch (e: Exception) {
+                android.util.Log.w("SettingsViewModel", "Christmas carols sync failed", e)
             }
         }
     }
@@ -129,12 +137,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         prefs.edit().putBoolean("christmas_mode", enabled).apply()
         _isChristmasMode.value = enabled
         if (enabled) {
-            viewModelScope.launch {
-                val carols = githubSyncService.pullFromGitHub()
-                if (carols != null) {
-                    christmasCarolsDB.upsertCarols(carols)
-                }
-            }
+            syncChristmasCarols()
         }
     }
 

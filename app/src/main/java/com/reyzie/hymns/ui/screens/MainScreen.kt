@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
+import com.reyzie.hymns.carols.ui.list.CommunityCarolsScreen
 import com.reyzie.hymns.data.*
 import com.reyzie.hymns.ui.navigation.Screen
 import com.reyzie.hymns.ui.navigation.christmasMainScreens
@@ -518,7 +519,7 @@ fun MainScreen(
                 visible = showChristmasCarols,
                 onDismiss = { showChristmasCarols = false }
             ) {
-                ChristmasCarolsScreen(onBackClick = { showChristmasCarols = false })
+                CommunityCarolsScreen(onBackClick = { showChristmasCarols = false })
             }
 
             ExpressiveOverlayScreen(

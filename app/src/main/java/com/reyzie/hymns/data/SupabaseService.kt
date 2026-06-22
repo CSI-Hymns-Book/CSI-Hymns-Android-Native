@@ -62,6 +62,9 @@ class SupabaseService private constructor() {
     val client: SupabaseClient
         get() = _client ?: throw IllegalStateException("Supabase not initialized")
 
+    val isInitialized: Boolean
+        get() = _client != null
+
     fun init(url: String, anonKey: String) {
         if (url.isBlank() || anonKey.isBlank()) return
         

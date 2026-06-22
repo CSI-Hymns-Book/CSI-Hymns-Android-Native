@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.reyzie.hymns.ui.screens.MainScreen
 import com.reyzie.hymns.ui.theme.CSIHymnsBookTheme
+import com.reyzie.hymns.ui.widgets.ChristmasAmbienceOverlay
 import com.reyzie.hymns.BuildConfig
 import com.reyzie.hymns.data.SupabaseService
 import com.reyzie.hymns.data.AnalyticsService
@@ -18,6 +19,9 @@ import com.reyzie.hymns.data.InAppUpdateManager
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.reyzie.hymns.ui.viewmodels.SettingsViewModel
 import com.reyzie.hymns.ui.viewmodels.ThemeMode
@@ -73,7 +77,16 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = false,
                 isChristmasMode = isChristmasMode
             ) {
-                MainScreen()
+                Box(Modifier.fillMaxSize()) {
+                    MainScreen()
+                    if (isChristmasMode) {
+                        ChristmasAmbienceOverlay(
+                            modifier = Modifier.fillMaxSize(),
+                            intensity = com.reyzie.hymns.ui.widgets.SnowIntensity.Medium,
+                            showEasterEggs = true,
+                        )
+                    }
+                }
             }
         }
     }

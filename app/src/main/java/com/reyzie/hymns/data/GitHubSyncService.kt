@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
+import kotlinx.serialization.json.contentOrNull
 import java.nio.charset.Charset
 
 class GitHubSyncService(context: Context) {
@@ -51,31 +52,60 @@ class GitHubSyncService(context: Context) {
         try {
             val repo = getGitHubRepo()
             val filePath = getFilePath()
-            
-            // Try fetching raw JSON directly from GitHub raw URL (needs no auth token!)
-            val mainUrl = "https://raw.githubusercontent.com/$repo/refs/heads/main/$filePath"
-            val response = client.get(mainUrl)
-            
-            if (response.status == HttpStatusCode.OK) {
-                val decodedString = response.bodyAsText()
-                return@withContext Json.decodeFromString<List<ChristmasCarol>>(decodedString)
-            } else {
-                // Try fallback to master branch
-                val masterUrl = "https://raw.githubusercontent.com/$repo/master/$filePath"
-                val fallbackResponse = client.get(masterUrl)
-                if (fallbackResponse.status == HttpStatusCode.OK) {
-                    val decodedString = fallbackResponse.bodyAsText()
-                    return@withContext Json.decodeFromString<List<ChristmasCarol>>(decodedString)
-                }
-                if (fallbackResponse.status == HttpStatusCode.NotFound) {
-                    return@withContext emptyList()
-                }
+
+            getGitHubToken()?.let { token ->
+                pullViaContentsApi(token, repo, filePath)?.let { return@withContext it }
             }
-            null
+
+            pullViaRawUrl(repo, filePath)?.let { return@withContext it }
+
+            emptyList()
         } catch (e: Exception) {
-            Log.e("GitHubSyncService", "Error pulling from GitHub raw content", e)
+            Log.e("GitHubSyncService", "Error pulling from GitHub", e)
             null
         }
+    }
+
+    private suspend fun pullViaContentsApi(
+        token: String,
+        repo: String,
+        filePath: String,
+    ): List<ChristmasCarol>? {
+        for (branch in listOf("main", "master")) {
+            val response = client.get("https://api.github.com/repos/$repo/contents/$filePath") {
+                header("Authorization", "token $token")
+                header("Accept", "application/vnd.github.v3+json")
+                parameter("ref", branch)
+            }
+            if (response.status != HttpStatusCode.OK) continue
+
+            val body = response.body<JsonObject>()
+            val encoding = body["encoding"]?.jsonPrimitive?.contentOrNull
+            val content = body["content"]?.jsonPrimitive?.contentOrNull ?: continue
+            if (encoding != "base64") continue
+
+            val decoded = String(
+                Base64.decode(content.replace("\n", ""), Base64.DEFAULT),
+                Charset.forName("UTF-8"),
+            )
+            val parsed = ChristmasCarolParser.parseJsonText(decoded)
+            Log.i("GitHubSyncService", "Loaded ${parsed.size} carols via GitHub API ($branch)")
+            return parsed
+        }
+        return null
+    }
+
+    private suspend fun pullViaRawUrl(repo: String, filePath: String): List<ChristmasCarol>? {
+        for (branch in listOf("main", "master")) {
+            val url = "https://raw.githubusercontent.com/$repo/$branch/$filePath"
+            val response = client.get(url)
+            if (response.status == HttpStatusCode.OK) {
+                val parsed = ChristmasCarolParser.parseJsonText(response.bodyAsText())
+                Log.i("GitHubSyncService", "Loaded ${parsed.size} carols via raw URL ($branch)")
+                return parsed
+            }
+        }
+        return null
     }
 
     suspend fun pushToGitHub(carols: List<ChristmasCarol>): Boolean = withContext(Dispatchers.IO) {
