@@ -46,7 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.ui.viewmodels.SettingsViewModel
-import com.reyzie.hymns.ui.widgets.ChristmasNightGradientColors
+import com.reyzie.hymns.ui.widgets.rememberChristmasScreenColors
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import kotlin.math.min
 
@@ -67,11 +67,13 @@ fun ChristmasLandingScreen(
         }
     }
 
+    val christmasColors = rememberChristmasScreenColors()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                brush = Brush.verticalGradient(colors = ChristmasNightGradientColors),
+                brush = Brush.verticalGradient(colors = christmasColors.gradient),
             ),
     ) {
         BoxWithConstraints(
@@ -108,7 +110,7 @@ fun ChristmasLandingScreen(
                             },
                             modifier = Modifier.size(if (compact) 44.dp else 48.dp),
                         ) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color.White)
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = christmasColors.onBackground)
                         }
                     }
                 }
@@ -132,7 +134,7 @@ fun ChristmasLandingScreen(
                         Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
                         Text(
                             "Merry Christmas!",
-                            color = Color.White,
+                            color = christmasColors.onBackground,
                             style = if (compact) MaterialTheme.typography.headlineSmall else MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
                             textAlign = TextAlign.Center,
@@ -140,7 +142,7 @@ fun ChristmasLandingScreen(
                         Spacer(Modifier.height(if (compact) 2.dp else 4.dp))
                         Text(
                             "Glory to God in the highest",
-                            color = Color.White.copy(alpha = 0.78f),
+                            color = christmasColors.onBackgroundMuted,
                             style = MaterialTheme.typography.bodyMedium,
                             fontStyle = FontStyle.Italic,
                             textAlign = TextAlign.Center,
@@ -160,7 +162,7 @@ fun ChristmasLandingScreen(
                 item {
                     Text(
                         "Choose a collection",
-                        color = Color.White.copy(alpha = 0.65f),
+                        color = christmasColors.onBackgroundMuted,
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(bottom = if (compact) 8.dp else 10.dp, start = 4.dp),

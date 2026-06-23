@@ -2,36 +2,53 @@ package com.reyzie.hymns.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class FavoritesRepository(context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences("HymnsAppPrefs", Context.MODE_PRIVATE)
+class FavoritesRepository private constructor(context: Context) {
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences("HymnsAppPrefs", Context.MODE_PRIVATE)
     private val supabase = SupabaseService.getInstance()
-    
+
     private val _favoriteHymnIds = MutableStateFlow<Set<Int>>(emptySet())
     val favoriteHymnIds: StateFlow<Set<Int>> = _favoriteHymnIds.asStateFlow()
 
     private val _favoriteKeerthaneIds = MutableStateFlow<Set<Int>>(emptySet())
     val favoriteKeerthaneIds: StateFlow<Set<Int>> = _favoriteKeerthaneIds.asStateFlow()
 
+    companion object {
+        private const val TAG = "FavoritesRepository"
+
+        @Volatile
+        private var instance: FavoritesRepository? = null
+
+        fun getInstance(context: Context): FavoritesRepository {
+            return instance ?: synchronized(this) {
+                instance ?: FavoritesRepository(context.applicationContext).also { instance = it }
+            }
+        }
+    }
+
     init {
         loadLocalFavorites()
     }
 
     private fun loadLocalFavorites() {
-        val hymns = prefs.getStringSet("favoriteHymnIds", emptySet())?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
-        val keerthanes = prefs.getStringSet("favoriteKeerthaneIds", emptySet())?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
-        
+        val hymns = prefs.getStringSet("favoriteHymnIds", emptySet())
+            ?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+        val keerthanes = prefs.getStringSet("favoriteKeerthaneIds", emptySet())
+            ?.mapNotNull { it.toIntOrNull() }?.toSet() ?: emptySet()
+
         _favoriteHymnIds.value = hymns
         _favoriteKeerthaneIds.value = keerthanes
     }
 
-    suspend fun syncWithSupabase() {
-        if (supabase.currentUser == null) return
+    suspend fun syncWithSupabase() = withContext(Dispatchers.IO) {
+        if (supabase.currentUser == null) return@withContext
 
         val remoteFavorites = supabase.fetchFavorites()
         val hymns = remoteFavorites.filter { it["item_type"] == "hymn" }
@@ -57,30 +74,23 @@ class FavoritesRepository(context: Context) {
             .apply()
     }
 
-    suspend fun toggleFavorite(id: Int, isHymn: Boolean) {
+    suspend fun toggleFavorite(id: Int, isHymn: Boolean) = withContext(Dispatchers.IO) {
         val currentSet = if (isHymn) _favoriteHymnIds.value else _favoriteKeerthaneIds.value
         val isCurrentlyFavorite = currentSet.contains(id)
-        
-        val newSet = if (isCurrentlyFavorite) {
-            currentSet - id
-        } else {
-            currentSet + id
-        }
-        
+
+        val newSet = if (isCurrentlyFavorite) currentSet - id else currentSet + id
         val prefKey = if (isHymn) "favoriteHymnIds" else "favoriteKeerthaneIds"
-        
-        // Update local state immediately for UI responsiveness
+
         if (isHymn) {
             _favoriteHymnIds.value = newSet
         } else {
             _favoriteKeerthaneIds.value = newSet
         }
-        
+
         prefs.edit()
             .putStringSet(prefKey, newSet.map { it.toString() }.toSet())
             .apply()
-            
-        // Sync with server if logged in
+
         if (supabase.currentUser != null) {
             try {
                 if (isCurrentlyFavorite) {
@@ -89,7 +99,7 @@ class FavoritesRepository(context: Context) {
                     supabase.addFavorite(id, if (isHymn) "hymn" else "keerthane")
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e(TAG, "Failed to sync favorite to Supabase", e)
             }
         }
     }

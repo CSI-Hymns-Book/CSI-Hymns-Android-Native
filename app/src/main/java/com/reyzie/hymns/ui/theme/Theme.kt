@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import com.reyzie.hymns.ui.theme.ExpressiveShapes
+import com.reyzie.hymns.ui.theme.contentOn
 
 /**
  * Proper Semantic Material 3 Theme with Dynamic Color support.
@@ -80,8 +80,8 @@ private val LightColorScheme = lightColorScheme(
     onBackground = Color(0xFF111318),
     surface = Color(0xFFF9F9FF),
     onSurface = Color(0xFF111318),
-    surfaceVariant = Color(0xFFE0E2EC),
-    onSurfaceVariant = Color(0xFF43474E),
+    surfaceVariant = Color(0xFFD6E4F5),
+    onSurfaceVariant = Color(0xFF111318),
     outline = Color(0xFF74777F)
 )
 
@@ -103,8 +103,12 @@ internal fun generateSeedColorScheme(seedColor: Color, darkTheme: Boolean): Colo
     } else {
         blendColor(primary, Color.White, 0.85f)
     }
-    
-    val onPrimaryContainer = if (primaryContainer.luminance() > 0.5f) Color(0xFF111318) else Color.White
+
+    val onPrimaryContainer = if (darkTheme) {
+        Color(0xFFE2E2E9)
+    } else {
+        Color(0xFF111318)
+    }
 
     val secondary = if (darkTheme) {
         blendColor(primary, Color.White, 0.2f)
@@ -124,9 +128,9 @@ internal fun generateSeedColorScheme(seedColor: Color, darkTheme: Boolean): Colo
     val onBackground = if (darkTheme) Color(0xFFE2E2E9) else Color(0xFF111318)
     val surface = if (darkTheme) Color(0xFF111318) else Color(0xFFF9F9FF)
     val onSurface = if (darkTheme) Color(0xFFE2E2E9) else Color(0xFF111318)
-    
-    val surfaceVariant = if (darkTheme) Color(0xFF32353B) else Color(0xFFE0E2EC)
-    val onSurfaceVariant = if (darkTheme) Color(0xFFC3C7CF) else Color(0xFF43474E)
+
+    val surfaceVariant = if (darkTheme) Color(0xFF32353B) else Color(0xFFD6E4F5)
+    val onSurfaceVariant = if (darkTheme) Color(0xFFC3C7CF) else Color(0xFF111318)
     val outline = if (darkTheme) Color(0xFF8D9199) else Color(0xFF74777F)
 
     return if (darkTheme) {
@@ -191,16 +195,38 @@ internal fun ColorScheme.withExpressiveSurfaceTones(darkTheme: Boolean): ColorSc
         )
     } else {
         copy(
-            surfaceDim = blendColor(s, Color.Black, 0.06f),
+            surfaceDim = blendColor(s, Color.Black, 0.04f),
             surfaceBright = Color.White,
             surfaceContainerLowest = Color.White,
-            surfaceContainerLow = blendColor(s, Color.Black, 0.03f),
-            surfaceContainer = blendColor(s, Color.Black, 0.05f),
-            surfaceContainerHigh = blendColor(s, Color.Black, 0.08f),
-            surfaceContainerHighest = blendColor(s, Color.Black, 0.12f),
-            surfaceVariant = if (surfaceVariant == s) blendColor(s, Color.Black, 0.08f) else surfaceVariant
+            surfaceContainerLow = Color(0xFFEEF4FC),
+            surfaceContainer = Color(0xFFE3EDF8),
+            surfaceContainerHigh = Color(0xFFD6E4F5),
+            surfaceContainerHighest = Color(0xFFC8DBF2),
+            surfaceVariant = if (surfaceVariant == s) Color(0xFFD6E4F5) else surfaceVariant
         )
     }
+}
+
+private val ReadableLightText = Color(0xFF111318)
+private val ReadableDarkText = Color(0xFFE8EAED)
+private val ReadableLightMuted = Color(0xFF2B3138)
+
+/** Pairs every container/surface tone with readable foreground (dark on light, light on dark). */
+internal fun ColorScheme.withReadableContrast(darkTheme: Boolean): ColorScheme {
+    val body = if (darkTheme) ReadableDarkText else ReadableLightText
+    val muted = if (darkTheme) Color(0xFFC3C7CF) else ReadableLightMuted
+
+    return copy(
+        onBackground = body,
+        onSurface = body,
+        onSurfaceVariant = muted,
+        onPrimary = primary.contentOn(),
+        onSecondary = secondary.contentOn(),
+        onTertiary = tertiary.contentOn(),
+        onPrimaryContainer = primaryContainer.contentOn(),
+        onSecondaryContainer = secondaryContainer.contentOn(),
+        onTertiaryContainer = tertiaryContainer.contentOn(),
+    )
 }
 
 private fun Color.luminance(): Float {
@@ -291,7 +317,7 @@ fun CSIHymnsBookTheme(
         )
     } else {
         colorScheme
-    }).withExpressiveSurfaceTones(darkTheme)
+    }).withExpressiveSurfaceTones(darkTheme).withReadableContrast(darkTheme)
 
     val view = LocalView.current
     if (!view.isInEditMode) {

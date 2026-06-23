@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.reyzie.hymns.ui.navigation.Screen
+import com.reyzie.hymns.ui.theme.contentOn
 import com.reyzie.hymns.utils.HapticFeedbackManager
 
 /**
@@ -61,6 +62,9 @@ fun HymnsFloatingToolbar(
 
     val hideSelectedLabel = fontScale > 1.6f || screenWidth < 340
 
+    val scheme = MaterialTheme.colorScheme
+    val barIconColor = scheme.primary.contentOn()
+
     HorizontalFloatingToolbar(
         modifier = modifier
             .windowInsetsPadding(WindowInsets.navigationBars)
@@ -78,14 +82,14 @@ fun HymnsFloatingToolbar(
                         }
                     },
                     containerColor = if (isFavoritesSelected) {
-                        MaterialTheme.colorScheme.background
+                        scheme.background
                     } else {
-                        MaterialTheme.colorScheme.primaryContainer
+                        scheme.primaryContainer
                     },
                     contentColor = if (isFavoritesSelected) {
-                        MaterialTheme.colorScheme.primary
+                        scheme.primary
                     } else {
-                        MaterialTheme.colorScheme.onPrimaryContainer
+                        scheme.primaryContainer.contentOn()
                     },
                     shape = MaterialTheme.shapes.large,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
@@ -104,8 +108,8 @@ fun HymnsFloatingToolbar(
             }
         },
         colors = FloatingToolbarDefaults.vibrantFloatingToolbarColors(
-            toolbarContentColor = MaterialTheme.colorScheme.onSurface,
-            toolbarContainerColor = MaterialTheme.colorScheme.primary,
+            toolbarContentColor = barIconColor,
+            toolbarContainerColor = scheme.primary,
         ),
         content = {
             screens.forEachIndexed { index, screen ->
@@ -152,13 +156,13 @@ fun HymnsFloatingToolbar(
                             .height(48.dp),
                         colors = if (isSelected) {
                             IconButtonDefaults.filledIconButtonColors(
-                                contentColor = MaterialTheme.colorScheme.primary,
-                                containerColor = MaterialTheme.colorScheme.background
+                                contentColor = scheme.primary,
+                                containerColor = scheme.background
                             )
                         } else {
                             IconButtonDefaults.iconButtonColors(
-                                contentColor = MaterialTheme.colorScheme.background,
-                                containerColor = MaterialTheme.colorScheme.primary
+                                contentColor = barIconColor,
+                                containerColor = scheme.primary
                             )
                         }
                     ) {
@@ -170,7 +174,8 @@ fun HymnsFloatingToolbar(
                             Icon(
                                 imageVector = if (isSelected) screen.icon else screen.unselectedIcon,
                                 contentDescription = label,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(24.dp),
+                                tint = if (isSelected) scheme.primary else barIconColor
                             )
                             if (isSelected && !hideSelectedLabel) {
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -178,7 +183,7 @@ fun HymnsFloatingToolbar(
                                     text = label,
                                     style = MaterialTheme.typography.labelLarge,
                                     maxLines = 1,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    color = scheme.primary,
                                     modifier = Modifier.basicMarquee()
                                 )
                             }

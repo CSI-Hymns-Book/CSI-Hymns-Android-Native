@@ -79,6 +79,7 @@ import com.reyzie.hymns.carols.ui.detail.CarolPdfDetailScreen
 import com.reyzie.hymns.carols.ui.detail.CarolSongDetailScreen
 import com.reyzie.hymns.ui.motion.ExpressiveOverlayScreen
 import com.reyzie.hymns.ui.widgets.ChristmasScreenBackground
+import com.reyzie.hymns.ui.widgets.rememberChristmasScreenColors
 import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.utils.HapticFeedbackManager
@@ -136,6 +137,10 @@ fun CommunityCarolsScreen(
         selectedChurchId?.let { viewModel.filteredPdfs(it) }.orEmpty()
     }
 
+    val christmasColors = rememberChristmasScreenColors()
+    val contentColor = christmasColors.onBackground
+    val contentColorMuted = christmasColors.onBackgroundMuted
+
     ChristmasScreenBackground {
         Box(Modifier.fillMaxSize()) {
             Scaffold(
@@ -151,7 +156,7 @@ fun CommunityCarolsScreen(
                                 fontWeight = FontWeight.ExtraBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                color = Color.White,
+                                color = contentColor,
                             )
                         },
                         navigationIcon = {
@@ -163,7 +168,7 @@ fun CommunityCarolsScreen(
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
                                     contentDescription = "Back",
-                                    tint = Color.White,
+                                    tint = contentColor,
                                 )
                             }
                         },
@@ -175,7 +180,7 @@ fun CommunityCarolsScreen(
                                 Icon(
                                     Icons.Default.Refresh,
                                     contentDescription = "Refresh",
-                                    tint = Color.White,
+                                    tint = contentColor,
                                 )
                             }
                             if (activeChurch != null && viewModel.isAuthenticated) {
@@ -183,7 +188,7 @@ fun CommunityCarolsScreen(
                                     Icon(
                                         Icons.Default.Add,
                                         contentDescription = "Add",
-                                        tint = Color.White,
+                                        tint = contentColor,
                                     )
                                 }
                             }
@@ -254,7 +259,7 @@ fun CommunityCarolsScreen(
                         Text(
                             desc,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White.copy(alpha = 0.78f),
+                            color = contentColorMuted,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         )
                     }
@@ -291,7 +296,7 @@ fun CommunityCarolsScreen(
                         CarolContentTab.SONGS -> {
                             if (churchSongs.isEmpty()) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("No songs yet", color = Color.White.copy(alpha = 0.7f))
+                                    Text("No songs yet", color = contentColorMuted)
                                 }
                             } else {
                                 LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
@@ -309,7 +314,7 @@ fun CommunityCarolsScreen(
                         CarolContentTab.PDFS -> {
                             if (churchPdfs.isEmpty()) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("No PDFs yet", color = Color.White.copy(alpha = 0.7f))
+                                    Text("No PDFs yet", color = contentColorMuted)
                                 }
                             } else {
                                 LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {

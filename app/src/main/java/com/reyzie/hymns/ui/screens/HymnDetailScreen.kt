@@ -196,7 +196,6 @@ fun HymnDetailScreen(
                                 forceShowLabel = true,
                                 roundedSquare = true,
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                                 autoSizeLabel = true,
                                 variant = GroupButtonVariant.Tonal
                             )

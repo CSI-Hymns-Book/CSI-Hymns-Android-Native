@@ -259,7 +259,8 @@ fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
             }),
         shape = RoundedCornerShape(24.dp), // Expressive corner
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
@@ -304,7 +305,7 @@ fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
                     Text(
                         text = hymn.signature,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                     )
                 }
             }
@@ -312,7 +313,7 @@ fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.size(24.dp)
             )
         }

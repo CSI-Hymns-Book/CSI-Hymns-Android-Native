@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.reyzie.hymns.ui.widgets.ChristmasScreenBackground
 import com.reyzie.hymns.ui.widgets.PdfSongViewer
+import com.reyzie.hymns.ui.widgets.rememberChristmasScreenColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +26,8 @@ fun CarolPdfDetailScreen(
     pdfUrl: String,
     onBackClick: () -> Unit,
 ) {
+    val colors = rememberChristmasScreenColors()
+
     ChristmasScreenBackground {
         Scaffold(
             containerColor = Color.Transparent,
@@ -36,7 +39,7 @@ fun CarolPdfDetailScreen(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = colors.onBackground,
                         )
                     },
                     navigationIcon = {
@@ -44,7 +47,7 @@ fun CarolPdfDetailScreen(
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = Color.White,
+                                tint = colors.onBackground,
                             )
                         }
                     },

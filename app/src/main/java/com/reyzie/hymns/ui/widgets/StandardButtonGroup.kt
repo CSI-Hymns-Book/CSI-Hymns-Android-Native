@@ -47,6 +47,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
+import com.reyzie.hymns.ui.theme.contentOn
 import com.reyzie.hymns.utils.MotionSpecs
 
 /** M3 button roles in a group — see [buttons specs](https://m3.material.io/components/buttons/specs). */
@@ -189,16 +192,16 @@ fun RowScope.ExpressiveGroupToggle(
         contentColor = contentColor
     )
 
-    val colors = ToggleButtonDefaults.toggleButtonColors(
+    val         colors = ToggleButtonDefaults.toggleButtonColors(
         containerColor = colorQuad.uncheckedContainer,
         contentColor = colorQuad.uncheckedContent,
         checkedContainerColor = colorQuad.checkedContainer,
-        checkedContentColor = colorQuad.checkedContent
+        checkedContentColor = colorQuad.checkedContent,
     )
 
-    val targetForeground = if (isSelected) colorQuad.checkedContent else colorQuad.uncheckedContent
+    val activeBackground = if (isSelected) colorQuad.checkedContainer else colorQuad.uncheckedContainer
     val foregroundColor by animateColorAsState(
-        targetValue = targetForeground,
+        targetValue = activeBackground.contentOn(),
         animationSpec = MotionSpecs.ColorSpec,
         label = "toggleForeground"
     )
@@ -220,6 +223,10 @@ fun RowScope.ExpressiveGroupToggle(
         shapes = shapes,
         colors = colors
     ) {
+        CompositionLocalProvider(
+            LocalContentColor provides foregroundColor,
+            LocalTextStyle provides MaterialTheme.typography.labelLarge.copy(color = foregroundColor),
+        ) {
         if (iconOnly) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -269,6 +276,7 @@ fun RowScope.ExpressiveGroupToggle(
                 }
             }
         }
+        }
     }
 }
 
@@ -286,13 +294,12 @@ private fun resolveColorQuad(
             GroupButtonVariant.Accent -> scheme.tertiaryContainer
             GroupButtonVariant.Filled -> scheme.primary
         }
-        val uncheckedFg = contentColor ?: scheme.onSurfaceVariant
-        val checkedFg = contentColor ?: when (variant) {
-            GroupButtonVariant.Tonal -> scheme.onSecondaryContainer
-            GroupButtonVariant.Accent -> scheme.onTertiaryContainer
-            GroupButtonVariant.Filled -> scheme.onPrimary
-        }
-        return Quad(uncheckedBg, uncheckedFg, checkedBg, checkedFg)
+        return Quad(
+            uncheckedContainer = uncheckedBg,
+            uncheckedContent = uncheckedBg.contentOn(),
+            checkedContainer = checkedBg,
+            checkedContent = checkedBg.contentOn(),
+        )
     }
     return variantColorQuad(variant, scheme)
 }
@@ -305,21 +312,21 @@ private fun variantColorQuad(
     return when (variant) {
         GroupButtonVariant.Filled -> Quad(
             uncheckedContainer = scheme.surfaceBright,
-            uncheckedContent = scheme.onSurfaceVariant,
+            uncheckedContent = scheme.surfaceBright.contentOn(),
             checkedContainer = scheme.primary,
-            checkedContent = scheme.onPrimary
+            checkedContent = scheme.primary.contentOn()
         )
         GroupButtonVariant.Tonal -> Quad(
             uncheckedContainer = scheme.surfaceContainerHighest,
-            uncheckedContent = scheme.onSurfaceVariant,
+            uncheckedContent = scheme.surfaceContainerHighest.contentOn(),
             checkedContainer = scheme.secondaryContainer,
-            checkedContent = scheme.onSecondaryContainer
+            checkedContent = scheme.secondaryContainer.contentOn()
         )
         GroupButtonVariant.Accent -> Quad(
             uncheckedContainer = scheme.surfaceContainerHighest,
-            uncheckedContent = scheme.onSurfaceVariant,
+            uncheckedContent = scheme.surfaceContainerHighest.contentOn(),
             checkedContainer = scheme.tertiaryContainer,
-            checkedContent = scheme.onTertiaryContainer
+            checkedContent = scheme.tertiaryContainer.contentOn()
         )
     }
 }

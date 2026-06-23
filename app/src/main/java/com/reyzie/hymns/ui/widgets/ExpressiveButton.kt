@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.reyzie.hymns.utils.MotionSpecs
+import com.reyzie.hymns.ui.theme.contentOn
 import com.reyzie.hymns.utils.connectedResponse
 import com.reyzie.hymns.utils.expressiveClick
 
@@ -67,11 +68,7 @@ fun ExpressiveActionButton(
         MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
-    val targetContentColor = contentColor ?: if (isSelected) {
-        MaterialTheme.colorScheme.onPrimary
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
+    val targetContentColor = contentColor ?: targetContainerColor.contentOn()
 
     val finalContainerColor by animateColorAsState(
         targetValue = targetContainerColor,

@@ -46,7 +46,8 @@ fun ExpressiveScreenTopBar(
                     onMenuClick()
                 },
                 colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                 )
             ) {
                 Icon(Icons.Default.Menu, contentDescription = "Menu")

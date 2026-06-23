@@ -1,5 +1,22 @@
 [
     {
+        "title": "CSI Hymns — Native Android Rewrite",
+        "version": "5.0.0",
+        "date": "23-06-2026",
+        "changes": [
+            "Welcome to CSI Hymns built natively in Kotlin with Jetpack Compose — faster, smoother, and designed for modern Android",
+            "Same app; your favorites and account data continue to sync where signed in",
+            "NEW Themes throughout using Android's New Material 3 expressive theming engine",
+            "NEW church-first Community Christmas Carols — browse by church, view lyrics or in-app PDFs, contribute songs and PDFs when signed in — On Christmas Season",
+            "Improved in-app PDF viewer with smoother scrolling and a single loader",
+            "Refined Material 3 expressive UI — bottom tab bar, button groups, Christmas snow ambience, and readable text on light accent colors",
+            "Fixed favorites not updating across Hymns and detail screens",
+            "Smoother tab switching and lighter motion across the main app",
+            "General stability fixes and polish across hymns, keerthane, settings, and carols",
+            "Thank you for using CSI Hymns — report issues from the app if anything looks off after the update"
+        ]
+    },
+    {
         "title": "New Public Stable Version Released!",
         "version": "4.2.2-stable",
         "date": "20-04-2026",

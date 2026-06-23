@@ -32,6 +32,7 @@ import com.reyzie.hymns.carols.data.model.CarolSong
 import com.reyzie.hymns.carols.domain.splitBilingualLyrics
 import com.reyzie.hymns.ui.widgets.ChristmasScreenBackground
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
+import com.reyzie.hymns.ui.widgets.rememberChristmasScreenColors
 import com.reyzie.hymns.utils.HapticFeedbackManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,7 @@ fun CarolSongDetailScreen(
     onBackClick: () -> Unit,
 ) {
     val context = LocalContext.current
+    val colors = rememberChristmasScreenColors()
     val (kannada, english) = remember(song.id) { splitBilingualLyrics(song.lyrics) }
     var language by remember { mutableStateOf(if (english != null) "Kannada" else "Lyrics") }
 
@@ -55,7 +57,7 @@ fun CarolSongDetailScreen(
                             song.title,
                             maxLines = 1,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = colors.onBackground,
                         )
                     },
                     navigationIcon = {
@@ -63,7 +65,7 @@ fun CarolSongDetailScreen(
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = Color.White,
+                                tint = colors.onBackground,
                             )
                         }
                     },
@@ -83,13 +85,13 @@ fun CarolSongDetailScreen(
                 Text(
                     churchName,
                     style = MaterialTheme.typography.labelLarge,
-                    color = Color(0xFF90CAF9),
+                    color = colors.accent,
                 )
                 song.songNumber?.let {
                     Text(
                         "No. $it · ${song.scale}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.72f),
+                        color = colors.onBackgroundMuted,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 }
@@ -128,7 +130,7 @@ fun CarolSongDetailScreen(
                         else -> kannada
                     },
                     style = MaterialTheme.typography.bodyLarge,
-                    color = Color.White.copy(alpha = 0.92f),
+                    color = colors.onBackground,
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())

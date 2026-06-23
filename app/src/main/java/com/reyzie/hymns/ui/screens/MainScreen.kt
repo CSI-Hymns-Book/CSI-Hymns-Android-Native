@@ -29,6 +29,7 @@ import com.reyzie.hymns.ui.navigation.christmasNavScreens
 import com.reyzie.hymns.ui.navigation.mainNavScreens
 import com.reyzie.hymns.ui.navigation.mainScreens
 import com.reyzie.hymns.ui.viewmodels.AudioViewModel
+import com.reyzie.hymns.ui.viewmodels.FavoritesViewModel
 import com.reyzie.hymns.ui.viewmodels.SettingsViewModel
 import com.reyzie.hymns.ui.widgets.HymnsFloatingToolbar
 import com.reyzie.hymns.ui.widgets.MenuShowcaseOverlay
@@ -47,6 +48,7 @@ fun MainScreen(
     audioViewModel: AudioViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel()
 ) {
+    val favoritesViewModel: FavoritesViewModel = viewModel()
     val audioState by audioViewModel.audioState.collectAsState()
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
     val activeScreens = if (isChristmasMode) christmasMainScreens else mainScreens
@@ -295,6 +297,7 @@ fun MainScreen(
                                         onMenuClick = { scope.launch { drawerState.open() } }
                                     )
                                     Screen.Favorites -> FavoritesScreen(
+                                        viewModel = favoritesViewModel,
                                         onHymnClick = { hymn -> selectedHymn = hymn },
                                         onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
                                         onMenuClick = { scope.launch { drawerState.open() } }
@@ -391,6 +394,7 @@ fun MainScreen(
                 HymnDetailScreen(
                     hymn = hymn,
                     isKeerthane = false,
+                    favoritesViewModel = favoritesViewModel,
                     onBackClick = { selectedHymn = null }
                 )
             }
@@ -409,6 +413,7 @@ fun MainScreen(
                 HymnDetailScreen(
                     hymn = convertedHymn,
                     isKeerthane = true,
+                    favoritesViewModel = favoritesViewModel,
                     onBackClick = { selectedKeerthane = null }
                 )
             }
@@ -538,6 +543,7 @@ fun MainScreen(
                         HymnDetailScreen(
                             hymn = hymn,
                             isKeerthane = false,
+                            favoritesViewModel = favoritesViewModel,
                             onBackClick = { selectedHymn = null }
                         )
                     }
@@ -567,6 +573,7 @@ fun MainScreen(
                         HymnDetailScreen(
                             hymn = convertedHymn,
                             isKeerthane = true,
+                            favoritesViewModel = favoritesViewModel,
                             onBackClick = { selectedKeerthane = null }
                         )
                     }

@@ -11,10 +11,13 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -39,18 +42,81 @@ val ChristmasNightGradientColors = listOf(
     Color(0xFF0D1520),
 )
 
-/** Deep blue night gradient used on Christmas home and carols screens. */
+val ChristmasDayGradientColors = listOf(
+    Color(0xFFE8F4FC),
+    Color(0xFFD6EBFA),
+    Color(0xFFC5E2F7),
+    Color(0xFFB8D9F0),
+)
+
+@Immutable
+data class ChristmasScreenColors(
+    val gradient: List<Color>,
+    val onBackground: Color,
+    val onBackgroundMuted: Color,
+    val accent: Color,
+)
+
+val LocalChristmasScreenColors = staticCompositionLocalOf {
+    ChristmasScreenColors(
+        gradient = ChristmasNightGradientColors,
+        onBackground = Color(0xFFF5F7FA),
+        onBackgroundMuted = Color(0xFFF5F7FA).copy(alpha = 0.78f),
+        accent = Color(0xFF90CAF9),
+    )
+}
+
+@Composable
+fun rememberChristmasScreenColors(): ChristmasScreenColors {
+    val isDark = MaterialTheme.colorScheme.background.luminance() < 0.45f
+    return remember(isDark) {
+        if (isDark) {
+            ChristmasScreenColors(
+                gradient = ChristmasNightGradientColors,
+                onBackground = Color(0xFFF5F7FA),
+                onBackgroundMuted = Color(0xFFF5F7FA).copy(alpha = 0.78f),
+                accent = Color(0xFF90CAF9),
+            )
+        } else {
+            ChristmasScreenColors(
+                gradient = ChristmasDayGradientColors,
+                onBackground = Color(0xFF111318),
+                onBackgroundMuted = Color(0xFF111318).copy(alpha = 0.72f),
+                accent = Color(0xFF1565C0),
+            )
+        }
+    }
+}
+
+@Composable
+fun christmasContentColor(): Color = LocalChristmasScreenColors.current.onBackground
+
+@Composable
+fun christmasContentColorMuted(alpha: Float = 0.78f): Color =
+    LocalChristmasScreenColors.current.onBackground.copy(alpha = alpha)
+
+/** Christmas / carols screen backdrop — light blue in light theme, night blue in dark theme. */
 @Composable
 fun ChristmasScreenBackground(
     modifier: Modifier = Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(ChristmasNightGradientColors)),
-        content = content,
-    )
+    val colors = rememberChristmasScreenColors()
+    CompositionLocalProvider(LocalChristmasScreenColors provides colors) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(colors.gradient)),
+            content = content,
+        )
+    }
+}
+
+private fun Color.luminance(): Float {
+    val r = if (red <= 0.03928f) red / 12.92f else Math.pow(((red + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    val g = if (green <= 0.03928f) green / 12.92f else Math.pow(((green + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    val b = if (blue <= 0.03928f) blue / 12.92f else Math.pow(((blue + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    return 0.2126f * r + 0.7152f * g + 0.0722f * b
 }
 
 @Immutable

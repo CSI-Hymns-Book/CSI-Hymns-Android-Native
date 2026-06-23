@@ -42,6 +42,7 @@ fun SongInfoBanner(
             .padding(horizontal = 12.dp, vertical = 8.dp),
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 1.dp
     ) {
         Row(

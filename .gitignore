@@ -12,6 +12,7 @@ out/
 
 # Local configuration
 local.properties
+keystore.properties
 
 # Logs
 *.log
