@@ -67,11 +67,19 @@ android {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    packaging {
+        jniLibs {
+            // AGP 8.5.1+ zip-aligns uncompressed native libs for 16 KB page-size devices.
+            useLegacyPackaging = false
         }
     }
     compileOptions {
