@@ -241,7 +241,7 @@ private fun OnboardingWelcomePage() {
             shadowElevation = 8.dp
         ) {
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_round),
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
                 contentDescription = null,
                 modifier = Modifier.padding(22.dp)
             )

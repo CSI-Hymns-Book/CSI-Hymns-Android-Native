@@ -59,7 +59,7 @@ fun AboutAppScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = painterResource(id = R.mipmap.ic_launcher_round), // Defaulting to app icon
+                    painter = painterResource(id = R.drawable.ic_launcher_foreground),
                     contentDescription = "App Logo",
                     modifier = Modifier.size(100.dp)
                 )
