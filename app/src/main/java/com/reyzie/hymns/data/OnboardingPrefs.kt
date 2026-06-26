@@ -9,6 +9,8 @@ object OnboardingPrefs {
     const val PENDING_CHANGELOG_AFTER_ONBOARDING = "pending_changelog_after_onboarding"
     const val PENDING_MENU_SHOWCASE = "pending_menu_showcase"
     const val MENU_SHOWCASE_DONE = "menu_showcase_done"
+    const val APP_LAUNCH_COUNT = "app_launch_count"
+    const val NOTIFICATION_PROMPT_DONE = "notification_prompt_done"
     private const val LEGACY_IS_FIRST_RUN = "isFirstRun"
 
     fun migrateFromLegacy(context: Context) {
@@ -33,7 +35,28 @@ object OnboardingPrefs {
             .putBoolean(WELCOME_COMPLETED, true)
             .putInt(PRIVACY_ACCEPTED_LOCAL, privacyAccepted)
             .putBoolean(PENDING_CHANGELOG_AFTER_ONBOARDING, pendingChangelog)
-            .putBoolean(PENDING_MENU_SHOWCASE, true)
+            .putBoolean(PENDING_MENU_SHOWCASE, false)
+            .apply()
+    }
+
+    fun incrementLaunchCount(context: Context): Int {
+        val prefs = context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
+        val next = prefs.getInt(APP_LAUNCH_COUNT, 0) + 1
+        prefs.edit().putInt(APP_LAUNCH_COUNT, next).apply()
+        return next
+    }
+
+    fun getLaunchCount(context: Context): Int =
+        context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
+            .getInt(APP_LAUNCH_COUNT, 0)
+
+    fun isNotificationPromptDone(context: Context): Boolean =
+        context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
+            .getBoolean(NOTIFICATION_PROMPT_DONE, false)
+
+    fun markNotificationPromptDone(context: Context) {
+        context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE).edit()
+            .putBoolean(NOTIFICATION_PROMPT_DONE, true)
             .apply()
     }
 

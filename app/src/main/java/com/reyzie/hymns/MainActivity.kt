@@ -28,6 +28,7 @@ import com.reyzie.hymns.ui.viewmodels.ThemeMode
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
+import com.reyzie.hymns.data.OnboardingPrefs
 import io.github.jan.supabase.gotrue.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
@@ -39,7 +40,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         
         AnalyticsService.init(application)
-        requestNotificationPermissionIfNeeded()
+        if (savedInstanceState == null && OnboardingPrefs.isWelcomeCompleted(this)) {
+            OnboardingPrefs.incrementLaunchCount(this)
+        }
         
         // Initialize Supabase
         val supabase = SupabaseService.getInstance()
@@ -91,13 +94,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        maybeRequestNotificationPermissionOnSecondLaunch()
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         // Handle incoming deep links for OAuth redirects on existing activity
         SupabaseService.getInstance().client.handleDeeplinks(intent)
     }
 
-    private fun requestNotificationPermissionIfNeeded() {
+    private fun maybeRequestNotificationPermissionOnSecondLaunch() {
+        if (!OnboardingPrefs.isWelcomeCompleted(this)) return
+        if (OnboardingPrefs.isNotificationPromptDone(this)) return
+        val launchCount = OnboardingPrefs.getLaunchCount(this)
+        if (launchCount < 1) return
+
+        OnboardingPrefs.markNotificationPromptDone(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED

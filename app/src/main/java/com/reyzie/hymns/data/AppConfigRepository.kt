@@ -43,6 +43,8 @@ class AppConfigRepository(
     companion object {
         private const val PREF_CHRISTMAS_REMOTE = "is_christmas_time_remote"
         private const val PREF_MANUAL_CHRISTMAS_OVERRIDE = "manual_christmas_override"
+        /** Default accent — matches Theme.kt BaselineBlueSeed / Blue40 */
+        const val DEFAULT_THEME_COLOR = 0xFF0061A4.toInt()
     }
 
     suspend fun fetchRemoteConfig(): RemoteAppConfig {
@@ -73,9 +75,8 @@ class AppConfigRepository(
             castReceiverUrl = raw[AppConfigKeys.CAST_RECEIVER_URL]?.trim()?.takeIf { it.isNotEmpty() },
             pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE])
         ).also { config ->
-            config.isChristmasTime?.let { value ->
-                prefs?.edit()?.putBoolean(PREF_CHRISTMAS_REMOTE, value)?.apply()
-            }
+            // Always refresh cache from a successful fetch (including explicit false).
+            prefs?.edit()?.putBoolean(PREF_CHRISTMAS_REMOTE, config.isChristmasTime == true)?.apply()
             Log.d(
                 "AppConfigRepository",
                 "Loaded app_config: christmas=${config.isChristmasTime}, cast=${config.castEnabled}, pageFlipVisible=${config.pageFlipVisible}"
@@ -89,6 +90,10 @@ class AppConfigRepository(
 
     fun setManualChristmasOverride(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PREF_MANUAL_CHRISTMAS_OVERRIDE, enabled)?.apply()
+    }
+
+    fun clearManualChristmasOverride() {
+        prefs?.edit()?.remove(PREF_MANUAL_CHRISTMAS_OVERRIDE)?.apply()
     }
 
     fun cachedChristmasRemote(): Boolean? {

@@ -5,12 +5,19 @@ import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class AppConfigEntry(
     val id: Int? = null,
     val key: String,
-    val value: String? = null
+    /** Stored as jsonb in Postgres (bool, number, or string). */
+    val value: JsonElement? = null
 )
 
 class AppConfigService(
@@ -30,11 +37,21 @@ class AppConfigService(
                     }
                 }
                 .decodeList<AppConfigEntry>()
-            rows.associate { it.key to it.value }
+            rows.associate { it.key to configValueAsString(it.value) }
         } catch (e: Exception) {
             Log.e("AppConfigService", "Failed to fetch app_config", e)
             emptyMap()
         }
+    }
+
+    /** Normalize jsonb app_config values to strings for existing parsers. */
+    internal fun configValueAsString(element: JsonElement?): String? {
+        if (element == null) return null
+        val primitive = runCatching { element.jsonPrimitive }.getOrNull() ?: return element.toString()
+        if (primitive.isString) return primitive.content
+        primitive.booleanOrNull?.let { return if (it) "true" else "false" }
+        primitive.intOrNull?.let { return it.toString() }
+        return primitive.contentOrNull
     }
 
     suspend fun fetchBoolean(key: String): Boolean? {

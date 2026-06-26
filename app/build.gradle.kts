@@ -30,7 +30,7 @@ android {
         targetSdk = 36
         // Must be greater than the last Flutter Play Store upload (4.2.1-stable was 27).
         versionCode = 29
-        versionName = "5.0.0"
+        versionName = "5.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         

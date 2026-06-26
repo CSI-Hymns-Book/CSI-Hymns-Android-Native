@@ -16,6 +16,11 @@ object ExpressivePalettes {
             tertiary = Color(0xFF7D5260),
             tertiaryContainer = Color(0xFFFFD8E4)
         ),
+        0xFF0061A4.toInt() to pair(
+            seed = Color(0xFF0061A4),
+            tertiary = Color(0xFF2E7D32),
+            tertiaryContainer = Color(0xFFC8E6C9)
+        ),
         0xFFD32F2F.toInt() to pair(
             seed = Color(0xFFD32F2F),
             tertiary = Color(0xFFE65100),
@@ -129,15 +134,15 @@ object ExpressivePalettes {
         return PalettePair(
             light = lightBase.copy(
                 tertiary = tertiary,
-                onTertiary = Color.White,
+                onTertiary = tertiary.contentOn(),
                 tertiaryContainer = tertiaryContainer,
-                onTertiaryContainer = Color(0xFF1A1C1E)
+                onTertiaryContainer = tertiaryContainer.contentOn()
             ),
             dark = darkBase.copy(
                 tertiary = blendForDark(tertiary),
-                onTertiary = Color(0xFF1A1C1E),
+                onTertiary = blendForDark(tertiary).contentOn(),
                 tertiaryContainer = blendForDark(tertiaryContainer),
-                onTertiaryContainer = Color(0xFFE2E2E9)
+                onTertiaryContainer = blendForDark(tertiaryContainer).contentOn()
             )
         )
     }

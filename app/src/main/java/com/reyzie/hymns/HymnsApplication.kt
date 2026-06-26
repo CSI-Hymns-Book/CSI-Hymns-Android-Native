@@ -7,6 +7,8 @@ import com.onesignal.debug.LogLevel
 class HymnsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Privacy consent is collected in onboarding — suppress OneSignal's own prompt.
+        OneSignal.consentRequired = true
         if (BuildConfig.DEBUG) {
             OneSignal.Debug.logLevel = LogLevel.VERBOSE
         }

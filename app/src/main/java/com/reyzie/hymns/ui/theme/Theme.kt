@@ -96,7 +96,7 @@ internal fun generateSeedColorScheme(seedColor: Color, darkTheme: Boolean): Colo
         if (isLightSeed) blendColor(seedColor, Color.Black, 0.3f) else seedColor
     }
 
-    val onPrimary = if (primary.luminance() > 0.5f) Color(0xFF111318) else Color.White
+    val onPrimary = primary.contentOn()
     
     val primaryContainer = if (darkTheme) {
         blendColor(primary, Color.Black, 0.6f)
@@ -104,25 +104,21 @@ internal fun generateSeedColorScheme(seedColor: Color, darkTheme: Boolean): Colo
         blendColor(primary, Color.White, 0.85f)
     }
 
-    val onPrimaryContainer = if (darkTheme) {
-        Color(0xFFE2E2E9)
-    } else {
-        Color(0xFF111318)
-    }
+    val onPrimaryContainer = primaryContainer.contentOn()
 
     val secondary = if (darkTheme) {
         blendColor(primary, Color.White, 0.2f)
     } else {
         blendColor(primary, Color.Black, 0.2f)
     }
-    val onSecondary = if (secondary.luminance() > 0.5f) Color(0xFF111318) else Color.White
+    val onSecondary = secondary.contentOn()
     
     val secondaryContainer = if (darkTheme) {
         blendColor(secondary, Color.Black, 0.7f)
     } else {
         blendColor(secondary, Color.White, 0.8f)
     }
-    val onSecondaryContainer = if (secondaryContainer.luminance() > 0.5f) Color(0xFF111318) else Color.White
+    val onSecondaryContainer = secondaryContainer.contentOn()
 
     val background = if (darkTheme) Color(0xFF111318) else Color(0xFFF9F9FF)
     val onBackground = if (darkTheme) Color(0xFFE2E2E9) else Color(0xFF111318)

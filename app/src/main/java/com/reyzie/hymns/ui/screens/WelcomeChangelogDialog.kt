@@ -1,17 +1,7 @@
 package com.reyzie.hymns.ui.screens
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -29,19 +19,15 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -49,8 +35,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.reyzie.hymns.data.ChangelogEntryData
+import com.reyzie.hymns.ui.theme.contentOn
 import com.reyzie.hymns.utils.HapticFeedbackManager
-import kotlin.random.Random
 
 @Composable
 fun WelcomeChangelogDialog(
@@ -59,136 +45,140 @@ fun WelcomeChangelogDialog(
 ) {
     val context = LocalContext.current
     val scheme = MaterialTheme.colorScheme
-    val isDark = isSystemInDarkTheme()
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val maxDialogHeight = screenHeight * 0.82f
 
     Dialog(
         onDismissRequest = { },
-        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
     ) {
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.linearGradient(
-                        colors = if (isDark) {
-                            listOf(Color(0xFF1A1A2E), Color(0xFF16213E), Color(0xFF0F3460))
-                        } else {
-                            listOf(Color.White, Color(0xFFF5F7FA), Color(0xFFE8ECF1))
-                        }
-                    )
-                )
+                .fillMaxWidth(0.92f)
+                .heightIn(max = maxDialogHeight)
         ) {
-            ChangelogSparkleBackground(modifier = Modifier.matchParentSize())
-
-            Column(
+            Surface(
                 modifier = Modifier
-                    .padding(24.dp)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
+                    .height(maxHeight),
+                shape = RoundedCornerShape(28.dp),
+                color = scheme.surface,
+                tonalElevation = 6.dp
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = scheme.primaryContainer.copy(alpha = 0.65f),
-                        modifier = Modifier.size(64.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("🎉", fontSize = 32.sp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 22.dp, vertical = 20.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        val badgeBg = scheme.primaryContainer
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = badgeBg,
+                            modifier = Modifier.size(52.dp)
+                        ) {
+                            androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
+                                Text("🎉", fontSize = 26.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "What's new",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = scheme.onSurface
+                            )
+                            Text(
+                                text = "Version ${entry.version}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.onSurfaceVariant
+                            )
                         }
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = scheme.primaryContainer.copy(alpha = 0.45f)
+                    ) {
                         Text(
-                            text = "Welcome!",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = scheme.primary
+                            text = entry.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = scheme.primaryContainer.contentOn(),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = scheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Version ${entry.version}",
+                            text = entry.date,
                             style = MaterialTheme.typography.bodySmall,
                             color = scheme.onSurfaceVariant
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    color = scheme.primaryContainer.copy(alpha = 0.35f),
-                    border = BorderStroke(1.5.dp, scheme.primary.copy(alpha = 0.35f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("🎊", fontSize = 24.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = entry.title,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = scheme.onSurface
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = scheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = entry.date,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant
+                        text = "Changes",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = scheme.primary
                     )
-                }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                Text(
-                    text = "What's New:",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = scheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Column(modifier = Modifier.heightIn(max = 280.dp)) {
-                    entry.changes.take(12).forEach { change ->
-                        ChangelogChangeRow(change = change)
-                        Spacer(modifier = Modifier.height(10.dp))
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        entry.changes.forEach { change ->
+                            ChangelogChangeRow(change = change)
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = {
-                        HapticFeedbackManager.mediumClick(context)
-                        onDismiss()
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = scheme.primary,
-                        contentColor = scheme.onPrimary
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-                ) {
-                    Icon(Icons.Default.RocketLaunch, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Let's Go! 🎫", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                    Button(
+                        onClick = {
+                            HapticFeedbackManager.mediumClick(context)
+                            onDismiss()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = scheme.primary,
+                            contentColor = scheme.primary.contentOn()
+                        )
+                    ) {
+                        Icon(Icons.Default.RocketLaunch, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Let's Go", fontWeight = FontWeight.ExtraBold)
+                    }
                 }
             }
         }
@@ -200,18 +190,20 @@ private fun ChangelogChangeRow(change: String) {
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Start
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.Top
     ) {
         Text(
             text = emojiForChange(change),
-            fontSize = 20.sp,
-            modifier = Modifier.padding(top = 2.dp, end = 12.dp)
+            fontSize = 18.sp,
+            modifier = Modifier.padding(top = 1.dp, end = 10.dp)
         )
         Text(
             text = change,
             style = MaterialTheme.typography.bodyMedium,
             color = scheme.onSurface,
-            lineHeight = 22.sp
+            lineHeight = 22.sp,
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -229,34 +221,5 @@ private fun emojiForChange(change: String): String {
         "pdf" in lower || "document" in lower -> "📄"
         "search" in lower || "filter" in lower -> "🔍"
         else -> "•"
-    }
-}
-
-@Composable
-private fun ChangelogSparkleBackground(modifier: Modifier = Modifier) {
-    val transition = rememberInfiniteTransition(label = "sparkle")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "sparklePhase"
-    )
-    val dots = remember {
-        List(18) {
-            Triple(Random(42).nextFloat(), Random(43).nextFloat(), 2f + Random(44).nextFloat() * 3f)
-        }
-    }
-    Canvas(modifier = modifier) {
-        val alpha = 0.08f * (1f - kotlin.math.abs(phase - 0.5f) * 2f)
-        dots.forEach { (xR, yR, radius) ->
-            drawCircle(
-                color = Color.White.copy(alpha = alpha),
-                radius = radius,
-                center = Offset(xR * size.width, yR * size.height)
-            )
-        }
     }
 }

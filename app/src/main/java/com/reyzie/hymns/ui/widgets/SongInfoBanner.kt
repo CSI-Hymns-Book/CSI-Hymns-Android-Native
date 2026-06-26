@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.reyzie.hymns.ui.theme.contentOn
 
 @Composable
 fun SongInfoBanner(
@@ -66,6 +67,8 @@ fun SongInfoBanner(
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.width(52.dp)
             ) {
+                val numberBg = MaterialTheme.colorScheme.primary
+                val numberFg = numberBg.contentOn()
                 Column(
                     modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -77,7 +80,7 @@ fun SongInfoBanner(
                             fontWeight = FontWeight.ExtraBold,
                             lineHeight = 22.sp
                         ),
-                        color = MaterialTheme.colorScheme.onPrimary,
+                        color = numberFg,
                         textAlign = TextAlign.Center,
                         maxLines = 1
                     )
@@ -88,7 +91,7 @@ fun SongInfoBanner(
                             letterSpacing = 0.6.sp,
                             fontSize = 8.sp
                         ),
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.88f),
+                        color = numberFg.copy(alpha = 0.88f),
                         textAlign = TextAlign.Center
                     )
                 }

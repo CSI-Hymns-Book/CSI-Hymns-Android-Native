@@ -79,6 +79,7 @@ fun MainScreen(
     var showAboutApp by remember { mutableStateOf(false) }
     var showProfileEdit by remember { mutableStateOf(false) }
     var showMenuShowcase by remember { mutableStateOf(false) }
+    var homeSettled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         OnboardingPrefs.migrateFromLegacy(context)
@@ -108,6 +109,13 @@ fun MainScreen(
         return
     }
 
+    LaunchedEffect(showOnboarding) {
+        if (!showOnboarding) {
+            kotlinx.coroutines.delay(1400)
+            homeSettled = true
+        }
+    }
+
     LaunchedEffect(Unit) {
         settingsViewModel.refreshAppConfig()
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -118,30 +126,20 @@ fun MainScreen(
         if (decision.requiresUpdate) {
             forceUpdateDecision = decision
         }
-        var willShowChangelog = false
+    }
+
+    LaunchedEffect(homeSettled) {
+        if (!homeSettled) return@LaunchedEffect
         if (OnboardingPrefs.isPendingChangelogAfterOnboarding(context)) {
             changelogService.getLatestChangelog()?.let {
                 welcomeChangelogEntry = it
-                willShowChangelog = true
             }
             OnboardingPrefs.clearPendingChangelogAfterOnboarding(context)
             changelogService.markFirstLaunchHandled()
         } else if (changelogService.shouldShowChangelog()) {
             changelogService.getLatestChangelog()?.let {
                 welcomeChangelogEntry = it
-                willShowChangelog = true
             }
-        }
-        val acks = ticketAckService.getUnacknowledgedResolvedTickets()
-        if (acks.isNotEmpty()) {
-            resolvedTicketAcks = acks
-        }
-        if (
-            !willShowChangelog &&
-            OnboardingPrefs.isPendingMenuShowcase(context) &&
-            !OnboardingPrefs.isMenuShowcaseDone(context)
-        ) {
-            showMenuShowcase = true
         }
     }
 
@@ -151,11 +149,16 @@ fun MainScreen(
             onDismiss = {
                 changelogService.markChangelogAsShown()
                 welcomeChangelogEntry = null
-                if (OnboardingPrefs.isPendingMenuShowcase(context) && !OnboardingPrefs.isMenuShowcaseDone(context)) {
-                    showMenuShowcase = true
-                }
             }
         )
+    }
+
+    LaunchedEffect(homeSettled, welcomeChangelogEntry) {
+        if (!homeSettled || welcomeChangelogEntry != null) return@LaunchedEffect
+        val acks = ticketAckService.getUnacknowledgedResolvedTickets()
+        if (acks.isNotEmpty()) {
+            resolvedTicketAcks = acks
+        }
     }
 
     resolvedTicketAcks?.let { items ->

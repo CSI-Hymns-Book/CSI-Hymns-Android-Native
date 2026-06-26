@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.reyzie.hymns.ui.theme.contentOn
 import com.reyzie.hymns.ui.viewmodels.SettingsViewModel
 import com.reyzie.hymns.ui.viewmodels.ThemeMode
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
@@ -60,7 +61,7 @@ fun SettingsScreen(
     val context = LocalContext.current
 
     val themeColors = listOf(
-        0xFF6750A4, 0xFFD32F2F, 0xFFC62828, 0xFFE91E63, 0xFF9C27B0, 0xFF673AB7,
+        0xFF0061A4, 0xFF6750A4, 0xFFD32F2F, 0xFFC62828, 0xFFE91E63, 0xFF9C27B0, 0xFF673AB7,
         0xFF3F51B5, 0xFF2196F3, 0xFF03A9F4, 0xFF00BCD4, 0xFF009688, 0xFF4CAF50,
         0xFF8BC34A, 0xFFCDDC39, 0xFFFFEB3B, 0xFFFFC107, 0xFFFF9800, 0xFFFF5722,
         0xFF795548, 0xFF9E9E9E, 0xFF607D8B
@@ -165,13 +166,14 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 rowColors.forEach { color ->
+                                    val swatch = Color(color)
                                     val isSelected = themeColor == color.toInt()
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
                                             .aspectRatio(1f)
                                             .clip(MaterialTheme.shapes.medium)
-                                            .background(Color(color))
+                                            .background(swatch)
                                             .clickable {
                                                 HapticFeedbackManager.smoothClick(context)
                                                 viewModel.setThemeColor(color.toInt())
@@ -182,7 +184,7 @@ fun SettingsScreen(
                                             Icon(
                                                 Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = swatch.contentOn(),
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -212,7 +214,7 @@ fun SettingsScreen(
                 }
                 SettingsSwitchTile(
                     title = "Christmas Mode",
-                    subtitle = "Seasonal theme and carols",
+                    subtitle = "Seasonal Festive Theme",
                     icon = Icons.Default.AcUnit,
                     checked = isChristmasMode,
                     onCheckedChange = { viewModel.setChristmasMode(it) }
@@ -226,16 +228,17 @@ fun SettingsScreen(
                         title = user.email ?: "Logged In",
                         subtitle = "Profile synced",
                         leadingContent = { 
+                            val avatarBg = MaterialTheme.colorScheme.primaryContainer
                             Surface(
                                 modifier = Modifier.size(44.dp),
                                 shape = MaterialTheme.shapes.medium,
-                                color = MaterialTheme.colorScheme.primaryContainer
+                                color = avatarBg
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Text(
                                         text = user.email?.take(1)?.uppercase() ?: "U",
                                         style = MaterialTheme.typography.titleLarge,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        color = avatarBg.contentOn()
                                     )
                                 }
                             }
@@ -372,13 +375,14 @@ fun SettingsSwitchTile(
         headlineContent = { Text(title, fontWeight = FontWeight.Bold) },
         supportingContent = subtitle?.let { { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
         leadingContent = { 
+            val iconBg = MaterialTheme.colorScheme.primaryContainer
             Surface(
                 modifier = Modifier.size(44.dp),
                 shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.primaryContainer
+                color = iconBg
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp), tint = iconBg.contentOn())
                 }
             }
         },
@@ -409,11 +413,12 @@ fun SettingsActionTile(
     leadingContent: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null,
-    iconTint: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    iconTint: Color? = null,
     iconBackground: Color = MaterialTheme.colorScheme.primaryContainer,
     textColor: Color = MaterialTheme.colorScheme.onSurface
 ) {
     val context = LocalContext.current
+    val resolvedIconTint = iconTint ?: iconBackground.contentOn()
     val clickableModifier = if (onClick != null) {
         Modifier
             .clip(MaterialTheme.shapes.large)
@@ -440,7 +445,7 @@ fun SettingsActionTile(
                             imageVector = it, 
                             contentDescription = null, 
                             modifier = Modifier.size(22.dp), 
-                            tint = iconTint
+                            tint = resolvedIconTint
                         )
                     }
                 }
@@ -475,7 +480,7 @@ fun SettingsListTile(
     leadingContent: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
     trailingContent: @Composable (() -> Unit)? = null,
-    iconTint: Color = MaterialTheme.colorScheme.onPrimaryContainer,
+    iconTint: Color? = null,
     iconBackground: Color = MaterialTheme.colorScheme.primaryContainer,
     textColor: Color = MaterialTheme.colorScheme.onSurface
 ) = SettingsActionTile(title, subtitle, icon, leadingContent, onClick, trailingContent, iconTint, iconBackground, textColor)

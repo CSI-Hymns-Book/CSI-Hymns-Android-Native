@@ -2,6 +2,7 @@
 
 package com.reyzie.hymns.ui.widgets
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -43,6 +44,7 @@ import com.reyzie.hymns.utils.HapticFeedbackManager
  * Bottom tab bar styled like [Essentials](https://github.com/sameerasw/essentials):
  * vibrant primary toolbar with main tabs; Favorites sits in the FAB slot, separate from the bar.
  */
+@SuppressLint("ConfigurationScreenWidthHeight")
 @Composable
 fun HymnsFloatingToolbar(
     screens: List<Screen>,

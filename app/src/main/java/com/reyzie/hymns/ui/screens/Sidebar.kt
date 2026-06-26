@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.reyzie.hymns.ui.theme.contentOn
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -75,27 +76,29 @@ fun Sidebar(
                         shape = MaterialTheme.shapes.large,
                         color = MaterialTheme.colorScheme.primary
                     ) {
+                        val iconBg = MaterialTheme.colorScheme.primary
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Church,
                                 contentDescription = "App Icon",
-                                tint = MaterialTheme.colorScheme.onPrimary,
+                                tint = iconBg.contentOn(),
                                 modifier = Modifier.size(28.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column {
+                        val headerBg = MaterialTheme.colorScheme.primaryContainer
                         Text(
                             text = "CSI Hymns & Lyrics",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = headerBg.contentOn()
                         )
                         Text(
                             text = "Praise The Lord!",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                            color = headerBg.contentOn().copy(alpha = 0.8f)
                         )
                     }
                 }

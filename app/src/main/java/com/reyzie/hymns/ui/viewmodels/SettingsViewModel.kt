@@ -100,7 +100,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _isAmoledBlack = MutableStateFlow(prefs.getBoolean("amoled_black", false))
     val isAmoledBlack: StateFlow<Boolean> = _isAmoledBlack.asStateFlow()
 
-    private val _themeColor = MutableStateFlow(prefs.getInt("theme_color", 0xFF6750A4.toInt()))
+    private val _themeColor = MutableStateFlow(
+        prefs.getInt("theme_color", AppConfigRepository.DEFAULT_THEME_COLOR)
+    )
     val themeColor: StateFlow<Int> = _themeColor.asStateFlow()
 
     private val _isPageFlipEnabled = MutableStateFlow(prefs.getBoolean("page_flip", false))

@@ -48,6 +48,20 @@
 -keep class com.posthog.** { *; }
 -dontwarn com.posthog.**
 
+# AndroidX Startup + WorkManager + Room (OneSignal → work-runtime; R8 strips Room entities)
+-keep class androidx.startup.** { *; }
+-keep class androidx.work.** { *; }
+-keep class androidx.work.impl.** { *; }
+-keepclassmembers class androidx.work.** { *; }
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keepclassmembers class * {
+    @androidx.room.* <methods>;
+}
+-keep @androidx.room.Dao interface *
+-keep @androidx.room.Database class *
+-dontwarn androidx.room.paging.**
+
 # OkHttp / Ktor logging stubs
 -dontwarn okhttp3.**
 -dontwarn okio.**
