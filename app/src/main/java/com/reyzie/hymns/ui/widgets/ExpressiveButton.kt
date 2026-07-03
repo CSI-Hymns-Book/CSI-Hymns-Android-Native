@@ -25,11 +25,13 @@ import com.reyzie.hymns.utils.expressiveClick
 /**
  * Coordinated Expressive Action Button.
  * Derived entirely from semantic Material 3 tokens for adaptive accessibility.
+ * Supports both ImageVector (material icons) and Painter (custom vectors/drawables).
  */
 @Composable
 fun ExpressiveActionButton(
     onClick: () -> Unit,
     icon: ImageVector? = null,
+    iconPainter: androidx.compose.ui.graphics.painter.Painter? = null,
     label: String,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
@@ -104,6 +106,9 @@ fun ExpressiveActionButton(
         ) {
             if (icon != null) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+            } else if (iconPainter != null) {
+                Icon(iconPainter, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(6.dp))
             }
             Text(

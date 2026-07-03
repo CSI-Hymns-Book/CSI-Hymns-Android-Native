@@ -18,9 +18,16 @@ import com.reyzie.hymns.data.HymnsRepository
 import com.reyzie.hymns.data.Keerthane
 import com.reyzie.hymns.data.OccasionCategories
 import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
+import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.utils.HapticFeedbackManager
+import androidx.compose.material.icons.filled.FormatListNumbered
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,6 +40,7 @@ fun OccasionCategoryScreen(
     val context = LocalContext.current
     val repository = remember { HymnsRepository(context) }
     val occasion = remember(categoryName) { OccasionCategories.find(categoryName) }
+    val scope = rememberCoroutineScope()
 
     var loading by remember { mutableStateOf(true) }
     var hymns by remember { mutableStateOf<List<Hymn>>(emptyList()) }
@@ -131,43 +139,82 @@ fun OccasionCategoryScreen(
             else -> {
                 Column(Modifier.fillMaxSize().padding(padding)) {
                     if (tabCount > 1) {
-                        TabRow(selectedTabIndex = selectedTab) {
-                            if (showHymns) {
-                                Tab(
-                                    selected = selectedTab == 0,
-                                    onClick = { selectedTab = 0 },
-                                    text = { Text("Hymns") },
-                                )
-                            }
-                            if (showKeerthanes) {
-                                val index = if (showHymns) 1 else 0
-                                Tab(
-                                    selected = selectedTab == index,
-                                    onClick = { selectedTab = index },
-                                    text = { Text("Keerthanes") },
-                                )
-                            }
-                        }
-                    }
+                        val pagerState = rememberPagerState(pageCount = { 2 })
 
-                    val showingHymns = showHymns && (tabCount == 1 || selectedTab == 0)
-                    if (showingHymns) {
-                        LazyColumn(
-                            contentPadding = PaddingValues(bottom = 100.dp),
+                        StandardButtonGroup(
+                            buttonCount = 2,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
-                            items(hymns, key = { it.number }) { hymn ->
-                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                            Button(
+                                index = 0,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    scope.launch { pagerState.animateScrollToPage(0) }
+                                },
+                                icon = Icons.Default.FormatListNumbered,
+                                label = "Hymns",
+                                isSelected = pagerState.currentPage == 0
+                            )
+                            Button(
+                                index = 1,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    scope.launch { pagerState.animateScrollToPage(1) }
+                                },
+                                icon = Icons.Default.MusicNote,
+                                label = "Keerthanes",
+                                isSelected = pagerState.currentPage == 1
+                            )
+                        }
+
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.weight(1f).fillMaxWidth(),
+                            beyondViewportPageCount = 1
+                        ) { page ->
+                            if (page == 0) {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    items(hymns, key = { it.number }) { hymn ->
+                                        HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    items(keerthanes, key = { it.number }) { keerthane ->
+                                        KeerthaneListTile(
+                                            keerthane = keerthane,
+                                            onClick = { onKeerthaneClick(keerthane) }
+                                        )
+                                    }
+                                }
                             }
                         }
-                    } else if (showKeerthanes) {
+                    } else {
+                        // Direct rendering if only 1 tab type exists for this occasion category
+                        val showingHymns = showHymns
                         LazyColumn(
-                            contentPadding = PaddingValues(bottom = 100.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            items(keerthanes, key = { it.number }) { keerthane ->
-                                KeerthaneListTile(
-                                    keerthane = keerthane,
-                                    onClick = { onKeerthaneClick(keerthane) },
-                                )
+                            if (showingHymns) {
+                                items(hymns, key = { it.number }) { hymn ->
+                                    HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                }
+                            } else {
+                                items(keerthanes, key = { it.number }) { keerthane ->
+                                    KeerthaneListTile(
+                                        keerthane = keerthane,
+                                        onClick = { onKeerthaneClick(keerthane) }
+                                    )
+                                }
                             }
                         }
                     }

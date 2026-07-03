@@ -114,10 +114,11 @@ fun PraiseAppScreen(
                             contentColor = MaterialTheme.colorScheme.primary
                         )
                     ) {
-                        Text(
-                            text = "",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_apple),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Download on App Store", fontWeight = FontWeight.Bold, fontSize = 16.sp)

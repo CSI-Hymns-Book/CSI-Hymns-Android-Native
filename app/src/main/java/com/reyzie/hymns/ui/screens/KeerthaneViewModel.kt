@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
 
 class KeerthaneViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = HymnsRepository(application)
@@ -27,6 +28,9 @@ class KeerthaneViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _statusMessage = MutableStateFlow<String?>(null)
     val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
+
+    private val _syncState = MutableStateFlow<com.reyzie.hymns.ui.widgets.SyncState>(com.reyzie.hymns.ui.widgets.SyncState.Idle)
+    val syncState: StateFlow<com.reyzie.hymns.ui.widgets.SyncState> = _syncState.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -63,24 +67,30 @@ class KeerthaneViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private var syncJob: kotlinx.coroutines.Job? = null
+
     fun refreshKeerthanes() {
-        viewModelScope.launch {
-            val previous = _allKeerthanes.value
-            _isLoading.value = previous.isEmpty()
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
+            _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Loading
             val result = repository.fetchAndUpdateKeerthanes()
-            when {
-                result.data.isNotEmpty() -> {
+            if (result.errorMessage != null) {
+                _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Error(result.errorMessage)
+            } else {
+                _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Success
+                if (result.data.isNotEmpty()) {
                     _allKeerthanes.value = result.data
-                    _statusMessage.value = if (result.fromNetwork) {
-                        com.reyzie.hymns.data.ContentErrorMessages.REFRESH_SUCCESS
-                    } else null
                 }
-                previous.isNotEmpty() -> _allKeerthanes.value = previous
+                applySortAndFilter()
+                delay(1500)
+                _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Idle
             }
-            result.errorMessage?.let { _statusMessage.value = it }
-            applySortAndFilter()
-            _isLoading.value = false
         }
+    }
+
+    fun dismissSyncDialog() {
+        syncJob?.cancel()
+        _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Idle
     }
 
     fun onSearchQueryChanged(query: String) {

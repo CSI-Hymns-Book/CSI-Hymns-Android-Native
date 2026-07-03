@@ -307,9 +307,14 @@ fun SettingsScreen(
                     }
                 )
                 SettingsActionTile(
-                    title = "About & Changelog",
+                    title = "About App",
                     icon = Icons.Default.HelpCenter,
                     onClick = onAboutAppClick
+                )
+                SettingsActionTile(
+                    title = "Changelog",
+                    icon = Icons.Default.History,
+                    onClick = onChangelogClick
                 )
             }
             

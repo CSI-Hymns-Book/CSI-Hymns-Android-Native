@@ -38,6 +38,7 @@ import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
 import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.ui.widgets.JumpToMeterSheet
+import com.reyzie.hymns.ui.widgets.SyncStatusDialog
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 
@@ -56,6 +57,7 @@ fun HymnsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
+    val syncState by viewModel.syncState.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -243,6 +245,11 @@ fun HymnsScreen(
             onDismiss = { showJumpToMeter = false },
         )
     }
+
+    SyncStatusDialog(
+        syncState = syncState,
+        onDismiss = { viewModel.dismissSyncDialog() }
+    )
 }
 }
 

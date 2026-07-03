@@ -38,6 +38,7 @@ import com.reyzie.hymns.utils.HapticFeedbackManager
 import com.reyzie.hymns.data.OrderOfServiceRepository
 import com.reyzie.hymns.data.OrderPage
 import com.reyzie.hymns.data.ContentUpdateBus
+import com.reyzie.hymns.ui.widgets.ExpressiveActionButton
 import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -240,29 +241,28 @@ fun OrderOfServiceReaderScreen(
                             shape = RoundedCornerShape(28.dp)
                         )
                         Spacer(Modifier.height(16.dp))
-                        Button(
+                        ExpressiveActionButton(
                             onClick = {
                                 jumpInput.toIntOrNull()?.let { jumpToPageNumber(it) }
                             },
+                            label = "Go to page",
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(28.dp)
-                        ) {
-                            Text("Go to page", fontWeight = FontWeight.Bold)
-                        }
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
                         Spacer(Modifier.height(12.dp))
-                        FilledTonalButton(
+                        ExpressiveActionButton(
                             onClick = {
                                 HapticFeedbackManager.smoothClick(context)
                                 hasSelectedPage = true
                                 scope.launch { pagerState.scrollToPage(0) }
                             },
+                            icon = Icons.Default.MenuBook,
+                            label = "Open full book",
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(28.dp)
-                        ) {
-                            Icon(Icons.Default.MenuBook, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Open full book", fontWeight = FontWeight.Bold)
-                        }
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     }
                 }
                 else -> {

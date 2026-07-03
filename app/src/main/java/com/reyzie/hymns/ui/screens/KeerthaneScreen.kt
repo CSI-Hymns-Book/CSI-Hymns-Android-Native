@@ -31,6 +31,7 @@ import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
 import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
 import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
+import com.reyzie.hymns.ui.widgets.SyncStatusDialog
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
@@ -48,6 +49,7 @@ fun KeerthaneScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
+    val syncState by viewModel.syncState.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -175,6 +177,11 @@ fun KeerthaneScreen(
             }
         }
     }
+
+    SyncStatusDialog(
+        syncState = syncState,
+        onDismiss = { viewModel.dismissSyncDialog() }
+    )
 }
 
 @Composable
