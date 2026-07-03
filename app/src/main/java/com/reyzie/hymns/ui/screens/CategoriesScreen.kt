@@ -29,17 +29,23 @@ import com.reyzie.hymns.data.CustomCategoriesRepository
 import com.reyzie.hymns.data.CustomCategory
 import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
 import com.reyzie.hymns.utils.HapticFeedbackManager
+import com.reyzie.hymns.ui.viewmodels.AuthViewModel
+import io.github.jan.supabase.gotrue.SessionStatus
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriesScreen(
+    authViewModel: AuthViewModel = viewModel(),
     onSignInClick: () -> Unit,
     onCategoryClick: (Int, String) -> Unit,
     onRecentSongsClick: () -> Unit,
     onCommonCategoryClick: (String) -> Unit,
     onMenuClick: () -> Unit = {}
 ) {
+    val sessionStatus by authViewModel.sessionStatus.collectAsState()
+    val isAuthenticated = sessionStatus is SessionStatus.Authenticated
     val context = LocalContext.current
     val repository = remember { CustomCategoriesRepository(context) }
     val scope = rememberCoroutineScope()
@@ -168,7 +174,7 @@ fun CategoriesScreen(
                     if (category == "Sickness") {
                         item {
                             AddCategoryCard(
-                                enabled = guestRemaining > 0,
+                                enabled = isAuthenticated || guestRemaining > 0,
                                 onClick = {
                                     HapticFeedbackManager.smoothClick(context)
                                     showCreateDialog = true
@@ -178,7 +184,6 @@ fun CategoriesScreen(
                     }
                 }
                 
-                // Guest header
                 item(span = { GridItemSpan(2) }) {
                     Column(
                         modifier = Modifier
@@ -193,23 +198,25 @@ fun CategoriesScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Guest slots left: $guestRemaining/5",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            TextButton(onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                onSignInClick()
-                            }) {
-                                Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Sign in for more", style = MaterialTheme.typography.labelLarge)
+                        if (!isAuthenticated) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Guest slots left: $guestRemaining/5",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                TextButton(onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    onSignInClick()
+                                }) {
+                                    Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Sign in for more", style = MaterialTheme.typography.labelLarge)
+                                }
                             }
                         }
                     }

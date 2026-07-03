@@ -22,6 +22,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.reyzie.hymns.R
+import com.reyzie.hymns.ui.widgets.ExpressiveActionButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +40,7 @@ fun AboutAppScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("About This App") },
+                title = { Text("About This App", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -89,7 +90,11 @@ fun AboutAppScreen(
             HorizontalDivider()
             Spacer(modifier = Modifier.height(24.dp))
             
-            Column(modifier = Modifier.clickable { /* Could route to about developer */ }) {
+            Column(
+                modifier = Modifier.clickable { 
+                    launchUrl("https://t.me/Reynold29") 
+                }
+            ) {
                 Text(
                     text = "Developed By",
                     style = MaterialTheme.typography.titleMedium,
@@ -98,7 +103,9 @@ fun AboutAppScreen(
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = "Reynold (@Reynold29)",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
                 )
             }
             
@@ -118,14 +125,26 @@ fun AboutAppScreen(
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = { launchUrl("https://github.com/Reynold29/CSI-Hymns-and-Lyrics/") }) {
-                    Text("GitHub")
-                }
-                Button(onClick = { launchUrl("https://play.google.com/store/apps/details?id=com.reyzie.hymns") }) {
-                    Text("PlayStore")
-                }
+                ExpressiveActionButton(
+                    onClick = { launchUrl("https://github.com/Reynold29/CSI-Hymns-and-Lyrics/") },
+                    iconPainter = painterResource(id = R.drawable.ic_github),
+                    label = "GitHub",
+                    modifier = Modifier.weight(1f)
+                )
+                ExpressiveActionButton(
+                    onClick = { launchUrl("https://play.google.com/store/apps/details?id=com.reyzie.hymns") },
+                    iconPainter = painterResource(id = R.drawable.ic_googleplay),
+                    label = "PlayStore",
+                    modifier = Modifier.weight(1f)
+                )
+                ExpressiveActionButton(
+                    onClick = { launchUrl("https://apps.apple.com/in/app/worship-companion/id6759990066") },
+                    iconPainter = painterResource(id = R.drawable.ic_apple),
+                    label = "App Store",
+                    modifier = Modifier.weight(1f)
+                )
             }
             
             Spacer(modifier = Modifier.height(32.dp))
@@ -146,16 +165,20 @@ fun AboutAppScreen(
             
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Button(onClick = { launchUrl("https://t.me/Reynold29") }) {
-                    Text("Telegram")
-                }
-                Button(onClick = onPrivacyPolicyClick) {
-                    Icon(Icons.Default.Policy, contentDescription = null)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Privacy Policy")
-                }
+                ExpressiveActionButton(
+                    onClick = { launchUrl("https://t.me/Reynold29") },
+                    iconPainter = painterResource(id = R.drawable.ic_telegram),
+                    label = "Telegram",
+                    modifier = Modifier.weight(1f)
+                )
+                ExpressiveActionButton(
+                    onClick = onPrivacyPolicyClick,
+                    icon = Icons.Default.Policy,
+                    label = "Privacy Policy",
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

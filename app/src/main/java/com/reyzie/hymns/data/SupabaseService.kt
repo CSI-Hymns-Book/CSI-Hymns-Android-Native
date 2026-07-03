@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 @Serializable
 private data class FavoriteRow(
@@ -133,10 +135,10 @@ class SupabaseService private constructor() {
         val user = currentUser ?: return@withContext
         try {
             client.from("users").upsert(
-                mapOf(
-                    "auth_uid" to user.id,
-                    "full_name" to fullName
-                )
+                buildJsonObject {
+                    put("auth_uid", user.id)
+                    put("full_name", fullName)
+                }
             )
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error upserting profile", e)
@@ -165,10 +167,10 @@ class SupabaseService private constructor() {
         val clamped = if (value == 0) 0 else 1
         try {
             client.from("users").upsert(
-                mapOf(
-                    "auth_uid" to user.id,
-                    "privacy_policy_accepted" to clamped
-                )
+                buildJsonObject {
+                    put("auth_uid", user.id)
+                    put("privacy_policy_accepted", clamped)
+                }
             )
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error setting privacy policy in profile", e)
@@ -198,11 +200,11 @@ class SupabaseService private constructor() {
         val user = currentUser ?: return@withContext
         try {
             client.from("favorites").insert(
-                mapOf(
-                    "user_id" to user.id,
-                    "item_number" to itemNumber,
-                    "item_type" to itemType
-                )
+                buildJsonObject {
+                    put("user_id", user.id)
+                    put("item_number", itemNumber)
+                    put("item_type", itemType)
+                }
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -255,10 +257,10 @@ class SupabaseService private constructor() {
         val user = currentUser ?: return@withContext null
         try {
             val response = client.from("custom_categories").insert(
-                mapOf(
-                    "user_id" to user.id,
-                    "name" to name
-                )
+                buildJsonObject {
+                    put("user_id", user.id)
+                    put("name", name)
+                }
             ) {
                 select()
             }.decodeSingle<Map<String, Any>>()
@@ -314,12 +316,12 @@ class SupabaseService private constructor() {
         val user = currentUser ?: return@withContext
         try {
             client.from("custom_category_songs").insert(
-                mapOf(
-                    "category_id" to categoryId,
-                    "user_id" to user.id,
-                    "song_id" to songId,
-                    "song_type" to songType
-                )
+                buildJsonObject {
+                    put("category_id", categoryId)
+                    put("user_id", user.id)
+                    put("song_id", songId)
+                    put("song_type", songType)
+                }
             )
         } catch (e: Exception) {
             e.printStackTrace()
@@ -354,19 +356,21 @@ class SupabaseService private constructor() {
         deviceId: String? = null
     ) = withContext(Dispatchers.IO) {
         try {
-            val payload = mutableMapOf<String, Any?>(
-                "ticket_key" to ticketKey,
-                "ticket_url" to ticketUrl,
-                "song_type" to songType,
-                "song_number" to songNumber,
-                "song_title" to songTitle,
-                "description" to description,
-                "app_version" to appVersion
-            )
-            if (userId != null) {
-                payload["user_id"] = userId
-            } else if (deviceId != null) {
-                payload["device_id"] = deviceId
+            val payload = buildJsonObject {
+                put("ticket_key", ticketKey)
+                put("ticket_url", ticketUrl)
+                put("song_type", songType)
+                put("song_number", songNumber)
+                put("song_title", songTitle)
+                if (description != null) {
+                    put("description", description)
+                }
+                put("app_version", appVersion)
+                if (userId != null) {
+                    put("user_id", userId)
+                } else if (deviceId != null) {
+                    put("device_id", deviceId)
+                }
             }
             client.from("jira_tickets").insert(payload)
         } catch (e: Exception) {
@@ -380,11 +384,13 @@ class SupabaseService private constructor() {
         statusId: String?
     ) = withContext(Dispatchers.IO) {
         try {
-            val update = mutableMapOf<String, Any?>(
-                "jira_status" to statusName,
-                "updated_at" to java.time.Instant.now().toString()
-            )
-            if (statusId != null) update["jira_status_id"] = statusId
+            val update = buildJsonObject {
+                put("jira_status", statusName)
+                put("updated_at", java.time.Instant.now().toString())
+                if (statusId != null) {
+                    put("jira_status_id", statusId)
+                }
+            }
             client.from("jira_tickets").update(update) {
                 filter { eq("ticket_key", ticketKey) }
             }

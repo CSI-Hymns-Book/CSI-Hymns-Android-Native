@@ -453,40 +453,51 @@ fun ExpressiveAudioPlayer(
         shadowElevation = 2.dp
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
-                        text = "Now playing",
+                        text = if (audioState.isKeerthane) "Keerthane ${audioState.currentSongNumber}" else "Hymn ${audioState.currentSongNumber}",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = audioState.currentSongTitle ?: "",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                         maxLines = 1
                     )
                     Text(
-                        text = if (audioState.isKeerthane) "Keerthane ${audioState.currentSongNumber}" else "Hymn ${audioState.currentSongNumber}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "•",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                    Text(
+                        text = audioState.currentSongTitle ?: "",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                IconButton(onClick = {
-                    HapticFeedbackManager.smoothClick(context)
-                    audioViewModel.toggleVisibility()
-                }) {
+                IconButton(
+                    onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        audioViewModel.toggleVisibility()
+                    },
+                    modifier = Modifier.size(36.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close Player",
-                        tint = MaterialTheme.colorScheme.onSurface
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -495,25 +506,25 @@ fun ExpressiveAudioPlayer(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .padding(vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    ExpressiveCircularProgress(size = 56.dp)
+                    ExpressiveCircularProgress(size = 40.dp)
                 }
             }
 
             audioState.error?.let { errorText ->
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = errorText,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Interactive Squiggly Slider
             var isScrubbing by remember { mutableStateOf(false) }
@@ -568,7 +579,7 @@ fun ExpressiveAudioPlayer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             var controlsBarWidth by remember { mutableIntStateOf(0) }
             val density = LocalDensity.current
@@ -623,8 +634,8 @@ fun ExpressiveAudioPlayer(
                         showLabelWhenUnselected = false,
                         alwaysCircle = true,
                         compact = true,
-                        compactSize = 56.dp,
-                        iconSize = 28.dp,
+                        compactSize = 48.dp,
+                        iconSize = 24.dp,
                         variant = GroupButtonVariant.Filled
                     )
                     Button(

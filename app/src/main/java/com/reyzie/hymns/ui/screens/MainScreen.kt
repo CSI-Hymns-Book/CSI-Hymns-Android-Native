@@ -61,6 +61,7 @@ fun MainScreen(
     var selectedCategory by remember { mutableStateOf<Pair<Int, String>?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var pickSongsForCategory by remember { mutableStateOf<Pair<Int, String>?>(null) }
+    var categoryRefreshTrigger by remember { mutableStateOf(0) }
     
     val context = LocalContext.current
     val hymnsRepo = remember { com.reyzie.hymns.data.HymnsRepository(context) }
@@ -390,36 +391,7 @@ fun MainScreen(
                 }
             }
 
-            ExpressiveOverlayScreen(
-                item = selectedHymn,
-                onDismiss = { selectedHymn = null }
-            ) { hymn ->
-                HymnDetailScreen(
-                    hymn = hymn,
-                    isKeerthane = false,
-                    favoritesViewModel = favoritesViewModel,
-                    onBackClick = { selectedHymn = null }
-                )
-            }
 
-            ExpressiveOverlayScreen(
-                item = selectedKeerthane,
-                onDismiss = { selectedKeerthane = null }
-            ) { keerthane ->
-                val convertedHymn = Hymn(
-                    number = keerthane.number,
-                    title = keerthane.title,
-                    signature = keerthane.signature,
-                    lyrics = keerthane.lyrics,
-                    kannadaLyrics = keerthane.kannadaLyrics
-                )
-                HymnDetailScreen(
-                    hymn = convertedHymn,
-                    isKeerthane = true,
-                    favoritesViewModel = favoritesViewModel,
-                    onBackClick = { selectedKeerthane = null }
-                )
-            }
 
             ExpressiveOverlayScreen(
                 item = selectedReaderType,
@@ -592,11 +564,9 @@ fun MainScreen(
                         categoryName = categoryName,
                         onBackClick = { selectedCommonCategory = null },
                         onHymnClick = { hymn ->
-                            selectedCommonCategory = null
                             selectedHymn = hymn
                         },
                         onKeerthaneClick = { keerthane ->
-                            selectedCommonCategory = null
                             selectedKeerthane = keerthane
                         },
                     )
@@ -610,8 +580,15 @@ fun MainScreen(
                 CategoryDetailScreen(
                     categoryId = category.first,
                     categoryName = category.second,
+                    refreshTrigger = categoryRefreshTrigger,
                     onBackClick = { selectedCategory = null },
-                    onAddSongsClick = { pickSongsForCategory = selectedCategory }
+                    onAddSongsClick = { pickSongsForCategory = selectedCategory },
+                    onHymnClick = { hymn ->
+                        selectedHymn = hymn
+                    },
+                    onKeerthaneClick = { keerthane ->
+                        selectedKeerthane = keerthane
+                    }
                 )
             }
 
@@ -622,10 +599,42 @@ fun MainScreen(
                 CategorySongPickerScreen(
                     categoryId = category.first,
                     categoryName = category.second,
-                    onBackClick = { pickSongsForCategory = null }
+                    onBackClick = { 
+                        pickSongsForCategory = null 
+                        categoryRefreshTrigger++
+                    }
+                )
+            }
+            ExpressiveOverlayScreen(
+                item = selectedHymn,
+                onDismiss = { selectedHymn = null }
+            ) { hymn ->
+                HymnDetailScreen(
+                    hymn = hymn,
+                    isKeerthane = false,
+                    favoritesViewModel = favoritesViewModel,
+                    onBackClick = { selectedHymn = null }
                 )
             }
 
+            ExpressiveOverlayScreen(
+                item = selectedKeerthane,
+                onDismiss = { selectedKeerthane = null }
+            ) { keerthane ->
+                val convertedHymn = Hymn(
+                    number = keerthane.number,
+                    title = keerthane.title,
+                    signature = keerthane.signature,
+                    lyrics = keerthane.lyrics,
+                    kannadaLyrics = keerthane.kannadaLyrics
+                )
+                HymnDetailScreen(
+                    hymn = convertedHymn,
+                    isKeerthane = true,
+                    favoritesViewModel = favoritesViewModel,
+                    onBackClick = { selectedKeerthane = null }
+                )
+            }
             if (showMenuShowcase) {
                 MenuShowcaseOverlay(
                     onDismiss = {

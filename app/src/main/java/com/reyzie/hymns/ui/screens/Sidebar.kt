@@ -8,7 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -79,7 +81,7 @@ fun Sidebar(
                         val iconBg = MaterialTheme.colorScheme.primary
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                imageVector = Icons.Default.Church,
+                                imageVector = Icons.Outlined.Church,
                                 contentDescription = "App Icon",
                                 tint = iconBg.contentOn(),
                                 modifier = Modifier.size(28.dp)
@@ -108,7 +110,7 @@ fun Sidebar(
             SidebarListBlock {
                 if (!isLoggedIn) {
                     SidebarDrawerItem(
-                        icon = Icons.AutoMirrored.Filled.Login,
+                        icon = Icons.AutoMirrored.Outlined.Login,
                         label = "Login / Sign up",
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
@@ -118,7 +120,7 @@ fun Sidebar(
                     )
                 } else {
                     SidebarDrawerItem(
-                        icon = Icons.Default.AccountCircle,
+                        icon = Icons.Outlined.AccountCircle,
                         label = resolvedName,
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
@@ -131,7 +133,7 @@ fun Sidebar(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                     )
                     SidebarDrawerItem(
-                        icon = Icons.Default.Edit,
+                        icon = Icons.Outlined.Edit,
                         label = "Edit profile",
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
@@ -145,7 +147,7 @@ fun Sidebar(
             SidebarSectionLabel("Explore")
             SidebarListBlock {
                 SidebarDrawerItem(
-                    icon = Icons.Default.Storefront,
+                    icon = Icons.Outlined.Storefront,
                     label = "Praise and Worship App",
                     onClick = {
                         HapticFeedbackManager.smoothClick(context)
@@ -158,7 +160,7 @@ fun Sidebar(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                 )
                 SidebarDrawerItem(
-                    icon = Icons.Default.GridView,
+                    icon = Icons.Outlined.GridView,
                     label = "Categories",
                     onClick = {
                         HapticFeedbackManager.smoothClick(context)
@@ -171,7 +173,7 @@ fun Sidebar(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                 )
                 SidebarDrawerItem(
-                    icon = Icons.Default.ConfirmationNumber,
+                    icon = Icons.Outlined.ConfirmationNumber,
                     label = "Tickets Submitted",
                     onClick = {
                         HapticFeedbackManager.smoothClick(context)
@@ -191,7 +193,7 @@ fun Sidebar(
             SidebarSectionLabel("More")
             SidebarListBlock {
                 SidebarDrawerItem(
-                    icon = Icons.Default.Settings,
+                    icon = Icons.Outlined.Settings,
                     label = "Settings",
                     onClick = {
                         HapticFeedbackManager.smoothClick(context)
@@ -204,7 +206,7 @@ fun Sidebar(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                 )
                 SidebarDrawerItem(
-                    icon = Icons.Default.Person,
+                    icon = Icons.Outlined.Person,
                     label = "About Developer",
                     onClick = {
                         HapticFeedbackManager.smoothClick(context)
