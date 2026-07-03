@@ -53,16 +53,22 @@ object InAppUpdateManager {
         try {
             val appUpdateManager = AppUpdateManagerFactory.create(activity)
             val info = appUpdateManager.requestAppUpdateInfo()
-            if (
-                info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
-                info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
-            ) {
-                appUpdateManager.startUpdateFlowForResult(
-                    info,
-                    activity,
-                    AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
-                    UPDATE_REQUEST_CODE,
-                )
+            if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE) {
+                if (info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
+                    appUpdateManager.startUpdateFlowForResult(
+                        info,
+                        activity,
+                        AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
+                        UPDATE_REQUEST_CODE,
+                    )
+                } else if (info.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                    appUpdateManager.startUpdateFlowForResult(
+                        info,
+                        activity,
+                        AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build(),
+                        UPDATE_REQUEST_CODE,
+                    )
+                }
             }
         } catch (e: Exception) {
             Log.d(TAG, "Silent update check skipped: ${e.message}")
