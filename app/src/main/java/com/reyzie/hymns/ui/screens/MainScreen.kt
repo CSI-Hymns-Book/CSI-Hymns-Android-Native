@@ -40,7 +40,103 @@ import com.reyzie.hymns.ui.motion.expressiveBackExit
 import com.reyzie.hymns.ui.motion.expressiveForwardEnter
 import com.reyzie.hymns.ui.motion.expressiveForwardExit
 import com.reyzie.hymns.ui.motion.expressivePagerPage
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.Saver
 import kotlinx.coroutines.launch
+
+private val HymnSaver = Saver<Hymn?, String>(
+    save = { hymn ->
+        if (hymn == null) "" else {
+            val json = org.json.JSONObject()
+            json.put("number", hymn.number)
+            json.put("title", hymn.title)
+            json.put("signature", hymn.signature)
+            json.put("lyrics", hymn.lyrics)
+            json.put("kannadaLyrics", hymn.kannadaLyrics ?: "")
+            json.toString()
+        }
+    },
+    restore = { value ->
+        if (value.isEmpty()) null else {
+            val json = org.json.JSONObject(value)
+            Hymn(
+                number = json.getInt("number"),
+                title = json.getString("title"),
+                signature = json.getString("signature"),
+                lyrics = json.getString("lyrics"),
+                kannadaLyrics = json.optString("kannadaLyrics").takeIf { it.isNotEmpty() }
+            )
+        }
+    }
+)
+
+private val KeerthaneSaver = Saver<Keerthane?, String>(
+    save = { keerthane ->
+        if (keerthane == null) "" else {
+            val json = org.json.JSONObject()
+            json.put("number", keerthane.number)
+            json.put("title", keerthane.title)
+            json.put("signature", keerthane.signature)
+            json.put("lyrics", keerthane.lyrics)
+            json.put("kannadaLyrics", keerthane.kannadaLyrics ?: "")
+            json.toString()
+        }
+    },
+    restore = { value ->
+        if (value.isEmpty()) null else {
+            val json = org.json.JSONObject(value)
+            Keerthane(
+                number = json.getInt("number"),
+                title = json.getString("title"),
+                signature = json.getString("signature"),
+                lyrics = json.getString("lyrics"),
+                kannadaLyrics = json.optString("kannadaLyrics").takeIf { it.isNotEmpty() }
+            )
+        }
+    }
+)
+
+private val PairSaver = Saver<Pair<Int, String>?, String>(
+    save = { pair ->
+        if (pair == null) "" else "${pair.first}|${pair.second}"
+    },
+    restore = { value ->
+        if (value.isEmpty()) null else {
+            val parts = value.split("|", limit = 2)
+            Pair(parts[0].toInt(), parts[1])
+        }
+    }
+)
+
+private val ChangelogEntrySaver = Saver<com.reyzie.hymns.data.ChangelogEntryData?, String>(
+    save = { entry ->
+        if (entry == null) "" else {
+            val json = org.json.JSONObject()
+            json.put("title", entry.title)
+            json.put("version", entry.version)
+            json.put("date", entry.date)
+            val changesArray = org.json.JSONArray(entry.changes)
+            json.put("changes", changesArray)
+            json.toString()
+        }
+    },
+    restore = { value ->
+        if (value.isEmpty()) null else {
+            val json = org.json.JSONObject(value)
+            val changesArray = json.getJSONArray("changes")
+            val changesList = mutableListOf<String>()
+            for (i in 0 until changesArray.length()) {
+                changesList.add(changesArray.getString(i))
+            }
+            com.reyzie.hymns.data.ChangelogEntryData(
+                title = json.getString("title"),
+                version = json.getString("version"),
+                date = json.getString("date"),
+                changes = changesList
+            )
+        }
+    }
+)
 
 @Composable
 fun MainScreen(
@@ -55,40 +151,40 @@ fun MainScreen(
     val navScreens = if (isChristmasMode) christmasNavScreens else mainNavScreens
     val favoritesPageIndex = activeScreens.indexOf(Screen.Favorites)
     
-    var selectedHymn by remember { mutableStateOf<Hymn?>(null) }
-    var selectedKeerthane by remember { mutableStateOf<Keerthane?>(null) }
-    var selectedReaderType by remember { mutableStateOf<String?>(null) }
-    var selectedCategory by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var showSettings by remember { mutableStateOf(false) }
-    var pickSongsForCategory by remember { mutableStateOf<Pair<Int, String>?>(null) }
-    var categoryRefreshTrigger by remember { mutableStateOf(0) }
+    var selectedHymn by rememberSaveable(stateSaver = HymnSaver) { mutableStateOf<Hymn?>(null) }
+    var selectedKeerthane by rememberSaveable(stateSaver = KeerthaneSaver) { mutableStateOf<Keerthane?>(null) }
+    var selectedReaderType by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedCategory by rememberSaveable(stateSaver = PairSaver) { mutableStateOf<Pair<Int, String>?>(null) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var pickSongsForCategory by rememberSaveable(stateSaver = PairSaver) { mutableStateOf<Pair<Int, String>?>(null) }
+    var categoryRefreshTrigger by rememberSaveable { mutableStateOf(0) }
     
     val context = LocalContext.current
     val hymnsRepo = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     val keerthaneRepo = hymnsRepo
     
-    var showPraiseApp by remember { mutableStateOf(false) }
-    var showTickets by remember { mutableStateOf(false) }
-    var showAboutDeveloper by remember { mutableStateOf(false) }
-    var showRecentSongs by remember { mutableStateOf(false) }
-    var showChristmasCarols by remember { mutableStateOf(false) }
-    var showHymnsFromChristmas by remember { mutableStateOf(false) }
-    var showKeerthanesFromChristmas by remember { mutableStateOf(false) }
-    var selectedCommonCategory by remember { mutableStateOf<String?>(null) }
-    var showPrivacyPolicy by remember { mutableStateOf(false) }
-    var showChangelog by remember { mutableStateOf(false) }
-    var showAboutApp by remember { mutableStateOf(false) }
-    var showProfileEdit by remember { mutableStateOf(false) }
-    var showMenuShowcase by remember { mutableStateOf(false) }
-    var homeSettled by remember { mutableStateOf(false) }
+    var showPraiseApp by rememberSaveable { mutableStateOf(false) }
+    var showTickets by rememberSaveable { mutableStateOf(false) }
+    var showAboutDeveloper by rememberSaveable { mutableStateOf(false) }
+    var showRecentSongs by rememberSaveable { mutableStateOf(false) }
+    var showChristmasCarols by rememberSaveable { mutableStateOf(false) }
+    var showHymnsFromChristmas by rememberSaveable { mutableStateOf(false) }
+    var showKeerthanesFromChristmas by rememberSaveable { mutableStateOf(false) }
+    var selectedCommonCategory by rememberSaveable { mutableStateOf<String?>(null) }
+    var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
+    var showChangelog by rememberSaveable { mutableStateOf(false) }
+    var showAboutApp by rememberSaveable { mutableStateOf(false) }
+    var showProfileEdit by rememberSaveable { mutableStateOf(false) }
+    var showMenuShowcase by rememberSaveable { mutableStateOf(false) }
+    var homeSettled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         OnboardingPrefs.migrateFromLegacy(context)
     }
-    var showOnboarding by remember {
+    var showOnboarding by rememberSaveable {
         mutableStateOf(!OnboardingPrefs.isWelcomeCompleted(context))
     }
-    var welcomeChangelogEntry by remember { mutableStateOf<com.reyzie.hymns.data.ChangelogEntryData?>(null) }
+    var welcomeChangelogEntry by rememberSaveable(stateSaver = ChangelogEntrySaver) { mutableStateOf<com.reyzie.hymns.data.ChangelogEntryData?>(null) }
     var resolvedTicketAcks by remember { mutableStateOf<List<com.reyzie.hymns.data.ResolvedTicketAckItem>?>(null) }
     val changelogService = remember { ChangelogService(context) }
     val ticketAckService = remember { TicketAcknowledgementService(context) }
@@ -330,6 +426,7 @@ fun MainScreen(
             // --- Essentials-style vibrant floating toolbar ---
             if (currentRoute != Screen.Auth.route) {
                 val navScrim = MaterialTheme.colorScheme.background
+                val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.BottomCenter
@@ -337,7 +434,7 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(120.dp)
+                            .height(if (isLandscape) 76.dp else 120.dp)
                             .align(Alignment.BottomCenter)
                             .background(
                                 Brush.verticalGradient(
@@ -513,13 +610,20 @@ fun MainScreen(
                     )
                     ExpressiveOverlayScreen(
                         item = selectedHymn,
-                        onDismiss = { selectedHymn = null }
+                        onDismiss = { 
+                            selectedHymn = null
+                            audioViewModel.stopAndReset()
+                        }
                     ) { hymn ->
                         HymnDetailScreen(
                             hymn = hymn,
                             isKeerthane = false,
                             favoritesViewModel = favoritesViewModel,
-                            onBackClick = { selectedHymn = null }
+                            audioViewModel = audioViewModel,
+                            onBackClick = { 
+                                selectedHymn = null
+                                audioViewModel.stopAndReset()
+                            }
                         )
                     }
                 }
@@ -536,7 +640,10 @@ fun MainScreen(
                     )
                     ExpressiveOverlayScreen(
                         item = selectedKeerthane,
-                        onDismiss = { selectedKeerthane = null }
+                        onDismiss = { 
+                            selectedKeerthane = null
+                            audioViewModel.stopAndReset()
+                        }
                     ) { keerthane ->
                         val convertedHymn = Hymn(
                             number = keerthane.number,
@@ -549,7 +656,11 @@ fun MainScreen(
                             hymn = convertedHymn,
                             isKeerthane = true,
                             favoritesViewModel = favoritesViewModel,
-                            onBackClick = { selectedKeerthane = null }
+                            audioViewModel = audioViewModel,
+                            onBackClick = { 
+                                selectedKeerthane = null
+                                audioViewModel.stopAndReset()
+                            }
                         )
                     }
                 }
@@ -607,19 +718,29 @@ fun MainScreen(
             }
             ExpressiveOverlayScreen(
                 item = selectedHymn,
-                onDismiss = { selectedHymn = null }
+                onDismiss = { 
+                    selectedHymn = null
+                    audioViewModel.stopAndReset()
+                }
             ) { hymn ->
                 HymnDetailScreen(
                     hymn = hymn,
                     isKeerthane = false,
                     favoritesViewModel = favoritesViewModel,
-                    onBackClick = { selectedHymn = null }
+                    audioViewModel = audioViewModel,
+                    onBackClick = { 
+                        selectedHymn = null
+                        audioViewModel.stopAndReset()
+                    }
                 )
             }
 
             ExpressiveOverlayScreen(
                 item = selectedKeerthane,
-                onDismiss = { selectedKeerthane = null }
+                onDismiss = { 
+                    selectedKeerthane = null
+                    audioViewModel.stopAndReset()
+                }
             ) { keerthane ->
                 val convertedHymn = Hymn(
                     number = keerthane.number,
@@ -632,7 +753,11 @@ fun MainScreen(
                     hymn = convertedHymn,
                     isKeerthane = true,
                     favoritesViewModel = favoritesViewModel,
-                    onBackClick = { selectedKeerthane = null }
+                    audioViewModel = audioViewModel,
+                    onBackClick = { 
+                        selectedKeerthane = null
+                        audioViewModel.stopAndReset()
+                    }
                 )
             }
             if (showMenuShowcase) {

@@ -1,16 +1,7 @@
 package com.reyzie.hymns.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
@@ -59,20 +50,31 @@ fun FavoritesScreen(
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { 2 })
 
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            ExpressiveScreenTopBar(
-                title = "My Favorites",
-                onMenuClick = onMenuClick
-            )
+            if (!isLandscape) {
+                ExpressiveScreenTopBar(
+                    title = "My Favorites",
+                    onMenuClick = onMenuClick
+                )
+            }
         }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+            ) {
             StandardButtonGroup(
                 buttonCount = 2,
                 modifier = Modifier
@@ -120,7 +122,7 @@ fun FavoritesScreen(
                                 start = 16.dp,
                                 end = 16.dp,
                                 top = 12.dp,
-                                bottom = 100.dp
+                                bottom = if (isLandscape) 60.dp else 100.dp
                             )
                         ) {
                             items(favoriteHymns, key = { "hymn-${it.number}" }) { hymn ->
@@ -139,7 +141,7 @@ fun FavoritesScreen(
                                 start = 16.dp,
                                 end = 16.dp,
                                 top = 12.dp,
-                                bottom = 100.dp
+                                bottom = if (isLandscape) 60.dp else 100.dp
                             )
                         ) {
                             items(favoriteKeerthanes, key = { "k-${it.number}" }) { keerthane ->
@@ -154,6 +156,7 @@ fun FavoritesScreen(
             }
         }
     }
+}
 }
 
 @Composable

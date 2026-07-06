@@ -60,118 +60,222 @@ fun KeerthaneScreen(
         }
     }
 
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            ExpressiveScreenTopBar(
-                title = "CSI Kannada Keerthanes",
-                onMenuClick = onMenuClick
-            )
+            if (!isLandscape) {
+                ExpressiveScreenTopBar(
+                    title = "CSI Kannada Keerthanes",
+                    onMenuClick = onMenuClick
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // Modern Search Bar
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(28.dp),
+            Column(
                 modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 640.dp)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.onSearchQueryChanged(it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Search number, title, meter…", style = MaterialTheme.typography.bodyMedium, maxLines = 1) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { 
+                if (!isLandscape) {
+                    // Modern Search Bar (Portrait Static)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search number, title, meter…", style = MaterialTheme.typography.bodyMedium, maxLines = 1) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { 
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.clearSearch() 
+                                    }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                            },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            singleLine = true,
+                            maxLines = 1,
+                            textStyle = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+
+                    StandardButtonGroup(
+                        buttonCount = 3,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Button(
+                            index = 0,
+                            onClick = {
                                 HapticFeedbackManager.smoothClick(context)
-                                viewModel.clearSearch() 
-                            }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        disabledContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
-                    singleLine = true,
-                    maxLines = 1,
-                    textStyle = MaterialTheme.typography.bodyLarge
-                )
-            }
-
-            StandardButtonGroup(
-                buttonCount = 3,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Button(
-                    index = 0,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        viewModel.onSortOrderChanged(SortOrder.NUMBER)
-                    },
-                    icon = Icons.Default.FormatListNumbered,
-                    label = "Number",
-                    isSelected = sortOrder == SortOrder.NUMBER,
-                    variant = GroupButtonVariant.Filled
-                )
-                Button(
-                    index = 1,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        viewModel.onSortOrderChanged(SortOrder.TITLE)
-                    },
-                    icon = Icons.Default.SortByAlpha,
-                    label = "Order",
-                    isSelected = sortOrder == SortOrder.TITLE,
-                    variant = GroupButtonVariant.Tonal
-                )
-                Button(
-                    index = 2,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        viewModel.refreshKeerthanes()
-                    },
-                    icon = Icons.Default.Refresh,
-                    label = "Refresh",
-                    isSelected = isLoading,
-                    variant = GroupButtonVariant.Accent
-                )
-            }
-
-            if (isLoading) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    ExpressiveCircularProgress()
+                                viewModel.onSortOrderChanged(SortOrder.NUMBER)
+                            },
+                            icon = Icons.Default.FormatListNumbered,
+                            label = "Number",
+                            isSelected = sortOrder == SortOrder.NUMBER,
+                            variant = GroupButtonVariant.Filled
+                        )
+                        Button(
+                            index = 1,
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                viewModel.onSortOrderChanged(SortOrder.TITLE)
+                            },
+                            icon = Icons.Default.SortByAlpha,
+                            label = "Order",
+                            isSelected = sortOrder == SortOrder.TITLE,
+                            variant = GroupButtonVariant.Tonal
+                        )
+                        Button(
+                            index = 2,
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                viewModel.refreshKeerthanes()
+                            },
+                            icon = Icons.Default.Refresh,
+                            label = "Refresh",
+                            isSelected = isLoading,
+                            variant = GroupButtonVariant.Accent
+                        )
+                    }
                 }
-            } else {
+
                 LazyColumn(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = if (isLandscape) 60.dp else 80.dp)
                 ) {
-                    items(filteredKeerthanes) { k ->
-                        KeerthaneListTile(keerthane = k, onClick = { onKeerthaneClick(k) })
+                    if (isLandscape) {
+                        item {
+                            ExpressiveScreenTopBar(
+                                title = "CSI Kannada Keerthanes",
+                                onMenuClick = onMenuClick
+                            )
+                        }
+                        item {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(28.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("Search number, title, meter…", style = MaterialTheme.typography.bodyMedium, maxLines = 1) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { 
+                                                HapticFeedbackManager.smoothClick(context)
+                                                viewModel.clearSearch() 
+                                            }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    },
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        disabledContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                    ),
+                                    singleLine = true,
+                                    maxLines = 1,
+                                    textStyle = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                        item {
+                            StandardButtonGroup(
+                                buttonCount = 3,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp)
+                            ) {
+                                Button(
+                                    index = 0,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.onSortOrderChanged(SortOrder.NUMBER)
+                                    },
+                                    icon = Icons.Default.FormatListNumbered,
+                                    label = "Number",
+                                    isSelected = sortOrder == SortOrder.NUMBER,
+                                    variant = GroupButtonVariant.Filled
+                                )
+                                Button(
+                                    index = 1,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.onSortOrderChanged(SortOrder.TITLE)
+                                    },
+                                    icon = Icons.Default.SortByAlpha,
+                                    label = "Order",
+                                    isSelected = sortOrder == SortOrder.TITLE,
+                                    variant = GroupButtonVariant.Tonal
+                                )
+                                Button(
+                                    index = 2,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.refreshKeerthanes()
+                                    },
+                                    icon = Icons.Default.Refresh,
+                                    label = "Refresh",
+                                    isSelected = isLoading,
+                                    variant = GroupButtonVariant.Accent
+                                )
+                            }
+                        }
+                    }
+
+                    if (isLoading) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                ExpressiveCircularProgress()
+                            }
+                        }
+                    } else {
+                        items(filteredKeerthanes) { k ->
+                            KeerthaneListTile(keerthane = k, onClick = { onKeerthaneClick(k) })
+                        }
                     }
                 }
             }

@@ -111,9 +111,8 @@ fun OnboardingScreen(
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        scheme.primary.copy(alpha = 0.92f),
-                        scheme.primaryContainer.copy(alpha = 0.55f),
-                        scheme.background,
+                        scheme.primaryContainer.copy(alpha = 0.6f),
+                        scheme.surface,
                         scheme.surface,
                     )
                 )
@@ -188,6 +187,7 @@ private fun OnboardingBottomBar(
     onSkipPrivacy: () -> Unit,
     scheme: androidx.compose.material3.ColorScheme
 ) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -219,7 +219,7 @@ private fun OnboardingBottomBar(
                         .clip(RoundedCornerShape(50))
                         .alpha(alpha)
                         .background(
-                            if (index <= currentPage) scheme.onPrimary else scheme.onPrimary.copy(alpha = 0.35f)
+                            if (index <= currentPage) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.35f)
                         )
                 )
             }
@@ -242,7 +242,7 @@ private fun OnboardingBottomBar(
                     Text(
                         "Continue without accepting",
                         style = MaterialTheme.typography.labelMedium,
-                        color = scheme.onPrimary.copy(alpha = 0.72f)
+                        color = scheme.onSurfaceVariant
                     )
                 }
             }
@@ -271,15 +271,15 @@ private fun OnboardingBottomBar(
                         .weight(1f)
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = scheme.onPrimary,
-                        contentColor = scheme.primary
+                        containerColor = scheme.primary,
+                        contentColor = scheme.onPrimary
                     )
                 ) {
                     if (busy) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp,
-                            color = scheme.primary
+                            color = scheme.onPrimary
                         )
                     } else {
                         Icon(Icons.Default.RocketLaunch, contentDescription = null, modifier = Modifier.size(22.dp))
@@ -308,8 +308,8 @@ private fun OnboardingBottomBar(
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.height(48.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = scheme.onPrimary,
-                        contentColor = scheme.primary
+                        containerColor = scheme.primary,
+                        contentColor = scheme.onPrimary
                     )
                 ) {
                     Text("Continue", fontWeight = FontWeight.Bold)
@@ -374,8 +374,8 @@ private fun OnboardingWelcomePage(isActive: Boolean) {
         label = "bodyOffset"
     )
 
-    val headlineColor = scheme.onPrimary
-    val bodyColor = scheme.onPrimary.copy(alpha = 0.88f)
+    val headlineColor = scheme.onSurface
+    val bodyColor = scheme.onSurfaceVariant
 
     Column(
         modifier = Modifier
@@ -467,8 +467,8 @@ private fun OnboardingFeaturesPage(isActive: Boolean) {
         }
     }
 
-    val headlineColor = scheme.onPrimary
-    val bodyColor = scheme.onPrimary.copy(alpha = 0.85f)
+    val headlineColor = scheme.onSurface
+    val bodyColor = scheme.onSurfaceVariant
 
     Column(
         modifier = Modifier
@@ -538,13 +538,13 @@ private fun OnboardingFeatureRow(icon: ImageVector, title: String, body: String)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        color = scheme.onPrimary.copy(alpha = 0.14f)
+        color = scheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val iconBg = scheme.onPrimary
+            val iconBg = scheme.primaryContainer
             Surface(
                 shape = RoundedCornerShape(14.dp),
                 color = iconBg,
@@ -553,7 +553,7 @@ private fun OnboardingFeatureRow(icon: ImageVector, title: String, body: String)
                 Icon(
                     icon,
                     contentDescription = null,
-                    tint = scheme.primary,
+                    tint = scheme.onPrimaryContainer,
                     modifier = Modifier.padding(10.dp)
                 )
             }
@@ -563,13 +563,13 @@ private fun OnboardingFeatureRow(icon: ImageVector, title: String, body: String)
                     title,
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.titleSmall,
-                    color = scheme.onPrimary
+                    color = scheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     body,
                     style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onPrimary.copy(alpha = 0.82f)
+                    color = scheme.onSurfaceVariant
                 )
             }
         }
@@ -596,8 +596,8 @@ private fun OnboardingPrivacyPage(
         }
     }
 
-    val headlineColor = scheme.onPrimary
-    val bodyColor = scheme.onPrimary.copy(alpha = 0.85f)
+    val headlineColor = scheme.onSurface
+    val bodyColor = scheme.onSurfaceVariant
 
     Column(
         modifier = Modifier
@@ -626,11 +626,11 @@ private fun OnboardingPrivacyPage(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                color = scheme.onPrimary.copy(alpha = 0.16f)
+                color = scheme.surfaceVariant.copy(alpha = 0.5f)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        val badgeBg = scheme.onPrimary
+                        val badgeBg = scheme.primaryContainer
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = badgeBg,
@@ -639,7 +639,7 @@ private fun OnboardingPrivacyPage(
                             Icon(
                                 Icons.Default.PrivacyTip,
                                 contentDescription = null,
-                                tint = scheme.primary,
+                                tint = scheme.onPrimaryContainer,
                                 modifier = Modifier.padding(8.dp)
                             )
                         }
@@ -660,7 +660,7 @@ private fun OnboardingPrivacyPage(
                         color = bodyColor
                     )
                     TextButton(onClick = onOpenPrivacyPolicy) {
-                        Text("Read full Privacy Policy", color = headlineColor)
+                        Text("Read full Privacy Policy", color = scheme.primary)
                     }
                 }
             }

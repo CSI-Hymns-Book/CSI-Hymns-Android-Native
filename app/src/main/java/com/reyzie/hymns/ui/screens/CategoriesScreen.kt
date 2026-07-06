@@ -69,13 +69,17 @@ fun CategoriesScreen(
         loadCategories()
     }
 
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            ExpressiveScreenTopBar(
-                title = "Categories",
-                onMenuClick = onMenuClick
-            )
+            if (!isLandscape) {
+                ExpressiveScreenTopBar(
+                    title = "Categories",
+                    onMenuClick = onMenuClick
+                )
+            }
         }
     ) { padding ->
         if (showCreateDialog) {
@@ -114,11 +118,18 @@ fun CategoriesScreen(
             )
         }
 
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+            ) {
             val commonCategories = listOf(
                 "Birthday", "Marriage", "House Warming", "Funeral", 
                 "Mangala", "Children's Prayer", "Lord's Supper", 
@@ -127,11 +138,19 @@ fun CategoriesScreen(
 
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = if (isLandscape) 60.dp else 80.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (isLandscape) {
+                    item(span = { GridItemSpan(2) }) {
+                        ExpressiveScreenTopBar(
+                            title = "Categories",
+                            onMenuClick = onMenuClick
+                        )
+                    }
+                }
                 item(span = { GridItemSpan(2) }) {
                     Text(
                         text = "ESSENTIALS",
@@ -235,6 +254,7 @@ fun CategoriesScreen(
             }
         }
     }
+}
 }
 
 @Composable

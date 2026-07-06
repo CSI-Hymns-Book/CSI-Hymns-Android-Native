@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,100 +54,129 @@ fun OrderOfServiceScreen(
         }
     }
 
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar(
-                title = "Order of Service",
-                onMenuClick = onMenuClick
-            )
+            if (!isLandscape) {
+                com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar(
+                    title = "Order of Service",
+                    onMenuClick = onMenuClick
+                )
+            }
         }
     ) { innerPadding ->
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(innerPadding)
-    ) {
-        Text(
-            text = "ಆರಾಧನಾ ಕ್ರಮ",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
-        )
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            OrderCard(
-                leadingIcon = Icons.Default.NorthEast,
-                englishTitle = "Regular Sunday – Order of Service",
-                kannadaTitle = "ಭಾನುವಾರದ ದೇವರಾರಾಧನೆ",
-                showEnglish = showEnglishPrimary,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                onTap = { 
-                    HapticFeedbackManager.smoothClick(context)
-                    onNavigateToReader("regular") 
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 640.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                contentPadding = PaddingValues(top = 8.dp, bottom = if (isLandscape) 60.dp else 96.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (isLandscape) {
+                    item {
+                        com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar(
+                            title = "Order of Service",
+                            onMenuClick = onMenuClick
+                        )
+                    }
                 }
-            )
-
-            OrderCard(
-                leadingIcon = Icons.Default.SouthWest,
-                englishTitle = "Festival – Order of Service",
-                kannadaTitle = "ಹಬ್ಬದ ಆರಾಧನೆ",
-                showEnglish = showEnglishPrimary,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                onTap = { 
-                    HapticFeedbackManager.smoothClick(context)
-                    onNavigateToReader("festival") 
+                
+                item {
+                    Text(
+                        text = "ಆರಾಧನಾ ಕ್ರಮ",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp)
+                    )
                 }
-            )
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(
-                onClick = {
-                    HapticFeedbackManager.smoothClick(context)
-                    if (isRefreshing) return@Button
-                    scope.launch {
-                        isRefreshing = true
-                        val result = withContext(Dispatchers.IO) {
-                            repository.fetchAndUpdate("regular")
+                item {
+                    OrderCard(
+                        leadingIcon = Icons.Default.NorthEast,
+                        englishTitle = "Regular Sunday – Order of Service",
+                        kannadaTitle = "ಭಾನುವಾರದ ದೇವರಾರಾಧನೆ",
+                        showEnglish = showEnglishPrimary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        onTap = { 
+                            HapticFeedbackManager.smoothClick(context)
+                            onNavigateToReader("regular") 
                         }
-                        isRefreshing = false
-                        when {
-                            result.errorMessage == null && result.pages.isNotEmpty() ->
-                                snackbarHostState.showSnackbar(ContentErrorMessages.REFRESH_SUCCESS)
-                            result.errorMessage != null ->
-                                snackbarHostState.showSnackbar(result.errorMessage)
-                            else ->
-                                snackbarHostState.showSnackbar(ContentErrorMessages.SERVER_UNAVAILABLE)
+                    )
+                }
+
+                item {
+                    OrderCard(
+                        leadingIcon = Icons.Default.SouthWest,
+                        englishTitle = "Festival – Order of Service",
+                        kannadaTitle = "ಹಬ್ಬದ ಆರಾಧನೆ",
+                        showEnglish = showEnglishPrimary,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        onTap = { 
+                            HapticFeedbackManager.smoothClick(context)
+                            onNavigateToReader("festival") 
+                        }
+                    )
+                }
+
+                item {
+                    Button(
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            if (isRefreshing) return@Button
+                            scope.launch {
+                                isRefreshing = true
+                                val result = withContext(Dispatchers.IO) {
+                                    repository.fetchAndUpdate("regular")
+                                }
+                                isRefreshing = false
+                                when {
+                                    result.errorMessage == null && result.pages.isNotEmpty() ->
+                                        snackbarHostState.showSnackbar(ContentErrorMessages.REFRESH_SUCCESS)
+                                    result.errorMessage != null ->
+                                        snackbarHostState.showSnackbar(result.errorMessage)
+                                    else ->
+                                        snackbarHostState.showSnackbar(ContentErrorMessages.SERVER_UNAVAILABLE)
+                                }
+                            }
+                        },
+                        enabled = !isRefreshing,
+                        shape = RoundedCornerShape(20.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (isRefreshing) {
+                                com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress(size = 48.dp)
+                            } else {
+                                Icon(Icons.Default.Refresh, contentDescription = "Refresh", modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Refresh Order of Service", fontWeight = FontWeight.Bold)
                         }
                     }
-                },
-                enabled = !isRefreshing,
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                ),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
-            ) {
-                if (isRefreshing) {
-                    com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress(size = 48.dp)
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", modifier = Modifier.size(20.dp))
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Refresh Order of Service", fontWeight = FontWeight.Bold)
             }
-            
-            Spacer(modifier = Modifier.height(80.dp)) // Padding for bottom bar
         }
-    }
     }
 }
 
