@@ -71,161 +71,278 @@ fun HymnsScreen(
         }
     }
 
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            ExpressiveScreenTopBar(
-                title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
-                onMenuClick = onSettingsClick,
-                actions = {
-                    if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
-                        IconButton(onClick = {
-                            HapticFeedbackManager.smoothClick(context)
-                            showJumpToMeter = true
-                        }) {
-                            Icon(
-                                Icons.Default.FormatListBulleted,
-                                contentDescription = "Jump to meter",
-                            )
+            if (!isLandscape) {
+                ExpressiveScreenTopBar(
+                    title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
+                    onMenuClick = onSettingsClick,
+                    actions = {
+                        if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
+                            IconButton(onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                showJumpToMeter = true
+                            }) {
+                                Icon(
+                                    Icons.Default.FormatListBulleted,
+                                    contentDescription = "Jump to meter",
+                                )
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
         }
     ) { innerPadding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
-            // Modern Search Bar
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(28.dp),
+            Column(
                 modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = 640.dp)
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                TextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.onSearchQueryChanged(it) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { 
-                                    HapticFeedbackManager.smoothClick(context)
-                                    viewModel.clearSearch() 
-                                }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
+                if (!isLandscape) {
+                    // Modern Search Bar (Portrait Static)
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        shape = RoundedCornerShape(28.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { 
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.clearSearch() 
+                                    }) {
+                                        Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
+                                    }
                                 }
-                            }
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                        ),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyLarge
-                    )
+                            },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                            ),
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+
+                    StandardButtonGroup(
+                        buttonCount = 3,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Button(
+                            index = 0,
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                viewModel.onSortOrderChanged(SortOrder.NUMBER)
+                            },
+                            icon = Icons.Default.FormatListNumbered,
+                            label = "Number",
+                            isSelected = sortOrder == SortOrder.NUMBER,
+                            variant = GroupButtonVariant.Filled
+                        )
+                        Button(
+                            index = 1,
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                viewModel.onSortOrderChanged(SortOrder.METER)
+                            },
+                            icon = Icons.Default.MusicNote,
+                            label = "Meter",
+                            isSelected = sortOrder == SortOrder.METER,
+                            variant = GroupButtonVariant.Tonal
+                        )
+                        Button(
+                            index = 2,
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                viewModel.refreshHymns()
+                            },
+                            icon = Icons.Default.Refresh,
+                            label = "Refresh",
+                            isSelected = isLoading,
+                            variant = GroupButtonVariant.Accent
+                        )
+                    }
                 }
 
-        StandardButtonGroup(
-            buttonCount = 3,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-        ) {
-            Button(
-                index = 0,
-                onClick = {
-                    HapticFeedbackManager.smoothClick(context)
-                    viewModel.onSortOrderChanged(SortOrder.NUMBER)
-                },
-                icon = Icons.Default.FormatListNumbered,
-                label = "Number",
-                isSelected = sortOrder == SortOrder.NUMBER,
-                variant = GroupButtonVariant.Filled
-            )
-            Button(
-                index = 1,
-                onClick = {
-                    HapticFeedbackManager.smoothClick(context)
-                    viewModel.onSortOrderChanged(SortOrder.METER)
-                },
-                icon = Icons.Default.MusicNote,
-                label = "Meter",
-                isSelected = sortOrder == SortOrder.METER,
-                variant = GroupButtonVariant.Tonal
-            )
-            Button(
-                index = 2,
-                onClick = {
-                    HapticFeedbackManager.smoothClick(context)
-                    viewModel.refreshHymns()
-                },
-                icon = Icons.Default.Refresh,
-                label = "Refresh",
-                isSelected = isLoading,
-                variant = GroupButtonVariant.Accent
-            )
-        }
-
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                ExpressiveCircularProgress()
-            }
-        } else {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 80.dp)
-            ) {
-                if (sortOrder == SortOrder.METER) {
-                    groupedHymns.forEach { (signature, hymns) ->
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = if (isLandscape) 60.dp else 80.dp)
+                ) {
+                    if (isLandscape) {
                         item {
-                            Card(
+                            ExpressiveScreenTopBar(
+                                title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
+                                onMenuClick = onSettingsClick,
+                                actions = {
+                                    if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
+                                        IconButton(onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            showJumpToMeter = true
+                                        }) {
+                                            Icon(
+                                                Icons.Default.FormatListBulleted,
+                                                contentDescription = "Jump to meter",
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                        item {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(28.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surface
-                                ),
-                                elevation = CardDefaults.cardElevation(0.dp)
+                                    .padding(vertical = 8.dp)
                             ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = if (signature.isEmpty()) "(No meter)" else signature,
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                                    trailingIcon = {
+                                        if (searchQuery.isNotEmpty()) {
+                                            IconButton(onClick = { 
+                                                HapticFeedbackManager.smoothClick(context)
+                                                viewModel.clearSearch() 
+                                            }) {
+                                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = MaterialTheme.colorScheme.primary)
+                                            }
+                                        }
+                                    },
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        disabledContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                    ),
+                                    singleLine = true,
+                                    textStyle = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                        item {
+                            StandardButtonGroup(
+                                buttonCount = 3,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp)
+                            ) {
+                                Button(
+                                    index = 0,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.onSortOrderChanged(SortOrder.NUMBER)
+                                    },
+                                    icon = Icons.Default.FormatListNumbered,
+                                    label = "Number",
+                                    isSelected = sortOrder == SortOrder.NUMBER,
+                                    variant = GroupButtonVariant.Filled
+                                )
+                                Button(
+                                    index = 1,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.onSortOrderChanged(SortOrder.METER)
+                                    },
+                                    icon = Icons.Default.MusicNote,
+                                    label = "Meter",
+                                    isSelected = sortOrder == SortOrder.METER,
+                                    variant = GroupButtonVariant.Tonal
+                                )
+                                Button(
+                                    index = 2,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.refreshHymns()
+                                    },
+                                    icon = Icons.Default.Refresh,
+                                    label = "Refresh",
+                                    isSelected = isLoading,
+                                    variant = GroupButtonVariant.Accent
+                                )
+                            }
+                        }
+                    }
+
+                    if (isLoading) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(200.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                ExpressiveCircularProgress()
+                            }
+                        }
+                    } else {
+                        if (sortOrder == SortOrder.METER) {
+                            groupedHymns.forEach { (signature, hymns) ->
+                                item {
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 8.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.surface
                                         ),
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                    hymns.forEach { hymn ->
-                                        HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                        elevation = CardDefaults.cardElevation(0.dp)
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp)) {
+                                            Text(
+                                                text = if (signature.isEmpty()) "(No meter)" else signature,
+                                                style = MaterialTheme.typography.titleMedium.copy(
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                ),
+                                                modifier = Modifier.padding(bottom = 8.dp)
+                                            )
+                                            hymns.forEach { hymn ->
+                                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                            }
+                                        }
                                     }
                                 }
                             }
+                        } else {
+                            items(filteredHymns) { hymn ->
+                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                            }
                         }
-                    }
-                } else {
-                    items(filteredHymns) { hymn ->
-                        HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
                     }
                 }
             }
@@ -250,7 +367,6 @@ fun HymnsScreen(
         syncState = syncState,
         onDismiss = { viewModel.dismissSyncDialog() }
     )
-}
 }
 
 @Composable

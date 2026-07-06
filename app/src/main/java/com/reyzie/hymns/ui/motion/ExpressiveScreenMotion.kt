@@ -147,8 +147,8 @@ fun <T> ExpressiveOverlayScreen(
     modifier: Modifier = Modifier,
     content: @Composable (T) -> Unit
 ) {
-    var displayed by remember { mutableStateOf<T?>(null) }
-    var visible by remember { mutableStateOf(false) }
+    var displayed by remember { mutableStateOf<T?>(item) }
+    var visible by remember { mutableStateOf(item != null) }
 
     LaunchedEffect(item) {
         if (item != null) {

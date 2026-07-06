@@ -1,16 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -47,6 +37,7 @@ fun WelcomeChangelogDialog(
     val scheme = MaterialTheme.colorScheme
     val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val maxDialogHeight = screenHeight * 0.82f
+    val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     Dialog(
         onDismissRequest = { },
@@ -58,7 +49,8 @@ fun WelcomeChangelogDialog(
     ) {
         BoxWithConstraints(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
+                .fillMaxWidth(if (isLandscape) 0.65f else 0.92f)
+                .widthIn(max = 500.dp)
                 .heightIn(max = maxDialogHeight)
         ) {
             Surface(

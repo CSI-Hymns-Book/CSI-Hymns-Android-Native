@@ -47,6 +47,7 @@ import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
 import com.reyzie.hymns.ui.widgets.PageFlipLyrics
 import com.reyzie.hymns.ui.widgets.SongInfoBanner
 import com.reyzie.hymns.utils.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlin.math.sin
@@ -67,6 +68,8 @@ fun HymnDetailScreen(
     var selectedLanguage by remember { mutableStateOf("Kannada") }
     var fontSize by remember { mutableStateOf(18.sp) }
     val scrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val rightColumnScrollState = rememberScrollState()
     
     val favoriteHymns by favoritesViewModel.favoriteHymnIds.collectAsState()
     val favoriteKeerthanes by favoritesViewModel.favoriteKeerthaneIds.collectAsState()
@@ -121,11 +124,7 @@ fun HymnDetailScreen(
         )
     }
 
-    DisposableEffect(Unit) {
-        onDispose {
-            audioViewModel.stopAndReset()
-        }
-    }
+
 
     val showAudioPlayer = audioState.isVisible &&
         audioState.currentSongNumber == hymn.number &&
@@ -150,6 +149,7 @@ fun HymnDetailScreen(
                 }
             )
 
+            val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
             val isDarkTheme = isSystemInDarkTheme()
             val controlsCardColor = if (isDarkTheme) {
                 MaterialTheme.colorScheme.surfaceContainerLowest
@@ -157,164 +157,23 @@ fun HymnDetailScreen(
                 MaterialTheme.colorScheme.surfaceBright
             }
 
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = controlsCardColor,
-                tonalElevation = 0.dp,
-                shadowElevation = 0.dp
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        StandardButtonGroup(
-                            buttonCount = 3,
-                            modifier = Modifier.weight(0.85f),
-                            spacing = 6.dp,
-                            highContrast = true
-                        ) {
-                            Button(
-                                index = 0,
-                                onClick = {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    fontSize = (fontSize.value - 2f).coerceAtLeast(14f).sp
-                                },
-                                icon = Icons.Default.Remove,
-                                label = "Smaller",
-                                showLabelWhenUnselected = false,
-                                variant = GroupButtonVariant.Tonal
-                            )
-                            Button(
-                                index = 1,
-                                onClick = {},
-                                label = "${fontSize.value.toInt()}",
-                                forceShowLabel = true,
-                                roundedSquare = true,
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                                autoSizeLabel = true,
-                                variant = GroupButtonVariant.Tonal
-                            )
-                            Button(
-                                index = 2,
-                                onClick = {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    fontSize = (fontSize.value + 2f).coerceAtMost(44f).sp
-                                },
-                                icon = Icons.Default.Add,
-                                label = "Bigger",
-                                showLabelWhenUnselected = false,
-                                variant = GroupButtonVariant.Tonal
-                            )
-                        }
-
-                        StandardButtonGroup(
-                            buttonCount = 2,
-                            modifier = Modifier.weight(1f),
-                            spacing = 6.dp,
-                            highContrast = true
-                        ) {
-                            Button(
-                                index = 0,
-                                onClick = {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    selectedLanguage = "Kannada"
-                                },
-                                label = "ಕನ್ನಡ",
-                                isSelected = selectedLanguage == "Kannada"
-                            )
-                            Button(
-                                index = 1,
-                                onClick = {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    selectedLanguage = "English"
-                                },
-                                label = "English",
-                                isSelected = selectedLanguage == "English"
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    StandardButtonGroup(
-                        buttonCount = if (castEnabled) 4 else 3,
-                        modifier = Modifier.fillMaxWidth(),
-                        spacing = 6.dp,
-                        highContrast = true
-                    ) {
-                        Button(
-                            index = 0,
-                            onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                if (isKeerthane) favoritesViewModel.toggleFavoriteKeerthane(hymn.number)
-                                else favoritesViewModel.toggleFavoriteHymn(hymn.number)
-                            },
-                            icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            label = if (isFavorite) "Saved" else "Save",
-                            isSelected = isFavorite,
-                            variant = GroupButtonVariant.Filled
-                        )
-                        Button(
-                            index = 1,
-                            onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                val isSameSong = audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane
-                                if (!audioState.isVisible || !isSameSong) {
-                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane)
-                                } else {
-                                    audioViewModel.toggleVisibility()
-                                }
-                            },
-                            icon = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
-                            label = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) "Hide" else "Audio",
-                            isSelected = audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane,
-                            variant = GroupButtonVariant.Tonal
-                        )
-                        if (castEnabled) {
-                            Button(
-                                index = 2,
-                                onClick = {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    showCastSheet = true
-                                },
-                                icon = Icons.Default.Cast,
-                                label = "Cast",
-                                variant = GroupButtonVariant.Accent
-                            )
-                        }
-                        val reportIndex = if (castEnabled) 3 else 2
-                        Button(
-                            index = reportIndex,
-                            onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                showReportDialog = true
-                            },
-                            icon = Icons.Default.BugReport,
-                            label = "Report",
-                            variant = GroupButtonVariant.Accent
-                        )
-                    }
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) {
+            if (isLandscape) {
                 val lyricsText = if (selectedLanguage == "English" || hymn.kannadaLyrics.isNullOrEmpty()) {
                     hymn.lyrics
                 } else {
                     hymn.kannadaLyrics!!
                 }
 
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Box(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .fillMaxHeight()
+                    ) {
                         if (isPageFlipEnabled && isPageFlipOptionVisible) {
                             PageFlipLyrics(
                                 lyrics = lyricsText,
@@ -344,15 +203,433 @@ fun HymnDetailScreen(
                         }
                     }
 
-                    AnimatedVisibility(
-                        visible = showAudioPlayer,
-                        enter = expressiveAudioPlayerEnter(),
-                        exit = expressiveAudioPlayerExit()
+                    VerticalDivider(
+                        modifier = Modifier.fillMaxHeight(),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .weight(0.8f)
+                            .fillMaxHeight()
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .verticalScroll(rightColumnScrollState),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        ExpressiveAudioPlayer(
-                            audioState = audioState,
-                            audioViewModel = audioViewModel
-                        )
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            color = controlsCardColor
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    "Font Size",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                StandardButtonGroup(
+                                    buttonCount = 3,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    spacing = 6.dp,
+                                    highContrast = true
+                                ) {
+                                    Button(
+                                        index = 0,
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            fontSize = (fontSize.value - 2f).coerceAtLeast(14f).sp
+                                        },
+                                        icon = Icons.Default.Remove,
+                                        label = "Smaller",
+                                        showLabelWhenUnselected = false,
+                                        variant = GroupButtonVariant.Tonal
+                                    )
+                                    Button(
+                                        index = 1,
+                                        onClick = {},
+                                        label = "${fontSize.value.toInt()}",
+                                        forceShowLabel = true,
+                                        roundedSquare = true,
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                        autoSizeLabel = true,
+                                        variant = GroupButtonVariant.Tonal
+                                    )
+                                    Button(
+                                        index = 2,
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            fontSize = (fontSize.value + 2f).coerceAtMost(44f).sp
+                                        },
+                                        icon = Icons.Default.Add,
+                                        label = "Bigger",
+                                        showLabelWhenUnselected = false,
+                                        variant = GroupButtonVariant.Tonal
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Text(
+                                    "Lyrics Language",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                StandardButtonGroup(
+                                    buttonCount = 2,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    spacing = 6.dp,
+                                    highContrast = true
+                                ) {
+                                    Button(
+                                        index = 0,
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            selectedLanguage = "Kannada"
+                                        },
+                                        label = "ಕನ್ನಡ",
+                                        isSelected = selectedLanguage == "Kannada"
+                                    )
+                                    Button(
+                                        index = 1,
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            selectedLanguage = "English"
+                                        },
+                                        label = "English",
+                                        isSelected = selectedLanguage == "English"
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Text(
+                                    "Actions",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    StandardButtonGroup(
+                                        buttonCount = 2,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        spacing = 6.dp,
+                                        highContrast = true
+                                    ) {
+                                        Button(
+                                            index = 0,
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                if (isKeerthane) favoritesViewModel.toggleFavoriteKeerthane(hymn.number)
+                                                else favoritesViewModel.toggleFavoriteHymn(hymn.number)
+                                            },
+                                            icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                            label = if (isFavorite) "Saved" else "Save",
+                                            isSelected = isFavorite,
+                                            variant = GroupButtonVariant.Filled
+                                        )
+                                        Button(
+                                            index = 1,
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                val isSameSong = audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane
+                                                if (!audioState.isVisible || !isSameSong) {
+                                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane)
+                                                } else {
+                                                    audioViewModel.toggleVisibility()
+                                                }
+                                                scope.launch {
+                                                    delay(100)
+                                                    rightColumnScrollState.animateScrollTo(rightColumnScrollState.maxValue)
+                                                }
+                                            },
+                                            icon = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
+                                            label = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) "Hide" else "Audio",
+                                            isSelected = audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane,
+                                            variant = GroupButtonVariant.Tonal
+                                        )
+                                    }
+                                    if (castEnabled) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            StandardButtonGroup(
+                                                buttonCount = 1,
+                                                modifier = Modifier.weight(1f),
+                                                spacing = 6.dp,
+                                                highContrast = true
+                                            ) {
+                                                Button(
+                                                    index = 0,
+                                                    onClick = {
+                                                        HapticFeedbackManager.smoothClick(context)
+                                                        showCastSheet = true
+                                                    },
+                                                    icon = Icons.Default.Cast,
+                                                    label = "Cast",
+                                                    alwaysCircle = true,
+                                                    variant = GroupButtonVariant.Accent
+                                                )
+                                            }
+                                            StandardButtonGroup(
+                                                buttonCount = 1,
+                                                modifier = Modifier.weight(1f),
+                                                spacing = 6.dp,
+                                                highContrast = true
+                                            ) {
+                                                Button(
+                                                    index = 0,
+                                                    onClick = {
+                                                        HapticFeedbackManager.smoothClick(context)
+                                                        showReportDialog = true
+                                                    },
+                                                    icon = Icons.Default.BugReport,
+                                                    label = "Report",
+                                                    alwaysCircle = true,
+                                                    variant = GroupButtonVariant.Accent
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        StandardButtonGroup(
+                                            buttonCount = 1,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            spacing = 6.dp,
+                                            highContrast = true
+                                        ) {
+                                            Button(
+                                                index = 0,
+                                                onClick = {
+                                                    HapticFeedbackManager.smoothClick(context)
+                                                    showReportDialog = true
+                                                },
+                                                icon = Icons.Default.BugReport,
+                                                label = "Report",
+                                                alwaysCircle = true,
+                                                variant = GroupButtonVariant.Accent
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = showAudioPlayer,
+                            enter = expressiveAudioPlayerEnter(),
+                            exit = expressiveAudioPlayerExit()
+                        ) {
+                            ExpressiveAudioPlayer(
+                                audioState = audioState,
+                                audioViewModel = audioViewModel
+                            )
+                        }
+                    }
+                }
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = controlsCardColor,
+                    tonalElevation = 0.dp,
+                    shadowElevation = 0.dp
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            StandardButtonGroup(
+                                buttonCount = 3,
+                                modifier = Modifier.weight(0.85f),
+                                spacing = 6.dp,
+                                highContrast = true
+                            ) {
+                                Button(
+                                    index = 0,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        fontSize = (fontSize.value - 2f).coerceAtLeast(14f).sp
+                                    },
+                                    icon = Icons.Default.Remove,
+                                    label = "Smaller",
+                                    showLabelWhenUnselected = false,
+                                    variant = GroupButtonVariant.Tonal
+                                )
+                                Button(
+                                    index = 1,
+                                    onClick = {},
+                                    label = "${fontSize.value.toInt()}",
+                                    forceShowLabel = true,
+                                    roundedSquare = true,
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    autoSizeLabel = true,
+                                    variant = GroupButtonVariant.Tonal
+                                )
+                                Button(
+                                    index = 2,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        fontSize = (fontSize.value + 2f).coerceAtMost(44f).sp
+                                    },
+                                    icon = Icons.Default.Add,
+                                    label = "Bigger",
+                                    showLabelWhenUnselected = false,
+                                    variant = GroupButtonVariant.Tonal
+                                )
+                            }
+
+                            StandardButtonGroup(
+                                buttonCount = 2,
+                                modifier = Modifier.weight(1f),
+                                spacing = 6.dp,
+                                highContrast = true
+                            ) {
+                                Button(
+                                    index = 0,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        selectedLanguage = "Kannada"
+                                    },
+                                    label = "ಕನ್ನಡ",
+                                    isSelected = selectedLanguage == "Kannada"
+                                )
+                                Button(
+                                    index = 1,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        selectedLanguage = "English"
+                                    },
+                                    label = "English",
+                                    isSelected = selectedLanguage == "English"
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        StandardButtonGroup(
+                            buttonCount = if (castEnabled) 4 else 3,
+                            modifier = Modifier.fillMaxWidth(),
+                            spacing = 6.dp,
+                            highContrast = true
+                        ) {
+                            Button(
+                                index = 0,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    if (isKeerthane) favoritesViewModel.toggleFavoriteKeerthane(hymn.number)
+                                    else favoritesViewModel.toggleFavoriteHymn(hymn.number)
+                                },
+                                icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                label = if (isFavorite) "Saved" else "Save",
+                                isSelected = isFavorite,
+                                variant = GroupButtonVariant.Filled
+                            )
+                            Button(
+                                index = 1,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    val isSameSong = audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane
+                                    if (!audioState.isVisible || !isSameSong) {
+                                        audioViewModel.playSong(hymn.number, hymn.title, isKeerthane)
+                                    } else {
+                                        audioViewModel.toggleVisibility()
+                                    }
+                                },
+                                icon = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
+                                label = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) "Hide" else "Audio",
+                                isSelected = audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane,
+                                variant = GroupButtonVariant.Tonal
+                            )
+                            if (castEnabled) {
+                                Button(
+                                    index = 2,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        showCastSheet = true
+                                    },
+                                    icon = Icons.Default.Cast,
+                                    label = "Cast",
+                                    variant = GroupButtonVariant.Accent
+                                )
+                            }
+                            val reportIndex = if (castEnabled) 3 else 2
+                            Button(
+                                index = reportIndex,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    showReportDialog = true
+                                },
+                                icon = Icons.Default.BugReport,
+                                label = "Report",
+                                variant = GroupButtonVariant.Accent
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    val lyricsText = if (selectedLanguage == "English" || hymn.kannadaLyrics.isNullOrEmpty()) {
+                        hymn.lyrics
+                    } else {
+                        hymn.kannadaLyrics!!
+                    }
+
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (isPageFlipEnabled && isPageFlipOptionVisible) {
+                                PageFlipLyrics(
+                                    lyrics = lyricsText,
+                                    fontSize = fontSize,
+                                    isKeerthane = isKeerthane,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .verticalScroll(scrollState)
+                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = lyricsText,
+                                        fontSize = fontSize,
+                                        lineHeight = fontSize * 1.6,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(32.dp))
+                                }
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = showAudioPlayer,
+                            enter = expressiveAudioPlayerEnter(),
+                            exit = expressiveAudioPlayerExit()
+                        ) {
+                            ExpressiveAudioPlayer(
+                                audioState = audioState,
+                                audioViewModel = audioViewModel
+                            )
+                        }
                     }
                 }
             }
@@ -594,6 +871,10 @@ fun ExpressiveAudioPlayer(
                     modifier = Modifier.fillMaxWidth(),
                     spacing = 6.dp
                 ) {
+                    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                    val loopSelected = audioState.isLooping
+                    val activeScheme = MaterialTheme.colorScheme
+
                     Button(
                         index = 0,
                         onClick = {
@@ -602,9 +883,12 @@ fun ExpressiveAudioPlayer(
                         },
                         icon = Icons.Default.Repeat,
                         label = "Loop",
-                        isSelected = audioState.isLooping,
+                        isSelected = if (isLandscape) false else loopSelected,
+                        containerColor = if (isLandscape && loopSelected) activeScheme.secondaryContainer else null,
+                        contentColor = if (isLandscape && loopSelected) activeScheme.onSecondaryContainer else null,
                         showLabelWhenUnselected = false,
                         circleWhenIdle = true,
+                        iconSize = if (isLandscape) 28.dp else null,
                         variant = GroupButtonVariant.Accent
                     )
                     Button(
@@ -617,9 +901,9 @@ fun ExpressiveAudioPlayer(
                         icon = Icons.Default.FastRewind,
                         label = "Rewind 5 seconds",
                         showLabelWhenUnselected = false,
-                        alwaysCircle = true,
-                        compact = true,
-                        iconSize = 24.dp,
+                        alwaysCircle = !isLandscape,
+                        compact = !isLandscape,
+                        iconSize = if (isLandscape) 28.dp else 24.dp,
                         variant = GroupButtonVariant.Filled
                     )
                     Button(
@@ -632,10 +916,10 @@ fun ExpressiveAudioPlayer(
                         label = if (audioState.isPlaying) "Pause" else "Play",
                         isSelected = audioState.isPlaying,
                         showLabelWhenUnselected = false,
-                        alwaysCircle = true,
-                        compact = true,
+                        alwaysCircle = !isLandscape,
+                        compact = !isLandscape,
                         compactSize = 48.dp,
-                        iconSize = 24.dp,
+                        iconSize = if (isLandscape) 28.dp else 24.dp,
                         variant = GroupButtonVariant.Filled
                     )
                     Button(
@@ -648,9 +932,9 @@ fun ExpressiveAudioPlayer(
                         icon = Icons.Default.FastForward,
                         label = "Forward 5 seconds",
                         showLabelWhenUnselected = false,
-                        alwaysCircle = true,
-                        compact = true,
-                        iconSize = 24.dp,
+                        alwaysCircle = !isLandscape,
+                        compact = !isLandscape,
+                        iconSize = if (isLandscape) 28.dp else 24.dp,
                         variant = GroupButtonVariant.Filled
                     )
                     Button(
@@ -660,8 +944,10 @@ fun ExpressiveAudioPlayer(
                             showSpeedMenu = true
                         },
                         icon = Icons.Default.Speed,
-                        label = "${audioState.playbackSpeed}x",
-                        forceShowLabel = true,
+                        label = if (isLandscape) "Speed" else "${audioState.playbackSpeed}x",
+                        forceShowLabel = !isLandscape,
+                        showLabelWhenUnselected = !isLandscape,
+                        iconSize = if (isLandscape) 28.dp else null,
                         variant = GroupButtonVariant.Accent
                     )
                 }

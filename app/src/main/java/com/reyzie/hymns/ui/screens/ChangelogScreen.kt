@@ -70,44 +70,51 @@ fun ChangelogScreen(
                 com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress()
             }
         } else {
-            LazyColumn(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 16.dp)
+                    .padding(padding),
+                contentAlignment = androidx.compose.ui.Alignment.TopCenter
             ) {
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-                items(changelogData) { entry ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = entry.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Version: ${entry.version}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Date: ${entry.date}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            entry.changes.forEach { change ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .widthIn(max = 600.dp)
+                        .padding(horizontal = 16.dp)
+                ) {
+                    item { Spacer(modifier = Modifier.height(16.dp)) }
+                    items(changelogData) { entry ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = "• $change",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(bottom = 4.dp)
+                                    text = entry.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Version: ${entry.version}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Date: ${entry.date}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                entry.changes.forEach { change ->
+                                    Text(
+                                        text = "• $change",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                }
                             }
                         }
                     }
