@@ -8,7 +8,7 @@ import com.reyzie.hymns.data.Hymn
 import com.reyzie.hymns.data.HymnsRepository
 import com.reyzie.hymns.data.Keerthane
 import com.reyzie.hymns.data.SupabaseService
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

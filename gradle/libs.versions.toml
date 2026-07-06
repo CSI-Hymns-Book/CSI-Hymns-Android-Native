@@ -1,25 +1,25 @@
 [versions]
 agp = "9.2.1"
-coreKtx = "1.15.0"
+coreKtx = "1.19.0"
 junit = "4.13.2"
-junitVersion = "1.1.5"
-espressoCore = "3.5.1"
-lifecycleRuntimeKtx = "2.6.1"
-activityCompose = "1.8.0"
-kotlin = "2.3.21"
-composeBom = "2026.02.01"
-material3 = "1.5.0-alpha21"
-navigationCompose = "2.7.7"
-okhttp = "4.12.0"
-gson = "2.10.1"
-media3 = "1.6.1"
-supabase = "2.4.3"
-ktor = "2.3.11"
-kotlinxSerialization = "1.6.3"
+junitVersion = "1.3.0"
+espressoCore = "3.7.0"
+lifecycleRuntimeKtx = "2.11.0"
+activityCompose = "1.13.0"
+kotlin = "2.4.0"
+composeBom = "2026.06.01"
+material3 = "1.5.0-alpha23"
+navigationCompose = "2.9.8"
+okhttp = "5.4.0"
+gson = "2.14.0"
+media3 = "1.10.1"
+supabase = "3.6.0"
+ktor = "3.5.1"
+kotlinxSerialization = "1.11.0"
 datastore = "1.2.1"
-playServicesCast = "21.5.0"
+playServicesCast = "22.3.1"
 playAppUpdate = "2.1.0"
-onesignal = "5.1.29"
+onesignal = "5.9.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -43,7 +43,7 @@ google-gson = { group = "com.google.code.gson", name = "gson", version.ref = "gs
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 supabase-postgrest = { group = "io.github.jan-tennert.supabase", name = "postgrest-kt", version.ref = "supabase" }
-supabase-gotrue = { group = "io.github.jan-tennert.supabase", name = "gotrue-kt", version.ref = "supabase" }
+supabase-auth = { group = "io.github.jan-tennert.supabase", name = "auth-kt", version.ref = "supabase" }
 supabase-compose-auth = { group = "io.github.jan-tennert.supabase", name = "compose-auth", version.ref = "supabase" }
 supabase-compose-auth-ui = { group = "io.github.jan-tennert.supabase", name = "compose-auth-ui", version.ref = "supabase" }
 ktor-client-android = { group = "io.ktor", name = "ktor-client-android", version.ref = "ktor" }

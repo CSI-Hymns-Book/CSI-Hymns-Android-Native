@@ -30,7 +30,7 @@ import com.reyzie.hymns.data.CustomCategory
 import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 

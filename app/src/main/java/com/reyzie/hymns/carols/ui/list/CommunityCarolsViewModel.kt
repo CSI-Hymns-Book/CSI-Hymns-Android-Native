@@ -11,7 +11,7 @@ import com.reyzie.hymns.carols.data.model.CarolSong
 import com.reyzie.hymns.carols.data.repository.CarolsRepository
 import com.reyzie.hymns.carols.domain.CarolsPermissions
 import com.reyzie.hymns.data.SupabaseService
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

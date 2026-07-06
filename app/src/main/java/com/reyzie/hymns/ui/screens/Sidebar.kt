@@ -24,7 +24,7 @@ import androidx.navigation.NavHostController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
 import com.reyzie.hymns.utils.HapticFeedbackManager
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 
 @Composable
 fun Sidebar(
