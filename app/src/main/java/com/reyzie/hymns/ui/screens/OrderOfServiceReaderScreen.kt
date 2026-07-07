@@ -50,6 +50,7 @@ fun OrderOfServiceReaderScreen(
     type: String,
     onBackClick: () -> Unit
 ) {
+    val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var pages by remember { mutableStateOf<List<OrderPage>>(emptyList()) }
     var pageNoToIndex by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
@@ -207,9 +208,12 @@ fun OrderOfServiceReaderScreen(
                 !hasSelectedPage -> {
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
+                            .fillMaxHeight()
+                            .widthIn(max = 640.dp)
+                            .fillMaxWidth()
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 24.dp, vertical = 32.dp),
+                            .padding(horizontal = 24.dp, vertical = if (isLandscape) 16.dp else 32.dp)
+                            .align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -272,12 +276,18 @@ fun OrderOfServiceReaderScreen(
                         beyondViewportPageCount = 1
                     ) { pageIndex ->
                         val pageData = pages[pageIndex]
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = 24.dp, vertical = 16.dp)
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.TopCenter
                         ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .widthIn(max = 640.dp)
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                            ) {
                             Text(
                                 "Page ${pageData.pageNo}",
                                 style = MaterialTheme.typography.labelMedium,
@@ -302,6 +312,7 @@ fun OrderOfServiceReaderScreen(
                             Spacer(Modifier.height(96.dp))
                         }
                     }
+                    }
                 }
             }
         }
@@ -313,41 +324,52 @@ fun OrderOfServiceReaderScreen(
             sheetState = sheetState,
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
-            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-                Text("All pages", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(12.dp))
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(4),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.heightIn(max = 400.dp)
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 640.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 24.dp)
                 ) {
-                    itemsIndexed(pages) { index, page ->
-                        val selected = index == pagerState.currentPage
-                        Box(
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    if (selected) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.surfaceContainerHigh
+                    Text("All pages", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(12.dp))
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(if (isLandscape) 8 else 4),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.heightIn(max = if (isLandscape) 180.dp else 400.dp)
+                    ) {
+                        itemsIndexed(pages) { index, page ->
+                            val selected = index == pagerState.currentPage
+                            Box(
+                                modifier = Modifier
+                                    .aspectRatio(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(
+                                        if (selected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceContainerHigh
+                                    )
+                                    .clickable {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        hasSelectedPage = true
+                                        scope.launch {
+                                            pagerState.scrollToPage(index)
+                                            sheetState.hide()
+                                        }.invokeOnCompletion { showBottomSheet = false }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "${page.pageNo}",
+                                    color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
                                 )
-                                .clickable {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    hasSelectedPage = true
-                                    scope.launch {
-                                        pagerState.scrollToPage(index)
-                                        sheetState.hide()
-                                    }.invokeOnCompletion { showBottomSheet = false }
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "${page.pageNo}",
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold
-                            )
+                            }
                         }
                     }
                 }

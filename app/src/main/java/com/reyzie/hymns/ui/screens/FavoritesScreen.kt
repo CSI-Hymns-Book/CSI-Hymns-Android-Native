@@ -75,32 +75,34 @@ fun FavoritesScreen(
                     .widthIn(max = 640.dp)
                     .fillMaxWidth()
             ) {
-            StandardButtonGroup(
-                buttonCount = 2,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Button(
-                    index = 0,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        scope.launch { pagerState.animateScrollToPage(0) }
-                    },
-                    icon = Icons.Default.FormatListNumbered,
-                    label = "Hymns",
-                    isSelected = pagerState.currentPage == 0
-                )
-                Button(
-                    index = 1,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        scope.launch { pagerState.animateScrollToPage(1) }
-                    },
-                    icon = Icons.Default.MusicNote,
-                    label = "Keerthanes",
-                    isSelected = pagerState.currentPage == 1
-                )
+            if (!isLandscape) {
+                StandardButtonGroup(
+                    buttonCount = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Button(
+                        index = 0,
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            scope.launch { pagerState.animateScrollToPage(0) }
+                        },
+                        icon = Icons.Default.FormatListNumbered,
+                        label = "Hymns",
+                        isSelected = pagerState.currentPage == 0
+                    )
+                    Button(
+                        index = 1,
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            scope.launch { pagerState.animateScrollToPage(1) }
+                        },
+                        icon = Icons.Default.MusicNote,
+                        label = "Keerthanes",
+                        isSelected = pagerState.currentPage == 1
+                    )
+                }
             }
 
             HorizontalPager(
@@ -111,11 +113,7 @@ fun FavoritesScreen(
                 beyondViewportPageCount = 1
             ) { page ->
                 when (page) {
-                    0 -> FavoritesListPane(
-                        isEmpty = favoriteHymns.isEmpty(),
-                        emptyTitle = "No Favorite Hymns",
-                        emptyHint = "Tap the heart on any hymn detail screen to save it here."
-                    ) {
+                    0 -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
@@ -125,16 +123,59 @@ fun FavoritesScreen(
                                 bottom = if (isLandscape) 60.dp else 100.dp
                             )
                         ) {
-                            items(favoriteHymns, key = { "hymn-${it.number}" }) { hymn ->
-                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                            if (isLandscape) {
+                                item {
+                                    ExpressiveScreenTopBar(
+                                        title = "My Favorites",
+                                        onMenuClick = onMenuClick
+                                    )
+                                }
+                                item {
+                                    StandardButtonGroup(
+                                        buttonCount = 2,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 12.dp)
+                                    ) {
+                                        Button(
+                                            index = 0,
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                scope.launch { pagerState.animateScrollToPage(0) }
+                                            },
+                                            icon = Icons.Default.FormatListNumbered,
+                                            label = "Hymns",
+                                            isSelected = pagerState.currentPage == 0
+                                        )
+                                        Button(
+                                            index = 1,
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                scope.launch { pagerState.animateScrollToPage(1) }
+                                            },
+                                            icon = Icons.Default.MusicNote,
+                                            label = "Keerthanes",
+                                            isSelected = pagerState.currentPage == 1
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (favoriteHymns.isEmpty()) {
+                                item {
+                                    FavoritesEmptyState(
+                                        title = "No Favorite Hymns",
+                                        hint = "Tap the heart on any hymn detail screen to save it here."
+                                    )
+                                }
+                            } else {
+                                items(favoriteHymns, key = { "hymn-${it.number}" }) { hymn ->
+                                    HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                }
                             }
                         }
                     }
-                    else -> FavoritesListPane(
-                        isEmpty = favoriteKeerthanes.isEmpty(),
-                        emptyTitle = "No Favorite Keerthanes",
-                        emptyHint = "Tap the heart on any keerthane detail screen to save it here."
-                    ) {
+                    else -> {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(
@@ -144,11 +185,58 @@ fun FavoritesScreen(
                                 bottom = if (isLandscape) 60.dp else 100.dp
                             )
                         ) {
-                            items(favoriteKeerthanes, key = { "k-${it.number}" }) { keerthane ->
-                                KeerthaneListTile(
-                                    keerthane = keerthane,
-                                    onClick = { onKeerthaneClick(keerthane) }
-                                )
+                            if (isLandscape) {
+                                item {
+                                    ExpressiveScreenTopBar(
+                                        title = "My Favorites",
+                                        onMenuClick = onMenuClick
+                                    )
+                                }
+                                item {
+                                    StandardButtonGroup(
+                                        buttonCount = 2,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 12.dp)
+                                    ) {
+                                        Button(
+                                            index = 0,
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                scope.launch { pagerState.animateScrollToPage(0) }
+                                            },
+                                            icon = Icons.Default.FormatListNumbered,
+                                            label = "Hymns",
+                                            isSelected = pagerState.currentPage == 0
+                                        )
+                                        Button(
+                                            index = 1,
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                scope.launch { pagerState.animateScrollToPage(1) }
+                                            },
+                                            icon = Icons.Default.MusicNote,
+                                            label = "Keerthanes",
+                                            isSelected = pagerState.currentPage == 1
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (favoriteKeerthanes.isEmpty()) {
+                                item {
+                                    FavoritesEmptyState(
+                                        title = "No Favorite Keerthanes",
+                                        hint = "Tap the heart on any keerthane detail screen to save it here."
+                                    )
+                                }
+                            } else {
+                                items(favoriteKeerthanes, key = { "k-${it.number}" }) { keerthane ->
+                                    KeerthaneListTile(
+                                        keerthane = keerthane,
+                                        onClick = { onKeerthaneClick(keerthane) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -160,49 +248,40 @@ fun FavoritesScreen(
 }
 
 @Composable
-private fun FavoritesListPane(
-    isEmpty: Boolean,
-    emptyTitle: String,
-    emptyHint: String,
-    content: @Composable () -> Unit
-) {
-    if (isEmpty) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center
+private fun FavoritesEmptyState(title: String, hint: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 40.dp, bottom = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            modifier = Modifier.size(80.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         ) {
-            Surface(
-                modifier = Modifier.size(80.dp),
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.Favorite,
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Default.Favorite,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = emptyTitle,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = emptyHint,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
         }
-    } else {
-        content()
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = hint,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
     }
 }
