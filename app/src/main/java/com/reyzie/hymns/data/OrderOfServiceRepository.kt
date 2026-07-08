@@ -83,6 +83,29 @@ class OrderOfServiceRepository(context: Context) {
         return parsedPages.filter { it.type == type }.sortedBy { it.pageNo }
     }
 
+    suspend fun savePage(updated: OrderPage) = withContext(Dispatchers.IO) {
+        val json = store.readOrderOfServiceJson() ?: return@withContext
+        val jsonObject = JSONObject(json)
+        listOf("regular", "festival").forEach { groupType ->
+            if (jsonObject.has(groupType)) {
+                val arr = jsonObject.getJSONArray(groupType)
+                for (i in 0 until arr.length()) {
+                    val item = arr.getJSONObject(i)
+                    val pageNo = if (item.has("page_no")) item.getInt("page_no") else item.getInt("pageNo")
+                    if (pageNo == updated.pageNo && groupType == updated.type) {
+                        item.put("content", updated.content)
+                        if (updated.title != null) {
+                            item.put("title", updated.title)
+                        } else {
+                            item.put("title", JSONObject.NULL)
+                        }
+                    }
+                }
+            }
+        }
+        store.writeOrderOfServiceJson(jsonObject.toString(4))
+    }
+
     companion object {
         private const val TAG = "OrderOfServiceRepository"
     }

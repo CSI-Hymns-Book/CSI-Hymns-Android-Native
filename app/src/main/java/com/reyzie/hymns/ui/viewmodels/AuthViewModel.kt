@@ -3,7 +3,7 @@ package com.reyzie.hymns.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reyzie.hymns.data.SupabaseService
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map

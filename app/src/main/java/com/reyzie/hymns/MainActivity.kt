@@ -29,7 +29,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 import com.reyzie.hymns.data.OnboardingPrefs
-import io.github.jan.supabase.gotrue.handleDeeplinks
+import io.github.jan.supabase.auth.handleDeeplinks
 
 class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(

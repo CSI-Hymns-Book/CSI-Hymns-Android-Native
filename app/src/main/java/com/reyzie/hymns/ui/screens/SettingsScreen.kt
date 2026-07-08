@@ -35,7 +35,7 @@ import com.reyzie.hymns.ui.widgets.ExpressiveSwitch
 import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.utils.HapticFeedbackManager
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 
 @Composable
 fun SettingsScreen(

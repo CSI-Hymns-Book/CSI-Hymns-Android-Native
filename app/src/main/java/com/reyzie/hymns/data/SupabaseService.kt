@@ -3,12 +3,12 @@ package com.reyzie.hymns.data
 import android.util.Log
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.createSupabaseClient
-import io.github.jan.supabase.gotrue.Auth
-import io.github.jan.supabase.gotrue.auth
-import io.github.jan.supabase.gotrue.providers.Google
-import io.github.jan.supabase.gotrue.providers.builtin.Email
-import io.github.jan.supabase.gotrue.SessionStatus
-import io.github.jan.supabase.gotrue.user.UserInfo
+import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.status.SessionStatus
+import io.github.jan.supabase.auth.user.UserInfo
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.from
@@ -139,7 +139,9 @@ class SupabaseService private constructor() {
                     put("auth_uid", user.id)
                     put("full_name", fullName)
                 }
-            )
+            ) {
+                onConflict = "auth_uid"
+            }
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error upserting profile", e)
         }

@@ -30,7 +30,7 @@ import com.reyzie.hymns.data.CustomCategory
 import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
-import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -137,21 +137,21 @@ fun CategoriesScreen(
             )
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Fixed(if (isLandscape) 3 else 2),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = if (isLandscape) 60.dp else 80.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
                 if (isLandscape) {
-                    item(span = { GridItemSpan(2) }) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         ExpressiveScreenTopBar(
                             title = "Categories",
                             onMenuClick = onMenuClick
                         )
                     }
                 }
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = "ESSENTIALS",
                         style = MaterialTheme.typography.labelSmall.copy(
@@ -171,7 +171,7 @@ fun CategoriesScreen(
                     )
                 }
                 
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Text(
                         text = "OCCASIONS",
                         style = MaterialTheme.typography.labelSmall.copy(
@@ -203,7 +203,7 @@ fun CategoriesScreen(
                     }
                 }
                 
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -248,7 +248,7 @@ fun CategoriesScreen(
                     )
                 }
 
-                item(span = { GridItemSpan(2) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Spacer(modifier = Modifier.height(100.dp))
                 }
             }

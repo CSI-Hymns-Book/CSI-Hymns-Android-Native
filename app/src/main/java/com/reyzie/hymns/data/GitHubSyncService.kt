@@ -71,9 +71,10 @@ class GitHubSyncService(context: Context) {
         repo: String,
         filePath: String,
     ): List<ChristmasCarol>? {
+        val cleanToken = token.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").trim()
         for (branch in listOf("main", "master")) {
             val response = client.get("https://api.github.com/repos/$repo/contents/$filePath") {
-                header("Authorization", "token $token")
+                header("Authorization", "Bearer $cleanToken")
                 header("Accept", "application/vnd.github.v3+json")
                 parameter("ref", branch)
             }
@@ -110,7 +111,8 @@ class GitHubSyncService(context: Context) {
 
     suspend fun pushToGitHub(carols: List<ChristmasCarol>): Boolean = withContext(Dispatchers.IO) {
         try {
-            val token = getGitHubToken() ?: return@withContext false
+            val rawToken = getGitHubToken() ?: return@withContext false
+            val token = rawToken.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").trim()
             val repo = getGitHubRepo()
             val filePath = getFilePath()
             
@@ -119,7 +121,7 @@ class GitHubSyncService(context: Context) {
             
             // Get existing file SHA if it exists
             val existingResponse = client.get("https://api.github.com/repos/$repo/contents/$filePath") {
-                header("Authorization", "token $token")
+                header("Authorization", "Bearer $token")
                 header("Accept", "application/vnd.github.v3+json")
             }
             
@@ -136,7 +138,7 @@ class GitHubSyncService(context: Context) {
             }
             
             val putResponse = client.put("https://api.github.com/repos/$repo/contents/$filePath") {
-                header("Authorization", "token $token")
+                header("Authorization", "Bearer $token")
                 header("Accept", "application/vnd.github.v3+json")
                 contentType(ContentType.Application.Json)
                 setBody(body)
@@ -146,6 +148,63 @@ class GitHubSyncService(context: Context) {
         } catch (e: Exception) {
             Log.e("GitHubSyncService", "Error pushing to GitHub", e)
             false
+        }
+    }
+
+    suspend fun pushFileToGitHub(
+        token: String,
+        repo: String,
+        filePath: String,
+        content: String,
+        commitMessage: String
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val cleanToken = token.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").trim()
+            val base64Content = Base64.encodeToString(content.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            
+            // Get existing file SHA if it exists - wrap in try-catch in case non-2xx throws
+            val existingResponse = try {
+                client.get("https://api.github.com/repos/$repo/contents/$filePath") {
+                    header("Authorization", "Bearer $cleanToken")
+                    header("Accept", "application/vnd.github.v3+json")
+                    header("User-Agent", "CSI-Hymns-App")
+                }
+            } catch (e: Exception) {
+                null
+            }
+            
+            val sha = if (existingResponse != null && existingResponse.status == HttpStatusCode.OK) {
+                existingResponse.body<JsonObject>()["sha"]?.jsonPrimitive?.content
+            } else null
+            
+            val body = buildJsonObject {
+                put("message", commitMessage)
+                put("content", base64Content)
+                if (sha != null) {
+                    put("sha", sha)
+                }
+            }
+            
+            val putResponse = client.put("https://api.github.com/repos/$repo/contents/$filePath") {
+                header("Authorization", "Bearer $cleanToken")
+                header("Accept", "application/vnd.github.v3+json")
+                header("User-Agent", "CSI-Hymns-App")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            
+            if (putResponse.status == HttpStatusCode.OK || putResponse.status == HttpStatusCode.Created) {
+                Log.d("GitHubSyncService", "Successfully pushed $filePath to GitHub contents")
+                null
+            } else {
+                val errorResponse = putResponse.bodyAsText()
+                val errorMsg = "HTTP ${putResponse.status.value}: $errorResponse"
+                Log.e("GitHubSyncService", "Failed to push $filePath: $errorMsg")
+                errorMsg
+            }
+        } catch (e: Exception) {
+            Log.e("GitHubSyncService", "Error pushing file $filePath to GitHub", e)
+            e.localizedMessage ?: e.toString()
         }
     }
 }

@@ -82,7 +82,9 @@ class CarolsSupabaseDataSource(
     suspend fun uploadPdf(pdfId: String, bytes: ByteArray): String = withContext(Dispatchers.IO) {
         val path = "${pdfId.lowercase()}.pdf"
         val bucket = supabaseService.client.storage.from(BUCKET)
-        bucket.upload(path, bytes, upsert = true)
+        bucket.upload(path, bytes) {
+            upsert = true
+        }
         bucket.publicUrl(path)
     }
 
