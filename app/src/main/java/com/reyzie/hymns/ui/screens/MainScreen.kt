@@ -1,7 +1,9 @@
 package com.reyzie.hymns.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.reyzie.hymns.utils.HapticFeedbackManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
@@ -145,6 +147,25 @@ fun MainScreen(
     settingsViewModel: SettingsViewModel = viewModel()
 ) {
     val favoritesViewModel: FavoritesViewModel = viewModel()
+    val authViewModel: com.reyzie.hymns.ui.viewmodels.AuthViewModel = viewModel()
+    val sessionStatus by authViewModel.sessionStatus.collectAsState()
+    val isLoggedIn = sessionStatus is io.github.jan.supabase.auth.status.SessionStatus.Authenticated
+    
+    val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
+    val adminEmailsString = remoteConfig.adminEmails ?: "reynoldclare02@gmail.com,admin@reyzie.com"
+    val adminEmails = remember(adminEmailsString) {
+        adminEmailsString.replace("[", "")
+            .replace("]", "")
+            .replace("\"", "")
+            .replace("'", "")
+            .split(",")
+            .map { it.trim().lowercase() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+    }
+    val currentUserEmail = (sessionStatus as? io.github.jan.supabase.auth.status.SessionStatus.Authenticated)
+        ?.session?.user?.email
+    val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
     val audioState by audioViewModel.audioState.collectAsState()
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
     val activeScreens = if (isChristmasMode) christmasMainScreens else mainScreens
@@ -186,6 +207,11 @@ fun MainScreen(
     }
     var welcomeChangelogEntry by rememberSaveable(stateSaver = ChangelogEntrySaver) { mutableStateOf<com.reyzie.hymns.data.ChangelogEntryData?>(null) }
     var resolvedTicketAcks by remember { mutableStateOf<List<com.reyzie.hymns.data.ResolvedTicketAckItem>?>(null) }
+    var initialChatTicketKey by remember { mutableStateOf<String?>(null) }
+    var newReplyNotificationMsg by remember { mutableStateOf<com.reyzie.hymns.data.TicketMessage?>(null) }
+    var showAdminControls by rememberSaveable { mutableStateOf(false) }
+    var activeBroadcastMsg by remember { mutableStateOf<com.reyzie.hymns.data.InAppMessage?>(null) }
+    val broadcastService = remember { com.reyzie.hymns.data.BroadcastMessageService(context) }
     val changelogService = remember { ChangelogService(context) }
     val ticketAckService = remember { TicketAcknowledgementService(context) }
 
@@ -238,6 +264,33 @@ fun MainScreen(
                 welcomeChangelogEntry = it
             }
         }
+
+        try {
+            val prefs = context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
+            val lastChecked = prefs.getString("last_replies_check_time", null)
+            val nowIso = java.time.Instant.now().toString()
+            if (lastChecked == null) {
+                prefs.edit().putString("last_replies_check_time", nowIso).apply()
+            } else {
+                val ticketsRepo = com.reyzie.hymns.data.TicketsRepository(context)
+                val newReplies = ticketsRepo.checkForNewReplies(lastChecked)
+                if (newReplies.isNotEmpty()) {
+                    newReplyNotificationMsg = newReplies.first()
+                }
+                prefs.edit().putString("last_replies_check_time", nowIso).apply()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        try {
+            val broadcast = broadcastService.getActiveUndismissedBroadcast()
+            if (broadcast != null) {
+                activeBroadcastMsg = broadcast
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     welcomeChangelogEntry?.let { entry ->
@@ -268,6 +321,39 @@ fun MainScreen(
         )
     }
 
+    newReplyNotificationMsg?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { newReplyNotificationMsg = null },
+            title = { Text("New Support Reply") },
+            text = { Text("You received a new reply on your ticket (${msg.ticketKey}):\n\n\"${msg.message}\"") },
+            confirmButton = {
+                Button(onClick = {
+                    HapticFeedbackManager.smoothClick(context)
+                    initialChatTicketKey = msg.ticketKey
+                    showTickets = true
+                    newReplyNotificationMsg = null
+                }) {
+                    Text("Open Chat")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { newReplyNotificationMsg = null }) {
+                    Text("Later")
+                }
+            }
+        )
+    }
+
+    activeBroadcastMsg?.let { msg ->
+        BroadcastMessageDialog(
+            message = msg,
+            onDismiss = {
+                broadcastService.dismissBroadcast(msg.id)
+                activeBroadcastMsg = null
+            }
+        )
+    }
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -276,7 +362,8 @@ fun MainScreen(
     val isStackedOverlayOpen = showProfileEdit || showPrivacyPolicy || showChangelog || showAboutApp ||
         showPraiseApp || showTickets || showAboutDeveloper || showRecentSongs ||
         showChristmasCarols || showHymnsFromChristmas || showKeerthanesFromChristmas ||
-        selectedCommonCategory != null || pickSongsForCategory != null || selectedCategory != null
+        selectedCommonCategory != null || pickSongsForCategory != null || selectedCategory != null ||
+        showAdminControls
 
     if (forceUpdateDecision != null) {
         AlertDialog(
@@ -335,7 +422,9 @@ fun MainScreen(
                 onPraiseAppClick = { showPraiseApp = true },
                 onTicketsClick = { showTickets = true },
                 onAboutDeveloperClick = { showAboutDeveloper = true },
-                onProfileEditClick = { showProfileEdit = true }
+                onProfileEditClick = { showProfileEdit = true },
+                onAdminControlsClick = { showAdminControls = true },
+                isAdmin = isAdmin
             )
         }
     ) {
@@ -562,9 +651,12 @@ fun MainScreen(
 
             ExpressiveOverlayScreen(
                 visible = showTickets,
-                onDismiss = { showTickets = false }
+                onDismiss = { showTickets = false; initialChatTicketKey = null }
             ) {
-                TicketsScreen(onBackClick = { showTickets = false })
+                TicketsScreen(
+                    initialTicketKey = initialChatTicketKey,
+                    onBackClick = { showTickets = false; initialChatTicketKey = null }
+                )
             }
 
             ExpressiveOverlayScreen(
@@ -572,6 +664,15 @@ fun MainScreen(
                 onDismiss = { showAboutDeveloper = false }
             ) {
                 AboutDeveloperScreen(onBackClick = { showAboutDeveloper = false })
+            }
+
+            if (isAdmin) {
+                ExpressiveOverlayScreen(
+                    visible = showAdminControls,
+                    onDismiss = { showAdminControls = false }
+                ) {
+                    AdminControlsScreen(onBackClick = { showAdminControls = false })
+                }
             }
 
             ExpressiveOverlayScreen(

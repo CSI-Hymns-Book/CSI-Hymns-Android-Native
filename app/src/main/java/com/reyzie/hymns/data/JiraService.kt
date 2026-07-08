@@ -11,6 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import android.util.Base64
+import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.filter.*
 import java.util.concurrent.TimeoutException
 
 data class JiraTicketResult(
@@ -196,5 +198,127 @@ class JiraService {
         } catch (e: Exception) {
             Log.e("JiraService", "Failed to save ticket to Supabase", e)
         }
+    }
+
+    suspend fun addComment(ticketKey: String, commentText: String): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext false
+        try {
+            val url = BuildConfig.JIRA_URL
+            val email = BuildConfig.JIRA_EMAIL
+            val apiToken = BuildConfig.JIRA_API_TOKEN
+            val credentials = Base64.encodeToString("$email:$apiToken".toByteArray(), Base64.NO_WRAP)
+            
+            val apiUrl = if (url.endsWith("/")) "${url}rest/api/3/issue/$ticketKey/comment"
+            else "$url/rest/api/3/issue/$ticketKey/comment"
+
+            val commentTextWithTag = "$commentText\n\n[via CSI Android App]"
+
+            val requestBody = JSONObject().apply {
+                put("body", JSONObject().apply {
+                    put("type", "doc")
+                    put("version", 1)
+                    put("content", org.json.JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("type", "paragraph")
+                            put("content", org.json.JSONArray().apply {
+                                put(JSONObject().apply {
+                                    put("type", "text")
+                                    put("text", commentTextWithTag)
+                                })
+                            })
+                        })
+                    })
+                })
+            }
+
+            val response: HttpResponse = client.post(apiUrl) {
+                header("Authorization", "Basic $credentials")
+                header("Content-Type", "application/json")
+                header("Accept", "application/json")
+                setBody(requestBody.toString())
+            }
+
+            response.status.value == 201
+        } catch (e: Exception) {
+            Log.e("JiraService", "Error adding comment to $ticketKey", e)
+            false
+        }
+    }
+
+    suspend fun syncTicketComments(ticketId: String, ticketKey: String) = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext
+        try {
+            val url = BuildConfig.JIRA_URL
+            val email = BuildConfig.JIRA_EMAIL
+            val apiToken = BuildConfig.JIRA_API_TOKEN
+            val credentials = Base64.encodeToString("$email:$apiToken".toByteArray(), Base64.NO_WRAP)
+            val apiUrl = if (url.endsWith("/")) "${url}rest/api/3/issue/$ticketKey/comment"
+            else "$url/rest/api/3/issue/$ticketKey/comment"
+
+            val response: HttpResponse = client.get(apiUrl) {
+                header("Authorization", "Basic $credentials")
+                header("Accept", "application/json")
+            }
+            if (response.status.value != 200) return@withContext
+
+            val data = JSONObject(response.bodyAsText())
+            val commentsArray = data.optJSONArray("comments") ?: return@withContext
+            
+            val supabase = SupabaseService.getInstance()
+            
+            for (i in 0 until commentsArray.length()) {
+                val commentObj = commentsArray.optJSONObject(i) ?: continue
+                val bodyObj = commentObj.optJSONObject("body") ?: continue
+                val text = parseJiraDocText(bodyObj)
+                if (text.isEmpty()) continue
+
+                if (text.contains("[via CSI Android App]")) {
+                    continue
+                }
+
+                val existing = supabase.client.from("ticket_messages")
+                    .select {
+                        filter {
+                            eq("ticket_key", ticketKey)
+                            eq("sender", "admin")
+                            eq("message", text)
+                        }
+                    }.decodeList<TicketMessage>()
+                
+                if (existing.isEmpty()) {
+                    val msg = TicketMessage(
+                        ticketId = ticketId,
+                        ticketKey = ticketKey,
+                        sender = "admin",
+                        message = text
+                    )
+                    supabase.client.from("ticket_messages").insert(msg)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("JiraService", "Error syncing comments for $ticketKey", e)
+        }
+    }
+
+    private fun parseJiraDocText(bodyObj: JSONObject): String {
+        val sb = java.lang.StringBuilder()
+        val contentArray = bodyObj.optJSONArray("content")
+        if (contentArray != null) {
+            for (i in 0 until contentArray.length()) {
+                val block = contentArray.optJSONObject(i) ?: continue
+                val innerContent = block.optJSONArray("content")
+                if (innerContent != null) {
+                    for (j in 0 until innerContent.length()) {
+                        val leaf = innerContent.optJSONObject(j) ?: continue
+                        val text = leaf.optString("text")
+                        if (text.isNotEmpty()) {
+                            sb.append(text)
+                        }
+                    }
+                    sb.append("\n")
+                }
+            }
+        }
+        return sb.toString().trim()
     }
 }

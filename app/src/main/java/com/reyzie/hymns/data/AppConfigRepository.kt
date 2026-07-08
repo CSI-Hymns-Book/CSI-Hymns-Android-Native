@@ -18,7 +18,9 @@ data class RemoteAppConfig(
     val castAppId: String? = null,
     val castReceiverUrl: String? = null,
     /** When true (1), the Page Flip option is shown in Settings and available in hymn detail. */
-    val pageFlipVisible: Boolean? = null
+    val pageFlipVisible: Boolean? = null,
+    val adminEmails: String? = null,
+    val githubToken: String? = null
 )
 
 object AppConfigKeys {
@@ -32,6 +34,8 @@ object AppConfigKeys {
     const val CAST_APP_ID = "cast_app_id"
     const val CAST_RECEIVER_URL = "cast_receiver_url"
     const val PAGE_FLIP_VISIBLE = "page_flip_visible"
+    const val ADMIN_EMAILS = "admin_emails"
+    const val GITHUB_TOKEN = "github_token"
 }
 
 class AppConfigRepository(
@@ -59,7 +63,9 @@ class AppConfigRepository(
                 AppConfigKeys.CAST_ENABLED,
                 AppConfigKeys.CAST_APP_ID,
                 AppConfigKeys.CAST_RECEIVER_URL,
-                AppConfigKeys.PAGE_FLIP_VISIBLE
+                AppConfigKeys.PAGE_FLIP_VISIBLE,
+                AppConfigKeys.ADMIN_EMAILS,
+                AppConfigKeys.GITHUB_TOKEN
             )
         )
 
@@ -73,13 +79,15 @@ class AppConfigRepository(
             castEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.CAST_ENABLED]),
             castAppId = raw[AppConfigKeys.CAST_APP_ID]?.trim()?.takeIf { it.isNotEmpty() },
             castReceiverUrl = raw[AppConfigKeys.CAST_RECEIVER_URL]?.trim()?.takeIf { it.isNotEmpty() },
-            pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE])
+            pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE]),
+            adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]?.trim()?.takeIf { it.isNotEmpty() },
+            githubToken = raw[AppConfigKeys.GITHUB_TOKEN]?.trim()?.takeIf { it.isNotEmpty() }
         ).also { config ->
             // Always refresh cache from a successful fetch (including explicit false).
             prefs?.edit()?.putBoolean(PREF_CHRISTMAS_REMOTE, config.isChristmasTime == true)?.apply()
             Log.d(
                 "AppConfigRepository",
-                "Loaded app_config: christmas=${config.isChristmasTime}, cast=${config.castEnabled}, pageFlipVisible=${config.pageFlipVisible}"
+                "Loaded app_config: christmas=${config.isChristmasTime}, cast=${config.castEnabled}, pageFlipVisible=${config.pageFlipVisible}, adminEmails=${config.adminEmails}, githubToken=${config.githubToken != null}"
             )
         }
     }

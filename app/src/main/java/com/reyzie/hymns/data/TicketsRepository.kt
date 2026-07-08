@@ -2,12 +2,14 @@ package com.reyzie.hymns.data
 
 import android.content.Context
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.filter.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
 data class JiraTicket(
+    val id: String,
     val ticketKey: String,
     val ticketUrl: String,
     val songType: String,
@@ -79,6 +81,7 @@ class TicketsRepository(private val context: Context) {
                 .take(maxTickets)
             for (ticket in active) {
                 jiraService.syncTicketStatus(ticket.ticketKey)
+                jiraService.syncTicketComments(ticket.id, ticket.ticketKey)
                 delay(250)
             }
         } catch (e: Exception) {
@@ -87,6 +90,7 @@ class TicketsRepository(private val context: Context) {
     }
 
     private fun JiraTicketRow.toModel() = JiraTicket(
+        id = id,
         ticketKey = ticketKey,
         ticketUrl = ticketUrl,
         songType = songType,
@@ -99,4 +103,64 @@ class TicketsRepository(private val context: Context) {
         createdAt = createdAt,
         updatedAt = updatedAt
     )
+
+    suspend fun getTicketMessages(ticketKey: String): List<TicketMessage> = withContext(Dispatchers.IO) {
+        try {
+            supabase.client.from("ticket_messages")
+                .select {
+                    filter { eq("ticket_key", ticketKey) }
+                }
+                .decodeList<TicketMessage>()
+                .sortedBy { it.createdAt }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    suspend fun syncTicketComments(ticketId: String, ticketKey: String) = withContext(Dispatchers.IO) {
+        jiraService.syncTicketComments(ticketId, ticketKey)
+    }
+
+    suspend fun sendTicketMessage(ticketId: String, ticketKey: String, message: String): TicketMessage? = withContext(Dispatchers.IO) {
+        try {
+            // Also post the comment directly to the main Jira ticket
+            jiraService.addComment(ticketKey, message)
+
+            val msg = TicketMessage(
+                ticketId = ticketId,
+                ticketKey = ticketKey,
+                sender = "user",
+                message = message
+            )
+            supabase.client.from("ticket_messages")
+                .insert(msg) {
+                    select()
+                }
+                .decodeSingle<TicketMessage>()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    suspend fun checkForNewReplies(lastChecked: String): List<TicketMessage> = withContext(Dispatchers.IO) {
+        try {
+            val myTickets = getMyTickets()
+            if (myTickets.isEmpty()) return@withContext emptyList()
+            val ticketKeys = myTickets.map { it.ticketKey }
+            supabase.client.from("ticket_messages")
+                .select {
+                    filter {
+                        eq("sender", "admin")
+                        gt("created_at", lastChecked)
+                        isIn("ticket_key", ticketKeys)
+                    }
+                }
+                .decodeList<TicketMessage>()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
 }

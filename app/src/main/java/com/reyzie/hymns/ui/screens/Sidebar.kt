@@ -35,6 +35,8 @@ fun Sidebar(
     onTicketsClick: () -> Unit = {},
     onAboutDeveloperClick: () -> Unit = {},
     onProfileEditClick: () -> Unit = {},
+    onAdminControlsClick: () -> Unit = {},
+    isAdmin: Boolean = false,
     authViewModel: AuthViewModel = viewModel()
 ) {
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
@@ -160,19 +162,6 @@ fun Sidebar(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                 )
                 SidebarDrawerItem(
-                    icon = Icons.Outlined.GridView,
-                    label = "Categories",
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        onCloseDrawer()
-                        navController.navigate("categories")
-                    }
-                )
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                )
-                SidebarDrawerItem(
                     icon = Icons.Outlined.ConfirmationNumber,
                     label = "Tickets Submitted",
                     onClick = {
@@ -214,6 +203,21 @@ fun Sidebar(
                         onAboutDeveloperClick()
                     }
                 )
+            }
+
+            if (isAdmin) {
+                SidebarSectionLabel("Admin")
+                SidebarListBlock {
+                    SidebarDrawerItem(
+                        icon = Icons.Outlined.AdminPanelSettings,
+                        label = "Admin Controls",
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            onCloseDrawer()
+                            onAdminControlsClick()
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))

@@ -108,6 +108,24 @@ class HymnsRepository(context: Context) {
         return gson.fromJson(jsonString, listType) ?: emptyList()
     }
 
+    suspend fun saveHymn(updated: Hymn) = withContext(Dispatchers.IO) {
+        val hymns = loadHymns().toMutableList()
+        val index = hymns.indexOfFirst { it.number == updated.number }
+        if (index != -1) {
+            hymns[index] = updated
+            store.writeHymnsJson(gson.toJson(hymns))
+        }
+    }
+
+    suspend fun saveKeerthane(updated: Keerthane) = withContext(Dispatchers.IO) {
+        val keerthanes = loadKeerthanes().toMutableList()
+        val index = keerthanes.indexOfFirst { it.number == updated.number }
+        if (index != -1) {
+            keerthanes[index] = updated
+            store.writeKeerthaneJson(gson.toJson(keerthanes))
+        }
+    }
+
     companion object {
         private const val TAG = "HymnsRepository"
     }

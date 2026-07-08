@@ -139,7 +139,9 @@ class SupabaseService private constructor() {
                     put("auth_uid", user.id)
                     put("full_name", fullName)
                 }
-            )
+            ) {
+                onConflict = "auth_uid"
+            }
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error upserting profile", e)
         }
