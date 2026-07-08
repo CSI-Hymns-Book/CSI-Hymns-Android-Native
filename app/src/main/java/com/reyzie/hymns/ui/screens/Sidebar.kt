@@ -37,7 +37,9 @@ fun Sidebar(
     onProfileEditClick: () -> Unit = {},
     onAdminControlsClick: () -> Unit = {},
     isAdmin: Boolean = false,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    isMangaloreHymnsEnabled: Boolean = false,
+    onChangeSectionClick: () -> Unit = {}
 ) {
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
     val isLoggedIn = sessionStatus is SessionStatus.Authenticated
@@ -141,6 +143,21 @@ fun Sidebar(
                             HapticFeedbackManager.smoothClick(context)
                             onCloseDrawer()
                             onProfileEditClick()
+                        }
+                    )
+                }
+            }
+
+            if (isMangaloreHymnsEnabled) {
+                SidebarSectionLabel("Book Sections")
+                SidebarListBlock {
+                    SidebarDrawerItem(
+                        icon = Icons.Outlined.Book,
+                        label = "Switch Hymn Book",
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            onCloseDrawer()
+                            onChangeSectionClick()
                         }
                     )
                 }

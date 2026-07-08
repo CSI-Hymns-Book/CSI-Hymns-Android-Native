@@ -18,17 +18,20 @@ class ContentLocalStore(private val context: Context) {
     val hymnsFile get() = File(contentDir, HYMNS_FILE)
     val keerthaneFile get() = File(contentDir, KEERTHANE_FILE)
     val orderOfServiceFile get() = File(contentDir, ORDER_FILE)
+    val mangaloreHymnsFile get() = File(contentDir, MANGALORE_HYMNS_FILE)
 
     suspend fun ensureSeeded() = withContext(Dispatchers.IO) {
         migrateFromLegacyPrefs()
         copyAssetIfMissing(ASSET_HYMNS, hymnsFile)
         copyAssetIfMissing(ASSET_KEERTHANE, keerthaneFile)
         copyAssetIfMissing(ASSET_ORDER, orderOfServiceFile)
+        copyAssetIfMissing(ASSET_MANGALORE_HYMNS, mangaloreHymnsFile)
     }
 
     fun readHymnsJson(): String? = hymnsFile.takeIf { it.exists() }?.readText()
     fun readKeerthaneJson(): String? = keerthaneFile.takeIf { it.exists() }?.readText()
     fun readOrderOfServiceJson(): String? = orderOfServiceFile.takeIf { it.exists() }?.readText()
+    fun readMangaloreHymnsJson(): String? = mangaloreHymnsFile.takeIf { it.exists() }?.readText()
 
     fun writeHymnsJson(json: String) {
         hymnsFile.writeText(json)
@@ -42,9 +45,14 @@ class ContentLocalStore(private val context: Context) {
         orderOfServiceFile.writeText(json)
     }
 
+    fun writeMangaloreHymnsJson(json: String) {
+        mangaloreHymnsFile.writeText(json)
+    }
+
     fun hasHymns(): Boolean = hymnsFile.exists() && hymnsFile.length() > 0
     fun hasKeerthanes(): Boolean = keerthaneFile.exists() && keerthaneFile.length() > 0
     fun hasOrderOfService(): Boolean = orderOfServiceFile.exists() && orderOfServiceFile.length() > 0
+    fun hasMangaloreHymns(): Boolean = mangaloreHymnsFile.exists() && mangaloreHymnsFile.length() > 0
 
     private fun copyAssetIfMissing(assetPath: String, target: File) {
         if (target.exists() && target.length() > 0) return
@@ -76,9 +84,11 @@ class ContentLocalStore(private val context: Context) {
         private const val HYMNS_FILE = "hymns_data.json"
         private const val KEERTHANE_FILE = "keerthane_data.json"
         private const val ORDER_FILE = "order-of-service_data.json"
+        private const val MANGALORE_HYMNS_FILE = "mangalore_hymns_data.json"
         private const val LEGACY_PREFS = "HymnsPrefs"
         private const val ASSET_HYMNS = "content/hymns_data.json"
         private const val ASSET_KEERTHANE = "content/keerthane_data.json"
         private const val ASSET_ORDER = "content/order-of-service_data.json"
+        private const val ASSET_MANGALORE_HYMNS = "content/mangalore_hymns_data.json"
     }
 }

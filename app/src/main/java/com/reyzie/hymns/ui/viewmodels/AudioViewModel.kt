@@ -24,7 +24,8 @@ data class AudioState(
     val position: Long = 0,
     val duration: Long = 0,
     val error: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val currentAudioUrl: String? = null
 )
 
 class AudioViewModel(application: Application) : AndroidViewModel(application) {
@@ -100,14 +101,14 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         progressJob?.cancel()
     }
 
-    fun playSong(number: Int, title: String, isKeerthane: Boolean) {
-        val audioUrl = if (isKeerthane) {
+    fun playSong(number: Int, title: String, isKeerthane: Boolean, customAudioUrl: String? = null) {
+        val audioUrl = customAudioUrl ?: if (isKeerthane) {
             "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
         } else {
             "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
         }
 
-        if (_audioState.value.currentSongNumber == number && _audioState.value.isKeerthane == isKeerthane) {
+        if (_audioState.value.currentAudioUrl == audioUrl) {
             _audioState.value = _audioState.value.copy(
                 isVisible = true,
                 currentSongTitle = title,
@@ -134,7 +135,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             isLoading = true,
             error = null,
             position = 0,
-            duration = 0
+            duration = 0,
+            currentAudioUrl = audioUrl
         )
 
         exoPlayer.stop()

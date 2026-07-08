@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import android.content.Context
+import com.reyzie.hymns.data.AppSection
 
 enum class SortOrder {
     NUMBER, TITLE, METER
@@ -21,6 +22,14 @@ enum class SortOrder {
 class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = HymnsRepository(application)
     private val settingsPrefs = application.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+    private var currentSection = AppSection.CSI
+
+    fun setSection(section: AppSection) {
+        if (currentSection != section) {
+            currentSection = section
+            loadHymns()
+        }
+    }
 
     private val _allHymns = MutableStateFlow<List<Hymn>>(emptyList())
     private val _filteredHymns = MutableStateFlow<List<Hymn>>(emptyList())
@@ -73,7 +82,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadHymns() {
         viewModelScope.launch {
             _isLoading.value = true
-            val hymns = repository.loadHymns()
+            val hymns = repository.loadHymns(currentSection)
             _allHymns.value = hymns
             applySortAndFilter()
             _isLoading.value = false
@@ -81,7 +90,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun reloadFromLocal() {
-        val hymns = repository.loadHymns()
+        val hymns = repository.loadHymns(currentSection)
         if (hymns.isNotEmpty()) {
             _allHymns.value = hymns
             applySortAndFilter()
@@ -91,6 +100,10 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private var syncJob: kotlinx.coroutines.Job? = null
 
     fun refreshHymns() {
+        if (currentSection == AppSection.MT) {
+            loadHymns()
+            return
+        }
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Loading

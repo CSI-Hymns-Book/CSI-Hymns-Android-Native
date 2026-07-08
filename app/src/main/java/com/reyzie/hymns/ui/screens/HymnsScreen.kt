@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.reyzie.hymns.data.AppSection
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.painterResource
@@ -48,7 +49,8 @@ fun HymnsScreen(
     viewModel: HymnsViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
     onHymnClick: (Hymn) -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
+    activeSection: AppSection = AppSection.CSI
 ) {
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
     val filteredHymns by viewModel.filteredHymns.collectAsState()
@@ -71,6 +73,10 @@ fun HymnsScreen(
         }
     }
 
+    LaunchedEffect(activeSection) {
+        viewModel.setSection(activeSection)
+    }
+
     val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     Scaffold(
@@ -79,7 +85,11 @@ fun HymnsScreen(
         topBar = {
             if (!isLandscape) {
                 ExpressiveScreenTopBar(
-                    title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
+                    title = when {
+                        isChristmasMode -> "Christmas Carols"
+                        activeSection == AppSection.MT -> "MT Hymns"
+                        else -> "CSI Kannada Hymns"
+                    },
                     onMenuClick = onSettingsClick,
                     actions = {
                         if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {

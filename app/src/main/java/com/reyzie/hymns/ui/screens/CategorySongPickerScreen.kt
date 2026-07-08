@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import com.reyzie.hymns.data.Hymn
 import com.reyzie.hymns.data.Keerthane
+import com.reyzie.hymns.data.AppSection
 import com.reyzie.hymns.data.HymnsRepository
 import com.reyzie.hymns.data.CustomCategoriesRepository
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
@@ -37,7 +38,8 @@ import com.reyzie.hymns.utils.HapticFeedbackManager
 fun CategorySongPickerScreen(
     categoryId: Int,
     categoryName: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    activeSection: AppSection = AppSection.CSI
 ) {
     val context = LocalContext.current
     val hymnsRepository = remember { HymnsRepository(context) }
@@ -53,9 +55,9 @@ fun CategorySongPickerScreen(
     // Set of Pair(songId, songType)
     var selectedSongs by remember { mutableStateOf<Set<Pair<Int, String>>>(emptySet()) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(activeSection) {
         scope.launch {
-            allHymns = hymnsRepository.loadHymns()
+            allHymns = hymnsRepository.loadHymns(activeSection)
             allKeerthanes = hymnsRepository.loadKeerthanes()
             isLoadingSongs = false
         }
@@ -140,32 +142,34 @@ fun CategorySongPickerScreen(
             )
 
             // Tabs Selector
-            StandardButtonGroup(
-                buttonCount = 2,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Button(
-                    index = 0,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        scope.launch { pagerState.animateScrollToPage(0) }
-                    },
-                    icon = Icons.Default.FormatListNumbered,
-                    label = "Hymns",
-                    isSelected = pagerState.currentPage == 0
-                )
-                Button(
-                    index = 1,
-                    onClick = {
-                        HapticFeedbackManager.smoothClick(context)
-                        scope.launch { pagerState.animateScrollToPage(1) }
-                    },
-                    icon = Icons.Default.MusicNote,
-                    label = "Keerthanes",
-                    isSelected = pagerState.currentPage == 1
-                )
+            if (activeSection != AppSection.MT) {
+                StandardButtonGroup(
+                    buttonCount = 2,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Button(
+                        index = 0,
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            scope.launch { pagerState.animateScrollToPage(0) }
+                        },
+                        icon = Icons.Default.FormatListNumbered,
+                        label = "Hymns",
+                        isSelected = pagerState.currentPage == 0
+                    )
+                    Button(
+                        index = 1,
+                        onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            scope.launch { pagerState.animateScrollToPage(1) }
+                        },
+                        icon = Icons.Default.MusicNote,
+                        label = "Keerthanes",
+                        isSelected = pagerState.currentPage == 1
+                    )
+                }
             }
 
             if (isLoadingSongs) {
@@ -178,73 +182,105 @@ fun CategorySongPickerScreen(
                     CircularProgressIndicator()
                 }
             } else {
-                HorizontalPager(
-                    state = pagerState,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    beyondViewportPageCount = 1
-                ) { page ->
-                    when (page) {
-                        0 -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 16.dp)
-                            ) {
-                                items(filteredHymns, key = { "hymn-${it.number}" }) { hymn ->
-                                    val itemPair = Pair(hymn.number, "hymn")
-                                    val isSelected = selectedSongs.contains(itemPair)
-                                    ListItem(
-                                        headlineContent = { Text(hymn.title, fontWeight = FontWeight.Bold) },
-                                        supportingContent = { Text("Hymn #${hymn.number}") },
-                                        trailingContent = {
-                                            if (isSelected) {
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
+                if (activeSection == AppSection.MT) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(filteredHymns, key = { "hymn-${it.number}" }) { hymn ->
+                            val itemPair = Pair(hymn.number, "hymn")
+                            val isSelected = selectedSongs.contains(itemPair)
+                            ListItem(
+                                headlineContent = { Text(hymn.title, fontWeight = FontWeight.Bold) },
+                                supportingContent = { Text("Hymn #${hymn.number}") },
+                                trailingContent = {
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.clickable {
+                                    selectedSongs = if (isSelected) {
+                                        selectedSongs - itemPair
+                                    } else {
+                                        selectedSongs + itemPair
+                                    }
+                                }
+                            )
+                        }
+                    }
+                } else {
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        beyondViewportPageCount = 1
+                    ) { page ->
+                        when (page) {
+                            0 -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(bottom = 16.dp)
+                                ) {
+                                    items(filteredHymns, key = { "hymn-${it.number}" }) { hymn ->
+                                        val itemPair = Pair(hymn.number, "hymn")
+                                        val isSelected = selectedSongs.contains(itemPair)
+                                        ListItem(
+                                            headlineContent = { Text(hymn.title, fontWeight = FontWeight.Bold) },
+                                            supportingContent = { Text("Hymn #${hymn.number}") },
+                                            trailingContent = {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                            modifier = Modifier.clickable {
+                                                selectedSongs = if (isSelected) {
+                                                    selectedSongs - itemPair
+                                                } else {
+                                                    selectedSongs + itemPair
+                                                }
                                             }
-                                        },
-                                        modifier = Modifier.clickable {
-                                            selectedSongs = if (isSelected) {
-                                                selectedSongs - itemPair
-                                            } else {
-                                                selectedSongs + itemPair
-                                            }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
-                        }
-                        else -> {
-                            LazyColumn(
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 16.dp)
-                            ) {
-                                items(filteredKeerthanes, key = { "keerthane-${it.number}" }) { keerthane ->
-                                    val itemPair = Pair(keerthane.number, "keerthane")
-                                    val isSelected = selectedSongs.contains(itemPair)
-                                    ListItem(
-                                        headlineContent = { Text(keerthane.title, fontWeight = FontWeight.Bold) },
-                                        supportingContent = { Text("Keerthane #${keerthane.number}") },
-                                        trailingContent = {
-                                            if (isSelected) {
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = MaterialTheme.colorScheme.primary
-                                                )
+                            else -> {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(bottom = 16.dp)
+                                ) {
+                                    items(filteredKeerthanes, key = { "keerthane-${it.number}" }) { keerthane ->
+                                        val itemPair = Pair(keerthane.number, "keerthane")
+                                        val isSelected = selectedSongs.contains(itemPair)
+                                        ListItem(
+                                            headlineContent = { Text(keerthane.title, fontWeight = FontWeight.Bold) },
+                                            supportingContent = { Text("Keerthane #${keerthane.number}") },
+                                            trailingContent = {
+                                                if (isSelected) {
+                                                    Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                            modifier = Modifier.clickable {
+                                                selectedSongs = if (isSelected) {
+                                                    selectedSongs - itemPair
+                                                } else {
+                                                    selectedSongs + itemPair
+                                                }
                                             }
-                                        },
-                                        modifier = Modifier.clickable {
-                                            selectedSongs = if (isSelected) {
-                                                selectedSongs - itemPair
-                                            } else {
-                                                selectedSongs + itemPair
-                                            }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }

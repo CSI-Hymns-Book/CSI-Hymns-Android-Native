@@ -77,6 +77,13 @@ fun HymnDetailScreen(
     
     val isPageFlipEnabled by settingsViewModel.isPageFlipEnabled.collectAsState()
     val audioState by audioViewModel.audioState.collectAsState()
+    val targetAudioUrl = hymn.audioUrl ?: if (isKeerthane) {
+        "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
+    } else {
+        "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
+    }
+    val isSameSong = audioState.currentAudioUrl == targetAudioUrl
+
     val remoteAppConfig by settingsViewModel.remoteAppConfig.collectAsState()
     val castEnabled = remoteAppConfig.castEnabled == true
     val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
@@ -85,11 +92,7 @@ fun HymnDetailScreen(
     var showReportDialog by remember { mutableStateOf(false) }
 
     if (showCastSheet && castEnabled) {
-        val streamUrl = if (isKeerthane) {
-            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
-        } else {
-            "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
-        }
+        val streamUrl = targetAudioUrl
         CastControlSheet(
             request = SongCastRequest(
                 streamUrl = streamUrl,
@@ -337,9 +340,8 @@ fun HymnDetailScreen(
                                             index = 1,
                                             onClick = {
                                                 HapticFeedbackManager.smoothClick(context)
-                                                val isSameSong = audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane
                                                 if (!audioState.isVisible || !isSameSong) {
-                                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane)
+                                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, hymn.audioUrl)
                                                 } else {
                                                     audioViewModel.toggleVisibility()
                                                 }
@@ -348,9 +350,9 @@ fun HymnDetailScreen(
                                                     rightColumnScrollState.animateScrollTo(rightColumnScrollState.maxValue)
                                                 }
                                             },
-                                            icon = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
-                                            label = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) "Hide" else "Audio",
-                                            isSelected = audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane,
+                                            icon = if (audioState.isVisible && isSameSong) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
+                                            label = if (audioState.isVisible && isSameSong) "Hide" else "Audio",
+                                            isSelected = audioState.isVisible && isSameSong,
                                             variant = GroupButtonVariant.Tonal
                                         )
                                     }
@@ -539,16 +541,15 @@ fun HymnDetailScreen(
                                 index = 1,
                                 onClick = {
                                     HapticFeedbackManager.smoothClick(context)
-                                    val isSameSong = audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane
-                                    if (!audioState.isVisible || !isSameSong) {
-                                        audioViewModel.playSong(hymn.number, hymn.title, isKeerthane)
-                                    } else {
+                                     if (!audioState.isVisible || !isSameSong) {
+                                         audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, hymn.audioUrl)
+                                     } else {
                                         audioViewModel.toggleVisibility()
                                     }
                                 },
-                                icon = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
-                                label = if (audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane) "Hide" else "Audio",
-                                isSelected = audioState.isVisible && audioState.currentSongNumber == hymn.number && audioState.isKeerthane == isKeerthane,
+                                icon = if (audioState.isVisible && isSameSong) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
+                                label = if (audioState.isVisible && isSameSong) "Hide" else "Audio",
+                                isSelected = audioState.isVisible && isSameSong,
                                 variant = GroupButtonVariant.Tonal
                             )
                             if (castEnabled) {

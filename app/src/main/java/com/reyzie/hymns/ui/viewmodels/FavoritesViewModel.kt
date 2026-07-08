@@ -9,6 +9,7 @@ import com.reyzie.hymns.data.HymnsRepository
 import com.reyzie.hymns.data.Keerthane
 import com.reyzie.hymns.data.SupabaseService
 import io.github.jan.supabase.auth.status.SessionStatus
+import com.reyzie.hymns.data.AppSection
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +18,24 @@ import kotlinx.coroutines.launch
 class FavoritesViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = FavoritesRepository.getInstance(application)
     private val hymnsRepository = HymnsRepository(application)
+    private var currentSection = AppSection.CSI
+
+    fun setSection(section: AppSection) {
+        if (currentSection != section) {
+            currentSection = section
+            reloadFavorites()
+        }
+    }
+
+    private fun reloadFavorites() {
+        viewModelScope.launch {
+            val ids = favoriteHymnIds.value
+            val allHymns = hymnsRepository.loadHymns(currentSection)
+            _favoriteHymns.value = allHymns
+                .filter { it.number in ids }
+                .sortedBy { it.number }
+        }
+    }
 
     val favoriteHymnIds = repository.favoriteHymnIds
     val favoriteKeerthaneIds = repository.favoriteKeerthaneIds
@@ -48,10 +67,7 @@ class FavoritesViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             favoriteHymnIds.collect { ids ->
-                val allHymns = hymnsRepository.loadHymns()
-                _favoriteHymns.value = allHymns
-                    .filter { it.number in ids }
-                    .sortedBy { it.number }
+                reloadFavorites()
             }
         }
 

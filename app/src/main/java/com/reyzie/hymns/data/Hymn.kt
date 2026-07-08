@@ -12,5 +12,6 @@ data class Hymn(
     val title: String,
     val signature: String,
     val lyrics: String,
-    val kannadaLyrics: String? = null
+    val kannadaLyrics: String? = null,
+    val audioUrl: String? = null
 )

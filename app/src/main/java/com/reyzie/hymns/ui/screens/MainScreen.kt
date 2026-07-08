@@ -11,8 +11,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.Alignment.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -42,6 +47,13 @@ import com.reyzie.hymns.ui.motion.expressiveBackExit
 import com.reyzie.hymns.ui.motion.expressiveForwardEnter
 import com.reyzie.hymns.ui.motion.expressiveForwardExit
 import com.reyzie.hymns.ui.motion.expressivePagerPage
+import com.reyzie.hymns.data.AppSection
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
 import kotlinx.coroutines.launch
@@ -152,6 +164,10 @@ fun MainScreen(
     val isLoggedIn = sessionStatus is io.github.jan.supabase.auth.status.SessionStatus.Authenticated
     
     val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
+    val isMangaloreHymnsEnabled = remoteConfig.isMangaloreHymnsEnabled == true
+    var activeSection by rememberSaveable { mutableStateOf<AppSection?>(null) }
+    val effectiveSection = if (isMangaloreHymnsEnabled) (activeSection ?: AppSection.CSI) else AppSection.CSI
+
     val adminEmailsString = remoteConfig.adminEmails ?: "reynoldclare02@gmail.com,admin@reyzie.com"
     val adminEmails = remember(adminEmailsString) {
         adminEmailsString.replace("[", "")
@@ -168,8 +184,15 @@ fun MainScreen(
     val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
     val audioState by audioViewModel.audioState.collectAsState()
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
-    val activeScreens = if (isChristmasMode) christmasMainScreens else mainScreens
-    val navScreens = if (isChristmasMode) christmasNavScreens else mainNavScreens
+
+    val activeScreens = when (effectiveSection) {
+        AppSection.MT -> listOf(Screen.Hymns, Screen.Categories, Screen.Favorites)
+        else -> if (isChristmasMode) christmasMainScreens else mainScreens
+    }
+    val navScreens = when (effectiveSection) {
+        AppSection.MT -> listOf(Screen.Hymns, Screen.Categories)
+        else -> if (isChristmasMode) christmasNavScreens else mainNavScreens
+    }
     val favoritesPageIndex = activeScreens.indexOf(Screen.Favorites)
     
     var selectedHymn by rememberSaveable(stateSaver = HymnSaver) { mutableStateOf<Hymn?>(null) }
@@ -424,15 +447,45 @@ fun MainScreen(
                 onAboutDeveloperClick = { showAboutDeveloper = true },
                 onProfileEditClick = { showProfileEdit = true },
                 onAdminControlsClick = { showAdminControls = true },
-                isAdmin = isAdmin
+                isAdmin = isAdmin,
+                isMangaloreHymnsEnabled = isMangaloreHymnsEnabled,
+                onChangeSectionClick = { activeSection = null }
             )
         }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0)
-            ) { innerPadding ->
+            if (isMangaloreHymnsEnabled && activeSection != null) {
+                PredictiveExpressiveBackHandler(
+                    enabled = !isStackedOverlayOpen && selectedHymn == null && selectedKeerthane == null && selectedReaderType == null && !showSettings,
+                    onBack = {
+                        activeSection = null
+                    }
+                )
+            }
+
+            if (isMangaloreHymnsEnabled && activeSection == null) {
+                SectionSelectorScreen(
+                    onSelectCsiPage = { pageIndex ->
+                        activeSection = AppSection.CSI
+                        scope.launch {
+                            pagerState.scrollToPage(pageIndex)
+                        }
+                    },
+                    onSelectMtPage = {
+                        activeSection = AppSection.MT
+                        scope.launch {
+                            pagerState.scrollToPage(0)
+                        }
+                    },
+                    onMenuClick = {
+                        scope.launch { drawerState.open() }
+                    }
+                )
+            } else {
+                Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0)
+                ) { innerPadding ->
                 NavHost(
                     navController = navController,
                     startDestination = Screen.Hymns.route,
@@ -466,7 +519,8 @@ fun MainScreen(
                                         } else {
                                             HymnsScreen(
                                                 onHymnClick = { hymn -> selectedHymn = hymn },
-                                                onSettingsClick = { scope.launch { drawerState.open() } }
+                                                onSettingsClick = { scope.launch { drawerState.open() } },
+                                                activeSection = effectiveSection
                                             )
                                         }
                                     }
@@ -489,7 +543,8 @@ fun MainScreen(
                                         viewModel = favoritesViewModel,
                                         onHymnClick = { hymn -> selectedHymn = hymn },
                                         onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
-                                        onMenuClick = { scope.launch { drawerState.open() } }
+                                        onMenuClick = { scope.launch { drawerState.open() } },
+                                        activeSection = effectiveSection
                                     )
                                     else -> {}
                                 }
@@ -511,9 +566,10 @@ fun MainScreen(
                     }
                 }
             }
+        }
 
             // --- Essentials-style vibrant floating toolbar ---
-            if (currentRoute != Screen.Auth.route) {
+            if (currentRoute != Screen.Auth.route && !(isMangaloreHymnsEnabled && activeSection == null)) {
                 val navScrim = MaterialTheme.colorScheme.background
                 val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
                 Box(
@@ -707,7 +763,8 @@ fun MainScreen(
                 Box(Modifier.fillMaxSize()) {
                     HymnsScreen(
                         onHymnClick = { hymn -> selectedHymn = hymn },
-                        onSettingsClick = { showHymnsFromChristmas = false }
+                        onSettingsClick = { showHymnsFromChristmas = false },
+                        activeSection = effectiveSection
                     )
                     ExpressiveOverlayScreen(
                         item = selectedHymn,
@@ -800,7 +857,8 @@ fun MainScreen(
                     },
                     onKeerthaneClick = { keerthane ->
                         selectedKeerthane = keerthane
-                    }
+                    },
+                    activeSection = effectiveSection
                 )
             }
 
@@ -814,7 +872,8 @@ fun MainScreen(
                     onBackClick = { 
                         pickSongsForCategory = null 
                         categoryRefreshTrigger++
-                    }
+                    },
+                    activeSection = effectiveSection
                 )
             }
             ExpressiveOverlayScreen(
@@ -889,6 +948,228 @@ fun PlaceholderOverlay(title: String, onBackClick: () -> Unit) {
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
             Text(text = "Coming Soon: $title")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SectionSelectorScreen(
+    onSelectCsiPage: (Int) -> Unit,
+    onSelectMtPage: () -> Unit,
+    onMenuClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Christian Hymn Book", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        onMenuClick()
+                    }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Drawer")
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Choose Hymn Book",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Select CSI Hymns and Mangalore Hymns",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                SectionGroupCard(
+                    title = "CSI Hymns & Keerthanes",
+                    bottomHint = "csi hymns",
+                    accentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SubItemSelectionCard(
+                            title = "CSI Hymns",
+                            subtitle = "CSI Kannada Hymns Collection",
+                            icon = Icons.Default.MusicNote,
+                            onClick = { onSelectCsiPage(0) }
+                        )
+                        SubItemSelectionCard(
+                            title = "CSI Keerthanes",
+                            subtitle = "Kannada Keerthanes Collection",
+                            icon = Icons.Default.Album,
+                            onClick = { onSelectCsiPage(1) }
+                        )
+                        SubItemSelectionCard(
+                            title = "CSI Order of Service",
+                            subtitle = "Church Liturgy & Services",
+                            icon = Icons.Default.Book,
+                            onClick = { onSelectCsiPage(2) }
+                        )
+                    }
+                }
+
+                SectionGroupCard(
+                    title = "Mangalore Hymns",
+                    bottomHint = "mt hymns",
+                    accentColor = MaterialTheme.colorScheme.secondary
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        SubItemSelectionCard(
+                            title = "MT Hymns",
+                            subtitle = "Mangalore Tamil Hymns Book",
+                            icon = Icons.Default.LibraryMusic,
+                            onClick = onSelectMtPage
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionGroupCard(
+    title: String,
+    bottomHint: String,
+    accentColor: Color,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Surface(
+                    color = accentColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = bottomHint.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SubItemSelectionCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Surface(
+        onClick = {
+            HapticFeedbackManager.smoothClick(context)
+            onClick()
+        },
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
         }
     }
 }

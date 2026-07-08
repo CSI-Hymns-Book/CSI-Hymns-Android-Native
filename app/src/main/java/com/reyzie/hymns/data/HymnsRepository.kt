@@ -26,10 +26,14 @@ class HymnsRepository(context: Context) {
         .build()
     private val gson = Gson()
 
-    suspend fun loadHymns(): List<Hymn> = withContext(Dispatchers.IO) {
+    suspend fun loadHymns(section: AppSection = AppSection.CSI): List<Hymn> = withContext(Dispatchers.IO) {
         store.ensureSeeded()
-        readLocalHymns().ifEmpty {
-            fetchAndUpdateHymns().data
+        if (section == AppSection.MT) {
+            readLocalMangaloreHymns()
+        } else {
+            readLocalHymns().ifEmpty {
+                fetchAndUpdateHymns().data
+            }
         }
     }
 
@@ -85,6 +89,11 @@ class HymnsRepository(context: Context) {
         return parseHymnsJson(json)
     }
 
+    private fun readLocalMangaloreHymns(): List<Hymn> {
+        val json = store.readMangaloreHymnsJson() ?: return emptyList()
+        return parseHymnsJson(json)
+    }
+
     private fun readLocalKeerthanes(): List<Keerthane> {
         val json = store.readKeerthaneJson() ?: return emptyList()
         return parseKeerthanesJson(json)
@@ -108,12 +117,16 @@ class HymnsRepository(context: Context) {
         return gson.fromJson(jsonString, listType) ?: emptyList()
     }
 
-    suspend fun saveHymn(updated: Hymn) = withContext(Dispatchers.IO) {
-        val hymns = loadHymns().toMutableList()
+    suspend fun saveHymn(updated: Hymn, section: AppSection = AppSection.CSI) = withContext(Dispatchers.IO) {
+        val hymns = loadHymns(section).toMutableList()
         val index = hymns.indexOfFirst { it.number == updated.number }
         if (index != -1) {
             hymns[index] = updated
-            store.writeHymnsJson(gson.toJson(hymns))
+            if (section == AppSection.MT) {
+                store.writeMangaloreHymnsJson(gson.toJson(hymns))
+            } else {
+                store.writeHymnsJson(gson.toJson(hymns))
+            }
         }
     }
 

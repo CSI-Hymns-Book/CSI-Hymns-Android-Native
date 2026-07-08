@@ -20,7 +20,8 @@ data class RemoteAppConfig(
     /** When true (1), the Page Flip option is shown in Settings and available in hymn detail. */
     val pageFlipVisible: Boolean? = null,
     val adminEmails: String? = null,
-    val githubToken: String? = null
+    val githubToken: String? = null,
+    val isMangaloreHymnsEnabled: Boolean? = null
 )
 
 object AppConfigKeys {
@@ -36,6 +37,7 @@ object AppConfigKeys {
     const val PAGE_FLIP_VISIBLE = "page_flip_visible"
     const val ADMIN_EMAILS = "admin_emails"
     const val GITHUB_TOKEN = "github_token"
+    const val IS_MANGALORE_HYMNS_ENABLED = "is_mangalore_hymns_enabled"
 }
 
 class AppConfigRepository(
@@ -46,6 +48,7 @@ class AppConfigRepository(
 
     companion object {
         private const val PREF_CHRISTMAS_REMOTE = "is_christmas_time_remote"
+        private const val PREF_MANGALORE_REMOTE = "is_mangalore_hymns_enabled_remote"
         private const val PREF_MANUAL_CHRISTMAS_OVERRIDE = "manual_christmas_override"
         /** Default accent — matches Theme.kt BaselineBlueSeed / Blue40 */
         const val DEFAULT_THEME_COLOR = 0xFF0061A4.toInt()
@@ -65,7 +68,8 @@ class AppConfigRepository(
                 AppConfigKeys.CAST_RECEIVER_URL,
                 AppConfigKeys.PAGE_FLIP_VISIBLE,
                 AppConfigKeys.ADMIN_EMAILS,
-                AppConfigKeys.GITHUB_TOKEN
+                AppConfigKeys.GITHUB_TOKEN,
+                AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED
             )
         )
 
@@ -81,15 +85,35 @@ class AppConfigRepository(
             castReceiverUrl = raw[AppConfigKeys.CAST_RECEIVER_URL]?.trim()?.takeIf { it.isNotEmpty() },
             pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE]),
             adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]?.trim()?.takeIf { it.isNotEmpty() },
-            githubToken = raw[AppConfigKeys.GITHUB_TOKEN]?.trim()?.takeIf { it.isNotEmpty() }
+            githubToken = raw[AppConfigKeys.GITHUB_TOKEN]?.trim()?.takeIf { it.isNotEmpty() },
+            isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED])
         ).also { config ->
-            // Always refresh cache from a successful fetch (including explicit false).
-            prefs?.edit()?.putBoolean(PREF_CHRISTMAS_REMOTE, config.isChristmasTime == true)?.apply()
+            // Cache remote values locally
+            prefs?.edit()?.apply {
+                if (config.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, config.isChristmasTime)
+                if (config.isMangaloreHymnsEnabled != null) putBoolean(PREF_MANGALORE_REMOTE, config.isMangaloreHymnsEnabled)
+                if (config.githubToken != null) putString("github_token_cached", config.githubToken)
+                if (config.adminEmails != null) putString("admin_emails_cached", config.adminEmails)
+                if (config.castEnabled != null) putBoolean("cast_enabled_cached", config.castEnabled)
+                if (config.pageFlipVisible != null) putBoolean("page_flip_visible_cached", config.pageFlipVisible)
+                apply()
+            }
             Log.d(
                 "AppConfigRepository",
-                "Loaded app_config: christmas=${config.isChristmasTime}, cast=${config.castEnabled}, pageFlipVisible=${config.pageFlipVisible}, adminEmails=${config.adminEmails}, githubToken=${config.githubToken != null}"
+                "Loaded app_config: christmas=${config.isChristmasTime}, mangalore=${config.isMangaloreHymnsEnabled}, cast=${config.castEnabled}, pageFlipVisible=${config.pageFlipVisible}, adminEmails=${config.adminEmails}, githubToken=${config.githubToken != null}"
             )
         }
+    }
+
+    fun getCachedRemoteConfig(): RemoteAppConfig {
+        return RemoteAppConfig(
+            isChristmasTime = cachedChristmasRemote(),
+            isMangaloreHymnsEnabled = cachedMangaloreRemote(),
+            githubToken = prefs?.getString("github_token_cached", null),
+            adminEmails = prefs?.getString("admin_emails_cached", null),
+            castEnabled = prefs?.getBoolean("cast_enabled_cached", false),
+            pageFlipVisible = prefs?.getBoolean("page_flip_visible_cached", false)
+        )
     }
 
     fun hasManualChristmasOverride(): Boolean {
@@ -107,5 +131,10 @@ class AppConfigRepository(
     fun cachedChristmasRemote(): Boolean? {
         if (prefs == null || !prefs.contains(PREF_CHRISTMAS_REMOTE)) return null
         return prefs.getBoolean(PREF_CHRISTMAS_REMOTE, false)
+    }
+
+    fun cachedMangaloreRemote(): Boolean? {
+        if (prefs == null || !prefs.contains(PREF_MANGALORE_REMOTE)) return null
+        return prefs.getBoolean(PREF_MANGALORE_REMOTE, false)
     }
 }

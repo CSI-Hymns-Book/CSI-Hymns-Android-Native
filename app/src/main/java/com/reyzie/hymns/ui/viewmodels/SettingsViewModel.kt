@@ -22,7 +22,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val carolsRepository = CarolsRepository.getInstance(application)
     private val appConfigRepository = AppConfigRepository(context = application)
 
-    private val _remoteAppConfig = MutableStateFlow(RemoteAppConfig())
+    private val _remoteAppConfig = MutableStateFlow(appConfigRepository.getCachedRemoteConfig())
     val remoteAppConfig: StateFlow<RemoteAppConfig> = _remoteAppConfig.asStateFlow()
 
     init {
@@ -40,7 +40,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 CastService.getInstance().applyRemoteConfig(getApplication(), remote)
                 applyChristmasFromRemote(remote.isChristmasTime)
             } catch (e: Exception) {
-                android.util.Log.e("SettingsViewModel", "Error fetching app_config", e)
+                android.util.Log.e("SettingsViewModel", "Error fetching app_config, falling back to local/cached", e)
+                val fallback = appConfigRepository.getCachedRemoteConfig()
+                _remoteAppConfig.value = fallback
                 loadLocalChristmasMode()
             }
         }
