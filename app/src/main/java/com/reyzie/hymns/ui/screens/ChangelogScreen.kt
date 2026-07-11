@@ -31,26 +31,30 @@ fun ChangelogScreen(
     var changelogData by remember { mutableStateOf<List<ChangelogEntry>>(emptyList()) }
 
     LaunchedEffect(Unit) {
-        val jsonString = context.assets.open("changelog.json").bufferedReader().use { it.readText() }
-        val jsonArray = JSONArray(jsonString)
-        val entries = mutableListOf<ChangelogEntry>()
-        for (i in 0 until jsonArray.length()) {
-            val obj = jsonArray.getJSONObject(i)
-            val changesArray = obj.getJSONArray("changes")
-            val changes = mutableListOf<String>()
-            for (j in 0 until changesArray.length()) {
-                changes.add(changesArray.getString(j))
-            }
-            entries.add(
-                ChangelogEntry(
-                    title = obj.getString("title"),
-                    version = obj.getString("version"),
-                    date = obj.getString("date"),
-                    changes = changes
+        try {
+            val jsonString = context.assets.open("changelog.json").bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(jsonString)
+            val entries = mutableListOf<ChangelogEntry>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val changesArray = obj.getJSONArray("changes")
+                val changes = mutableListOf<String>()
+                for (j in 0 until changesArray.length()) {
+                    changes.add(changesArray.getString(j))
+                }
+                entries.add(
+                    ChangelogEntry(
+                        title = obj.getString("title"),
+                        version = obj.getString("version"),
+                        date = obj.getString("date"),
+                        changes = changes
+                    )
                 )
-            )
+            }
+            changelogData = entries
+        } catch (e: Exception) {
+            changelogData = emptyList()
         }
-        changelogData = entries
     }
 
     Scaffold(
