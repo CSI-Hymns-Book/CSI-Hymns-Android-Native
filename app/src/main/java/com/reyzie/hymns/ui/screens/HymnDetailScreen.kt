@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -62,6 +63,7 @@ fun HymnDetailScreen(
     recentSongsViewModel: RecentSongsViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
     audioViewModel: AudioViewModel = viewModel(),
+    isMt: Boolean = false,
     onBackClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -79,10 +81,13 @@ fun HymnDetailScreen(
     
     val isPageFlipEnabled by settingsViewModel.isPageFlipEnabled.collectAsState()
     val audioState by audioViewModel.audioState.collectAsState()
-    val targetAudioUrl = hymn.audioUrl ?: if (isKeerthane) {
-        "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
-    } else {
-        "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
+    val targetAudioUrl = hymn.audioUrl ?: when {
+        isKeerthane -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
+        isMt -> {
+            val mtNumber = hymn.signature.split(Regex("[,/\\s]+")).firstOrNull()?.trim() ?: hymn.number.toString()
+            "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+        }
+        else -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
     }
     val isSameSong = audioState.currentAudioUrl == targetAudioUrl
 
@@ -99,7 +104,11 @@ fun HymnDetailScreen(
             request = SongCastRequest(
                 streamUrl = streamUrl,
                 title = hymn.title,
-                subtitle = if (isKeerthane) "Keerthane ${hymn.number}" else "Hymn ${hymn.number}"
+                subtitle = when {
+                    isKeerthane -> "Keerthane ${hymn.number}"
+                    isMt -> "MT ${hymn.number}"
+                    else -> "Hymn ${hymn.number}"
+                }
             ),
             onDismiss = { showCastSheet = false }
         )
@@ -131,6 +140,39 @@ fun HymnDetailScreen(
 
 
 
+    val verifiedTuneOptions = remember { mutableStateListOf<String>() }
+
+    LaunchedEffect(hymn.number, hymn.signature, isKeerthane, isMt) {
+        verifiedTuneOptions.clear()
+        val baseOptions = extractTuneOptions(hymn.number, hymn.signature, isKeerthane, isMt)
+        verifiedTuneOptions.addAll(baseOptions)
+        
+        if (isMt) {
+            baseOptions.forEach { baseOpt ->
+                val cleanBase = baseOpt.filter { it.isDigit() }
+                listOf("a", "b", "c", "d").forEach { suffix ->
+                    val candidate = "$cleanBase$suffix"
+                    if (candidate != baseOpt) {
+                        val urlStr = "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$candidate.mid"
+                        launch {
+                            if (checkUrlExists(urlStr)) {
+                                if (!verifiedTuneOptions.contains(candidate)) {
+                                    verifiedTuneOptions.add(candidate)
+                                    val sorted = verifiedTuneOptions.toList().sortedWith(
+                                        compareBy<String> { it.filter { c -> c.isDigit() }.toIntOrNull() ?: 0 }
+                                            .thenBy { it.filter { c -> c.isLetter() } }
+                                    )
+                                    verifiedTuneOptions.clear()
+                                    verifiedTuneOptions.addAll(sorted)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     val showAudioPlayer = audioState.isVisible &&
         audioState.currentSongNumber == hymn.number &&
         audioState.isKeerthane == isKeerthane
@@ -145,7 +187,13 @@ fun HymnDetailScreen(
                 songTypeLabel = if (isKeerthane) "Keerthane" else "Hymn",
                 number = hymn.number,
                 title = hymn.title,
-                subtitle = if (isKeerthane) null else hymn.signature.takeIf { it.isNotBlank() },
+                subtitle = if (isKeerthane) {
+                    null
+                } else if (isMt) {
+                    "MT ${hymn.signature}"
+                } else {
+                    hymn.signature.takeIf { it.isNotBlank() }
+                },
                 hint = null,
                 onBackClick = {
                     HapticFeedbackManager.smoothClick(context)
@@ -347,7 +395,7 @@ fun HymnDetailScreen(
                                             onClick = {
                                                 HapticFeedbackManager.smoothClick(context)
                                                 if (!audioState.isVisible || !isSameSong) {
-                                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, hymn.audioUrl)
+                                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, targetAudioUrl)
                                                 } else {
                                                     audioViewModel.toggleVisibility()
                                                 }
@@ -435,7 +483,9 @@ fun HymnDetailScreen(
                         ) {
                             ExpressiveAudioPlayer(
                                 audioState = audioState,
-                                audioViewModel = audioViewModel
+                                audioViewModel = audioViewModel,
+                                tuneOptions = verifiedTuneOptions,
+                                isMt = isMt
                             )
                         }
                     }
@@ -552,7 +602,7 @@ fun HymnDetailScreen(
                                 onClick = {
                                     HapticFeedbackManager.smoothClick(context)
                                      if (!audioState.isVisible || !isSameSong) {
-                                         audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, hymn.audioUrl)
+                                         audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, targetAudioUrl)
                                      } else {
                                         audioViewModel.toggleVisibility()
                                     }
@@ -638,7 +688,9 @@ fun HymnDetailScreen(
                         ) {
                             ExpressiveAudioPlayer(
                                 audioState = audioState,
-                                audioViewModel = audioViewModel
+                                audioViewModel = audioViewModel,
+                                tuneOptions = verifiedTuneOptions,
+                                isMt = isMt
                             )
                         }
                     }
@@ -719,7 +771,9 @@ fun ExpressiveButton(
 @Composable
 fun ExpressiveAudioPlayer(
     audioState: AudioState,
-    audioViewModel: AudioViewModel
+    audioViewModel: AudioViewModel,
+    tuneOptions: List<String> = emptyList(),
+    isMt: Boolean = false
 ) {
     val context = LocalContext.current
     var showSpeedMenu by remember { mutableStateOf(false) }
@@ -754,7 +808,14 @@ fun ExpressiveAudioPlayer(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
-                        text = if (audioState.isKeerthane) "Keerthane ${audioState.currentSongNumber}" else "Hymn ${audioState.currentSongNumber}",
+                        text = when {
+                            audioState.isKeerthane -> "Keerthane ${audioState.currentSongNumber}"
+                            isMt -> {
+                                val currentMt = audioState.currentAudioUrl?.substringAfterLast("/mt")?.substringBefore(".mid") ?: ""
+                                if (currentMt.isNotEmpty()) "MT $currentMt" else "Hymn ${audioState.currentSongNumber}"
+                            }
+                            else -> "Hymn ${audioState.currentSongNumber}"
+                        },
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
@@ -788,6 +849,52 @@ fun ExpressiveAudioPlayer(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            }
+
+            if (tuneOptions.size > 1) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Version/Tune:",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    tuneOptions.forEach { option ->
+                        val optionUrl = when {
+                            audioState.isKeerthane -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                            isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
+                            else -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$option.ogg"
+                        }
+                        val isSelected = audioState.currentAudioUrl == optionUrl
+                        
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clickable {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    audioViewModel.playSong(
+                                        number = audioState.currentSongNumber ?: 0,
+                                        title = audioState.currentSongTitle.orEmpty(),
+                                        isKeerthane = audioState.isKeerthane,
+                                        customAudioUrl = optionUrl
+                                    )
+                                }
+                        ) {
+                            Text(
+                                text = if (isMt) option else if (option == audioState.currentSongNumber?.toString()) "Default" else option,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
             }
 
             if (audioState.isLoading) {
@@ -1025,5 +1132,65 @@ fun LanguageChip(label: String, selected: Boolean, onClick: () -> Unit) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 16.dp)) {
             Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal)
         }
+    }
+}
+
+fun extractTuneOptions(hymnNumber: Int, signature: String, isKeerthane: Boolean, isMt: Boolean = false): List<String> {
+    if (isKeerthane) return listOf(hymnNumber.toString())
+    
+    val options = mutableListOf<String>()
+    
+    if (isMt) {
+        // For MT hymns, signature is a comma/slash/space separated list of MT numbers
+        val regex = Regex("\\b\\d+[b-e]?\\b")
+        regex.findAll(signature).forEach { match ->
+            options.add(match.value.lowercase())
+        }
+        if (options.isEmpty()) {
+            options.add(hymnNumber.toString())
+        }
+    } else {
+        val defaultNumber = hymnNumber.toString()
+        options.add(defaultNumber)
+        
+        val versionRegex = Regex("\\b${defaultNumber}([b-e])\\b", RegexOption.IGNORE_CASE)
+        versionRegex.findAll(signature).forEach { match ->
+            options.add(match.value.lowercase())
+        }
+        
+        val refRegex = Regex("(?:Mang\\.T\\.B\\.|M\\.T\\.|Hymn|Tune|\\()\\s*(\\d+[b-e]?)\\b", RegexOption.IGNORE_CASE)
+        refRegex.findAll(signature).forEach { match ->
+            val tuneNum = match.groupValues[1].lowercase()
+            options.add(tuneNum)
+        }
+        
+        val parenRegex = Regex("\\((\\d+[b-e]?)\\)")
+        parenRegex.findAll(signature).forEach { match ->
+            options.add(match.groupValues[1].lowercase())
+        }
+        
+        for (char in listOf("b", "c", "d")) {
+            if (signature.contains("${defaultNumber}$char", ignoreCase = true) || 
+                signature.contains("version $char", ignoreCase = true) ||
+                signature.contains("($char)", ignoreCase = true)) {
+                options.add("${defaultNumber}$char")
+            }
+        }
+    }
+    
+    return options.distinct()
+}
+
+suspend fun checkUrlExists(urlStr: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    try {
+        val url = java.net.URL(urlStr)
+        val connection = url.openConnection() as java.net.HttpURLConnection
+        connection.requestMethod = "HEAD"
+        connection.connectTimeout = 800
+        connection.readTimeout = 800
+        val responseCode = connection.responseCode
+        responseCode == java.net.HttpURLConnection.HTTP_OK
+    } catch (e: Exception) {
+        false
     }
 }

@@ -833,6 +833,7 @@ fun MainScreen(
                             isKeerthane = false,
                             favoritesViewModel = favoritesViewModel,
                             audioViewModel = audioViewModel,
+                            isMt = false,
                             onBackClick = { 
                                 selectedHymn = null
                                 audioViewModel.stopAndReset()
@@ -865,6 +866,7 @@ fun MainScreen(
                             isKeerthane = false,
                             favoritesViewModel = favoritesViewModel,
                             audioViewModel = audioViewModel,
+                            isMt = true,
                             onBackClick = { 
                                 selectedHymn = null
                                 audioViewModel.stopAndReset()
@@ -976,6 +978,7 @@ fun MainScreen(
                     isKeerthane = false,
                     favoritesViewModel = favoritesViewModel,
                     audioViewModel = audioViewModel,
+                    isMt = effectiveSection == AppSection.MT,
                     onBackClick = { 
                         selectedHymn = null
                         audioViewModel.stopAndReset()

@@ -180,7 +180,7 @@ fun OccasionCategoryScreen(
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
                                     items(hymns, key = { it.number }) { hymn ->
-                                        HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                        HymnListTile(hymn = hymn, isMt = false, onClick = { onHymnClick(hymn) })
                                     }
                                 }
                             } else {
@@ -206,7 +206,7 @@ fun OccasionCategoryScreen(
                         ) {
                             if (showingHymns) {
                                 items(hymns, key = { it.number }) { hymn ->
-                                    HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                    HymnListTile(hymn = hymn, isMt = false, onClick = { onHymnClick(hymn) })
                                 }
                             } else {
                                 items(keerthanes, key = { it.number }) { keerthane ->

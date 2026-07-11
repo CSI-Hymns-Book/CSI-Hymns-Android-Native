@@ -345,7 +345,7 @@ fun HymnsScreen(
                                                 modifier = Modifier.padding(bottom = 8.dp)
                                             )
                                             hymns.forEach { hymn ->
-                                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                                HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                                             }
                                         }
                                     }
@@ -353,7 +353,7 @@ fun HymnsScreen(
                             }
                         } else {
                             items(filteredHymns) { hymn ->
-                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                             }
                         }
                     }
@@ -383,7 +383,7 @@ fun HymnsScreen(
 }
 
 @Composable
-fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
+fun HymnListTile(hymn: Hymn, isMt: Boolean = false, onClick: () -> Unit) {
     val context = LocalContext.current
     Card(
         modifier = Modifier
@@ -439,7 +439,7 @@ fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
                 )
                 if (hymn.signature.isNotEmpty()) {
                     Text(
-                        text = hymn.signature,
+                        text = if (isMt) "MT ${hymn.signature}" else hymn.signature,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                     )

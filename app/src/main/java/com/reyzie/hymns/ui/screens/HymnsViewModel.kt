@@ -178,7 +178,8 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
                     val keyMatches = key.lowercase() == query
                     val matchingHymns = hymns.filter { hymn ->
                         keyMatches || hymn.title.lowercase().contains(query) ||
-                        hymn.number.toString().contains(query)
+                        hymn.number.toString().contains(query) ||
+                        hymn.kannadaLyrics?.lowercase()?.contains(query) == true
                     }
                     if (matchingHymns.isNotEmpty()) {
                         filteredGroups[key] = matchingHymns
@@ -191,7 +192,8 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
                 _filteredHymns.value = currentHymns.filter { hymn ->
                     hymn.title.lowercase().contains(query) ||
                     hymn.number.toString().contains(query) ||
-                    hymn.signature.lowercase().contains(query)
+                    hymn.signature.lowercase().contains(query) ||
+                    hymn.kannadaLyrics?.lowercase()?.contains(query) == true
                 }
             }
         }

@@ -109,7 +109,7 @@ fun FavoritesScreen(
                         }
                     } else {
                         items(favoriteHymns, key = { "hymn-${it.number}" }) { hymn ->
-                            HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                            HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                         }
                     }
                 }
@@ -209,7 +209,7 @@ fun FavoritesScreen(
                                     }
                                 } else {
                                     items(favoriteHymns, key = { "hymn-${it.number}" }) { hymn ->
-                                        HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                        HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                                     }
                                 }
                             }
