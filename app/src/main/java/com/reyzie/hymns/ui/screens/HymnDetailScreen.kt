@@ -1,14 +1,14 @@
 package com.reyzie.hymns.ui.screens
 
 import android.content.Context
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextAlign
@@ -71,6 +71,7 @@ fun HymnDetailScreen(
     var selectedLanguage by remember { mutableStateOf("Kannada") }
     val prefs = remember { context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE) }
     var fontSize by remember { mutableStateOf(prefs.getInt("global_songs_font_size", 18).sp) }
+    var isControlsExpanded by remember { mutableStateOf(prefs.getBoolean("detail_controls_expanded", true)) }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val rightColumnScrollState = rememberScrollState()
@@ -178,6 +179,14 @@ fun HymnDetailScreen(
         audioState.isKeerthane == isKeerthane
 
     Scaffold { innerPadding ->
+        val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val isDarkTheme = isSystemInDarkTheme()
+        val controlsCardColor = if (isDarkTheme) {
+            MaterialTheme.colorScheme.surfaceContainerLowest
+        } else {
+            MaterialTheme.colorScheme.surfaceBright
+        }
+
         Column(
             modifier = Modifier
                 .padding(innerPadding)
@@ -199,16 +208,38 @@ fun HymnDetailScreen(
                     HapticFeedbackManager.smoothClick(context)
                     audioViewModel.stopAndReset()
                     onBackClick()
-                }
+                },
+                actionContent = if (isLandscape) {
+                    {
+                        AnimatedVisibility(
+                            visible = !isControlsExpanded,
+                            enter = fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) + expandHorizontally(),
+                            exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) + shrinkHorizontally()
+                        ) {
+                            Button(
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    isControlsExpanded = true
+                                    prefs.edit().putBoolean("detail_controls_expanded", true).apply()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    "Show Controls",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                } else null
             )
-
-            val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            val isDarkTheme = isSystemInDarkTheme()
-            val controlsCardColor = if (isDarkTheme) {
-                MaterialTheme.colorScheme.surfaceContainerLowest
-            } else {
-                MaterialTheme.colorScheme.surfaceBright
-            }
 
             if (isLandscape) {
                 val lyricsText = if (selectedLanguage == "English" || hymn.kannadaLyrics.isNullOrEmpty()) {
@@ -224,7 +255,7 @@ fun HymnDetailScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .weight(1.2f)
+                            .weight(1f)
                             .fillMaxHeight()
                     ) {
                         if (isPageFlipEnabled && isPageFlipOptionVisible) {
@@ -256,20 +287,48 @@ fun HymnDetailScreen(
                         }
                     }
 
-                    VerticalDivider(
-                        modifier = Modifier.fillMaxHeight(),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
-                    )
-
-                    Column(
-                        modifier = Modifier
-                            .weight(0.8f)
-                            .fillMaxHeight()
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                            .verticalScroll(rightColumnScrollState),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                    AnimatedVisibility(
+                        visible = isControlsExpanded,
+                        enter = slideInHorizontally(
+                            initialOffsetX = { it },
+                            animationSpec = tween(300, easing = FastOutSlowInEasing)
+                        ) + fadeIn(animationSpec = tween(300)),
+                        exit = slideOutHorizontally(
+                            targetOffsetX = { it },
+                            animationSpec = tween(300, easing = FastOutSlowInEasing)
+                        ) + fadeOut(animationSpec = tween(300))
                     ) {
+                        Row(modifier = Modifier.fillMaxHeight()) {
+                            VerticalDivider(
+                                modifier = Modifier.fillMaxHeight(),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+
+                            Column(
+                                modifier = Modifier
+                                    .width(280.dp)
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .verticalScroll(rightColumnScrollState),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Button(
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        isControlsExpanded = false
+                                        prefs.edit().putBoolean("detail_controls_expanded", false).apply()
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                    )
+                                ) {
+                                    Icon(Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Hide Controls")
+                                }
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
@@ -490,9 +549,16 @@ fun HymnDetailScreen(
                         }
                     }
                 }
-            } else {
-                Surface(
-                    modifier = Modifier
+            }
+        }
+    } else {
+                AnimatedVisibility(
+                    visible = isControlsExpanded,
+                    enter = expandVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(300)),
+                    exit = shrinkVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(300))
+                ) {
+                    Surface(
+                        modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(16.dp),
@@ -636,8 +702,27 @@ fun HymnDetailScreen(
                                 variant = GroupButtonVariant.Accent
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                isControlsExpanded = false
+                                prefs.edit().putBoolean("detail_controls_expanded", false).apply()
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        ) {
+                            Icon(Icons.Default.VisibilityOff, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Hide Controls")
+                        }
                     }
                 }
+            }
 
                 Box(
                     modifier = Modifier
@@ -651,6 +736,32 @@ fun HymnDetailScreen(
                     }
 
                     Column(modifier = Modifier.fillMaxSize()) {
+                        AnimatedVisibility(
+                            visible = !isControlsExpanded,
+                            enter = expandVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(300)),
+                            exit = shrinkVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(300))
+                        ) {
+                            Button(
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    isControlsExpanded = true
+                                    prefs.edit().putBoolean("detail_controls_expanded", true).apply()
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Show Controls", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
                         Box(modifier = Modifier.weight(1f)) {
                             if (isPageFlipEnabled && isPageFlipOptionVisible) {
                                 PageFlipLyrics(

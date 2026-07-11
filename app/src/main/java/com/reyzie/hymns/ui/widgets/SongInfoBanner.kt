@@ -2,6 +2,7 @@ package com.reyzie.hymns.ui.widgets
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,7 +36,8 @@ fun SongInfoBanner(
     subtitle: String?,
     hint: String? = null,
     onBackClick: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    actionContent: @Composable (RowScope.() -> Unit)? = null
 ) {
     Surface(
         modifier = modifier
@@ -125,6 +127,9 @@ fun SongInfoBanner(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+            if (actionContent != null) {
+                actionContent()
             }
         }
     }
