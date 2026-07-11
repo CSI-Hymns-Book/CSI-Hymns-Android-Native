@@ -54,17 +54,25 @@ class ContentSyncManager(context: Context) {
         var lastError: String? = null
 
         fetchUrl(AppConstants.HYMNS_DATA_URL)?.let { body ->
-            store.writeHymnsJson(body)
-            prefs.edit().putLong(KEY_LAST_HYMNS_SYNC, System.currentTimeMillis()).apply()
-            hymnsUpdated = true
+            if (ContentJsonParser.parseHymns(body) != null) {
+                store.writeHymnsJson(body)
+                prefs.edit().putLong(KEY_LAST_HYMNS_SYNC, System.currentTimeMillis()).apply()
+                hymnsUpdated = true
+            } else {
+                Log.w(TAG, "Skipped invalid hymns download")
+            }
         } ?: run {
             lastError = ContentErrorMessages.forThrowable(null, store.hasHymns())
         }
 
         fetchUrl(AppConstants.KEERTHANE_DATA_URL)?.let { body ->
-            store.writeKeerthaneJson(body)
-            prefs.edit().putLong(KEY_LAST_KEERTHANE_SYNC, System.currentTimeMillis()).apply()
-            keerthanesUpdated = true
+            if (ContentJsonParser.parseKeerthanes(body) != null) {
+                store.writeKeerthaneJson(body)
+                prefs.edit().putLong(KEY_LAST_KEERTHANE_SYNC, System.currentTimeMillis()).apply()
+                keerthanesUpdated = true
+            } else {
+                Log.w(TAG, "Skipped invalid keerthane download")
+            }
         } ?: run {
             if (lastError == null) {
                 lastError = ContentErrorMessages.forThrowable(null, store.hasKeerthanes())
@@ -82,9 +90,13 @@ class ContentSyncManager(context: Context) {
         }
 
         fetchUrl(AppConstants.MANGALORE_HYMNS_DATA_URL)?.let { body ->
-            store.writeMangaloreHymnsJson(body)
-            prefs.edit().putLong(KEY_LAST_MANGALORE_SYNC, System.currentTimeMillis()).apply()
-            mangaloreUpdated = true
+            if (ContentJsonParser.parseHymns(body) != null) {
+                store.writeMangaloreHymnsJson(body)
+                prefs.edit().putLong(KEY_LAST_MANGALORE_SYNC, System.currentTimeMillis()).apply()
+                mangaloreUpdated = true
+            } else {
+                Log.w(TAG, "Skipped invalid Mangalore hymns download")
+            }
         } ?: run {
             if (lastError == null) {
                 lastError = ContentErrorMessages.forThrowable(null, store.hasMangaloreHymns())

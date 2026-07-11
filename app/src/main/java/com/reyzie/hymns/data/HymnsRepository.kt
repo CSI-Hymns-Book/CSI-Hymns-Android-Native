@@ -3,7 +3,6 @@ package com.reyzie.hymns.data
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -52,11 +51,10 @@ class HymnsRepository(context: Context) {
         try {
             val body = fetchUrl(AppConstants.HYMNS_DATA_URL)
                 ?: throw IOException("Could not download hymns")
+            val parsed = ContentJsonParser.parseHymns(body)
+                ?: throw IOException("Downloaded hymns JSON is invalid")
             store.writeHymnsJson(body)
-            ContentFetchResult(
-                data = parseHymnsJson(body),
-                fromNetwork = true
-            )
+            ContentFetchResult(data = parsed, fromNetwork = true)
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching hymns", e)
             ContentFetchResult(
@@ -72,11 +70,10 @@ class HymnsRepository(context: Context) {
         try {
             val body = fetchUrl(AppConstants.KEERTHANE_DATA_URL)
                 ?: throw IOException("Could not download keerthanes")
+            val parsed = ContentJsonParser.parseKeerthanes(body)
+                ?: throw IOException("Downloaded keerthane JSON is invalid")
             store.writeKeerthaneJson(body)
-            ContentFetchResult(
-                data = parseKeerthanesJson(body),
-                fromNetwork = true
-            )
+            ContentFetchResult(data = parsed, fromNetwork = true)
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching keerthanes", e)
             ContentFetchResult(
@@ -92,11 +89,10 @@ class HymnsRepository(context: Context) {
         try {
             val body = fetchUrl(AppConstants.MANGALORE_HYMNS_DATA_URL)
                 ?: throw IOException("Could not download Mangalore hymns")
+            val parsed = ContentJsonParser.parseHymns(body)
+                ?: throw IOException("Downloaded Mangalore hymns JSON is invalid")
             store.writeMangaloreHymnsJson(body)
-            ContentFetchResult(
-                data = parseHymnsJson(body),
-                fromNetwork = true
-            )
+            ContentFetchResult(data = parsed, fromNetwork = true)
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching Mangalore hymns", e)
             ContentFetchResult(
@@ -106,19 +102,48 @@ class HymnsRepository(context: Context) {
         }
     }
 
-    private fun readLocalHymns(): List<Hymn> {
-        val json = store.readHymnsJson() ?: return emptyList()
-        return parseHymnsJson(json)
-    }
+    private fun readLocalHymns(): List<Hymn> = readLocalList(
+        label = "hymns",
+        readJson = { store.readHymnsJson() },
+        parse = ContentJsonParser::parseHymns,
+        reseed = { store.reseedHymnsFromAsset() }
+    )
 
-    private fun readLocalMangaloreHymns(): List<Hymn> {
-        val json = store.readMangaloreHymnsJson() ?: return emptyList()
-        return parseHymnsJson(json)
-    }
+    private fun readLocalMangaloreHymns(): List<Hymn> = readLocalList(
+        label = "Mangalore hymns",
+        readJson = { store.readMangaloreHymnsJson() },
+        parse = ContentJsonParser::parseHymns,
+        reseed = { store.reseedMangaloreHymnsFromAsset() }
+    )
 
-    private fun readLocalKeerthanes(): List<Keerthane> {
-        val json = store.readKeerthaneJson() ?: return emptyList()
-        return parseKeerthanesJson(json)
+    private fun readLocalKeerthanes(): List<Keerthane> = readLocalList(
+        label = "keerthanes",
+        readJson = { store.readKeerthaneJson() },
+        parse = ContentJsonParser::parseKeerthanes,
+        reseed = { store.reseedKeerthaneFromAsset() }
+    )
+
+    private fun <T> readLocalList(
+        label: String,
+        readJson: () -> String?,
+        parse: (String) -> List<T>?,
+        reseed: () -> Boolean
+    ): List<T> {
+        val json = readJson()
+        if (json != null) {
+            parse(json)?.let { return it }
+            Log.w(TAG, "Corrupt local $label cache; reseeding from bundled assets")
+            reseed()
+            readJson()?.let { reseeded ->
+                parse(reseeded)?.let { return it }
+            }
+        } else {
+            reseed()
+            readJson()?.let { reseeded ->
+                parse(reseeded)?.let { return it }
+            }
+        }
+        return emptyList()
     }
 
     private fun fetchUrl(url: String): String? {
@@ -127,16 +152,6 @@ class HymnsRepository(context: Context) {
             if (!response.isSuccessful) return null
             return response.body?.string()?.takeIf { it.isNotBlank() }
         }
-    }
-
-    private fun parseHymnsJson(jsonString: String): List<Hymn> {
-        val listType = object : TypeToken<List<Hymn>>() {}.type
-        return gson.fromJson(jsonString, listType) ?: emptyList()
-    }
-
-    private fun parseKeerthanesJson(jsonString: String): List<Keerthane> {
-        val listType = object : TypeToken<List<Keerthane>>() {}.type
-        return gson.fromJson(jsonString, listType) ?: emptyList()
     }
 
     suspend fun saveHymn(updated: Hymn, section: AppSection = AppSection.CSI) = withContext(Dispatchers.IO) {

@@ -52,6 +52,10 @@ class ContentLocalStore(private val context: Context) {
         mangaloreHymnsFile.writeText(json)
     }
 
+    fun reseedKeerthaneFromAsset(): Boolean = reseedFromAsset(ASSET_KEERTHANE, keerthaneFile)
+    fun reseedHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_HYMNS, hymnsFile)
+    fun reseedMangaloreHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_MANGALORE_HYMNS, mangaloreHymnsFile)
+
     fun hasHymns(): Boolean = hymnsFile.exists() && hymnsFile.length() > 0
     fun hasKeerthanes(): Boolean = keerthaneFile.exists() && keerthaneFile.length() > 0
     fun hasOrderOfService(): Boolean = orderOfServiceFile.exists() && orderOfServiceFile.length() > 0
@@ -59,22 +63,32 @@ class ContentLocalStore(private val context: Context) {
 
     private fun copyAssetIfMissing(assetPath: String, target: File) {
         if (target.exists() && target.length() > 0) return
-        try {
+        reseedFromAsset(assetPath, target)
+    }
+
+    private fun reseedFromAsset(assetPath: String, target: File): Boolean {
+        return try {
             context.assets.open(assetPath).use { input ->
                 target.outputStream().use { output -> input.copyTo(output) }
             }
+            true
         } catch (e: Exception) {
             Log.w(TAG, "Could not seed $assetPath", e)
+            false
         }
     }
 
     private fun migrateFromLegacyPrefs() {
         val legacy = context.getSharedPreferences(LEGACY_PREFS, Context.MODE_PRIVATE)
         legacy.getString("hymnsData", null)?.let { json ->
-            if (!hymnsFile.exists()) hymnsFile.writeText(json)
+            if (!hymnsFile.exists() && ContentJsonParser.parseHymns(json) != null) {
+                hymnsFile.writeText(json)
+            }
         }
         legacy.getString("keerthaneData", null)?.let { json ->
-            if (!keerthaneFile.exists()) keerthaneFile.writeText(json)
+            if (!keerthaneFile.exists() && ContentJsonParser.parseKeerthanes(json) != null) {
+                keerthaneFile.writeText(json)
+            }
         }
         legacy.getString("orderOfServiceData", null)?.let { json ->
             if (!orderOfServiceFile.exists()) orderOfServiceFile.writeText(json)
