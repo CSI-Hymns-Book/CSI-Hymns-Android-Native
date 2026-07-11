@@ -175,11 +175,21 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
             if (_sortOrder.value == SortOrder.METER) {
                 val filteredGroups = mutableMapOf<String, List<Hymn>>()
                 _groupedHymns.value.forEach { (key, hymns) ->
-                    val keyMatches = key.lowercase() == query
+                    val keyMatches = if (currentSection == AppSection.MT) {
+                        val normKey = key.filter { it.isDigit() }
+                        val normQuery = query.filter { it.isDigit() }
+                        (normKey.isNotEmpty() && normQuery.isNotEmpty() && normKey == normQuery) || key.lowercase().contains(query)
+                    } else {
+                        key.lowercase() == query
+                    }
                     val matchingHymns = hymns.filter { hymn ->
-                        keyMatches || hymn.title.lowercase().contains(query) ||
-                        hymn.number.toString().contains(query) ||
-                        hymn.kannadaLyrics?.lowercase()?.contains(query) == true
+                        if (currentSection == AppSection.MT) {
+                            keyMatches
+                        } else {
+                            keyMatches || hymn.title.lowercase().contains(query) ||
+                            hymn.number.toString().contains(query) ||
+                            hymn.kannadaLyrics?.lowercase()?.contains(query) == true
+                        }
                     }
                     if (matchingHymns.isNotEmpty()) {
                         filteredGroups[key] = matchingHymns

@@ -135,7 +135,7 @@ fun HymnsScreen(
                             value = searchQuery,
                             onValueChange = { viewModel.onSearchQueryChanged(it) },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
+                            placeholder = { Text(if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) "Search MT Tune..." else "Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
@@ -156,6 +156,14 @@ fun HymnsScreen(
                             ),
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) {
+                        Text(
+                            text = "ℹ️ Search in Meter mode is restricted to MT numbers only.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp)
                         )
                     }
 
@@ -242,7 +250,7 @@ fun HymnsScreen(
                                     value = searchQuery,
                                     onValueChange = { viewModel.onSearchQueryChanged(it) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
+                                    placeholder = { Text(if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) "Search MT Tune..." else "Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                                     trailingIcon = {
                                         if (searchQuery.isNotEmpty()) {
@@ -263,6 +271,16 @@ fun HymnsScreen(
                                     ),
                                     singleLine = true,
                                     textStyle = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                        if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) {
+                            item {
+                                Text(
+                                    text = "ℹ️ Search in Meter mode is restricted to MT numbers only.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp)
                                 )
                             }
                         }
@@ -337,7 +355,13 @@ fun HymnsScreen(
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Text(
-                                                text = if (signature.isEmpty()) "(No meter)" else signature,
+                                                text = if (signature.isEmpty()) {
+                                                    "(No meter)"
+                                                } else if (activeSection == AppSection.MT) {
+                                                    "M.T. $signature"
+                                                } else {
+                                                    signature
+                                                },
                                                 style = MaterialTheme.typography.titleMedium.copy(
                                                     fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.primary
@@ -373,6 +397,7 @@ fun HymnsScreen(
                 }
             },
             onDismiss = { showJumpToMeter = false },
+            isMt = activeSection == AppSection.MT,
         )
     }
 
@@ -439,7 +464,7 @@ fun HymnListTile(hymn: Hymn, isMt: Boolean = false, onClick: () -> Unit) {
                 )
                 if (hymn.signature.isNotEmpty()) {
                     Text(
-                        text = if (isMt) "MT ${hymn.signature}" else hymn.signature,
+                        text = if (isMt) "M.T. ${hymn.signature}" else hymn.signature,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                     )

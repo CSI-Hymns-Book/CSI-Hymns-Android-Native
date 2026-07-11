@@ -190,7 +190,7 @@ fun HymnDetailScreen(
                 subtitle = if (isKeerthane) {
                     null
                 } else if (isMt) {
-                    "MT ${hymn.signature}"
+                    "M.T. ${hymn.signature}"
                 } else {
                     hymn.signature.takeIf { it.isNotBlank() }
                 },
@@ -812,7 +812,7 @@ fun ExpressiveAudioPlayer(
                             audioState.isKeerthane -> "Keerthane ${audioState.currentSongNumber}"
                             isMt -> {
                                 val currentMt = audioState.currentAudioUrl?.substringAfterLast("/mt")?.substringBefore(".mid") ?: ""
-                                if (currentMt.isNotEmpty()) "MT $currentMt" else "Hymn ${audioState.currentSongNumber}"
+                                if (currentMt.isNotEmpty()) "M.T. $currentMt" else "Hymn ${audioState.currentSongNumber}"
                             }
                             else -> "Hymn ${audioState.currentSongNumber}"
                         },
