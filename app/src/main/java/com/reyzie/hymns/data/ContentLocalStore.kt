@@ -25,6 +25,9 @@ class ContentLocalStore(private val context: Context) {
         copyAssetIfMissing(ASSET_HYMNS, hymnsFile)
         copyAssetIfMissing(ASSET_KEERTHANE, keerthaneFile)
         copyAssetIfMissing(ASSET_ORDER, orderOfServiceFile)
+        if (mangaloreHymnsFile.exists() && !mangaloreHymnsFile.readText().contains("\"category\"")) {
+            mangaloreHymnsFile.delete()
+        }
         copyAssetIfMissing(ASSET_MANGALORE_HYMNS, mangaloreHymnsFile)
     }
 

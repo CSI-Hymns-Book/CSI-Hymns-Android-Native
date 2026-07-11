@@ -589,6 +589,7 @@ fun MainScreen(
                                                         onCategoryClick = { id, name -> selectedCategory = Pair(id, name) },
                                                         onRecentSongsClick = { showRecentSongs = true },
                                                         onCommonCategoryClick = { category -> selectedCommonCategory = category },
+                                                        activeSection = localSection,
                                                         onMenuClick = { scope.launch { drawerState.open() } }
                                                     )
                                                     Screen.Favorites -> FavoritesScreen(
@@ -928,6 +929,7 @@ fun MainScreen(
                         onKeerthaneClick = { keerthane ->
                             selectedKeerthane = keerthane
                         },
+                        activeSection = effectiveSection,
                     )
                 }
             }

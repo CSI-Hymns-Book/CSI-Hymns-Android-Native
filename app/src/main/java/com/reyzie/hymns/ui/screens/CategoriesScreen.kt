@@ -25,9 +25,13 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
+import com.reyzie.hymns.data.AppSection
+import com.reyzie.hymns.data.HymnsRepository
 import com.reyzie.hymns.data.CustomCategoriesRepository
 import com.reyzie.hymns.data.CustomCategory
 import com.reyzie.hymns.ui.widgets.ExpressiveScreenTopBar
+import com.reyzie.hymns.ui.widgets.StandardButtonGroup
+import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -42,6 +46,7 @@ fun CategoriesScreen(
     onCategoryClick: (Int, String) -> Unit,
     onRecentSongsClick: () -> Unit,
     onCommonCategoryClick: (String) -> Unit,
+    activeSection: AppSection = AppSection.CSI,
     onMenuClick: () -> Unit = {}
 ) {
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
@@ -49,6 +54,27 @@ fun CategoriesScreen(
     val context = LocalContext.current
     val repository = remember { CustomCategoriesRepository(context) }
     val scope = rememberCoroutineScope()
+    
+    val hymnsRepository = remember { HymnsRepository(context) }
+    var mtCategories by remember { mutableStateOf<List<String>>(emptyList()) }
+    var categoryLanguage by remember { mutableStateOf("English") }
+
+    LaunchedEffect(activeSection, categoryLanguage) {
+        if (activeSection == AppSection.MT) {
+            val list = hymnsRepository.loadHymns(AppSection.MT)
+            val uniqueCategories = list.mapNotNull { hymn ->
+                if (categoryLanguage == "English") {
+                    hymn.category?.trim()
+                } else {
+                    hymn.kannadaCategory?.trim()
+                }
+            }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .sorted()
+            mtCategories = uniqueCategories
+        }
+    }
     
     var loading by remember { mutableStateOf(false) }
     var guestRemaining by remember { mutableStateOf(5) }
@@ -172,25 +198,60 @@ fun CategoriesScreen(
                 }
                 
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Text(
-                        text = "OCCASIONS",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 1.2.sp,
-                            color = MaterialTheme.colorScheme.primary
-                        ),
-                        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
-                    )
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = if (activeSection == AppSection.MT) "THEMATIC COLLECTIONS" else "OCCASIONS",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.2.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+                        )
+                        if (activeSection == AppSection.MT) {
+                            StandardButtonGroup(
+                                buttonCount = 2,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Button(
+                                    index = 0,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        categoryLanguage = "English"
+                                    },
+                                    label = "English",
+                                    isSelected = categoryLanguage == "English",
+                                    variant = GroupButtonVariant.Filled
+                                )
+                                Button(
+                                    index = 1,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        categoryLanguage = "Kannada"
+                                    },
+                                    label = "ಕನ್ನಡ (Kannada)",
+                                    isSelected = categoryLanguage == "Kannada",
+                                    variant = GroupButtonVariant.Filled
+                                )
+                            }
+                        }
+                    }
                 }
                 
-                commonCategories.forEach { category ->
+                val displayCategories = if (activeSection == AppSection.MT) mtCategories else commonCategories
+                displayCategories.forEach { category ->
                     item {
                         CategoryCard(
                             title = category,
                             onClick = { onCommonCategoryClick(category) }
                         )
                     }
-                    if (category == "Sickness") {
+                    if (category == "Sickness" && activeSection != AppSection.MT) {
                         item {
                             AddCategoryCard(
                                 enabled = isAuthenticated || guestRemaining > 0,
