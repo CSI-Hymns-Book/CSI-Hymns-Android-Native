@@ -3,6 +3,8 @@ package com.reyzie.hymns.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.reyzie.hymns.R
+import androidx.compose.ui.res.painterResource
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -1119,20 +1121,20 @@ fun SectionSelectorScreen(
                     ) {
                         SubItemSelectionCard(
                             title = "CSI Hymns",
-                            subtitle = "CSI Kannada Hymns Collection",
-                            icon = Icons.Default.MusicNote,
+                            subtitle = "ಕನ್ನಡ ಸಂಗೀತಗಳು",
+                            iconResId = R.drawable.hymn,
                             onClick = { onSelectCsiPage(0) }
                         )
                         SubItemSelectionCard(
                             title = "CSI Keerthanes",
-                            subtitle = "Kannada Keerthanes Collection",
-                            icon = Icons.Default.Album,
+                            subtitle = "ಕನ್ನಡ ಸಂಕೀರ್ತನೆಗಳು",
+                            iconResId = R.drawable.keerthane,
                             onClick = { onSelectCsiPage(1) }
                         )
                         SubItemSelectionCard(
                             title = "CSI Order of Service",
-                            subtitle = "Church Liturgy & Services",
-                            icon = Icons.Default.Book,
+                            subtitle = "ಸಿ.ಎಸ್.ಐ. ಆರಾಧನಾ ಕ್ರಮ",
+                            iconResId = R.drawable.ic_colored_book,
                             onClick = { onSelectCsiPage(2) }
                         )
                     }
@@ -1147,9 +1149,9 @@ fun SectionSelectorScreen(
                         modifier = Modifier.padding(16.dp)
                     ) {
                         SubItemSelectionCard(
-                            title = "MT Hymns",
-                            subtitle = "Mangalore Tamil Hymns Book",
-                            icon = Icons.Default.LibraryMusic,
+                            title = "M.T. Hymns",
+                            subtitle = "ಮಂಗಳೂರು ಕನ್ನಡ ಸಂಗೀತಗಳು",
+                            iconResId = R.drawable.hymn,
                             onClick = onSelectMtPage
                         )
                     }
@@ -1211,7 +1213,8 @@ private fun SectionGroupCard(
 private fun SubItemSelectionCard(
     title: String,
     subtitle: String,
-    icon: ImageVector,
+    iconResId: Int? = null,
+    iconVector: ImageVector? = null,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1236,12 +1239,21 @@ private fun SubItemSelectionCard(
                 modifier = Modifier.size(44.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    if (iconResId != null) {
+                        Icon(
+                            painter = painterResource(id = iconResId),
+                            contentDescription = null,
+                            tint = androidx.compose.ui.graphics.Color.Unspecified,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    } else if (iconVector != null) {
+                        Icon(
+                            imageVector = iconVector,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
@@ -1254,7 +1266,8 @@ private fun SubItemSelectionCard(
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

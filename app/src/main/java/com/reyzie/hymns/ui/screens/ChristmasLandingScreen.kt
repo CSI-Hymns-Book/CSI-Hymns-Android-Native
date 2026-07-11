@@ -194,7 +194,7 @@ fun ChristmasLandingScreen(
                     }
                     item {
                         ChristmasCategoryCard(
-                            title = "MT Hymns",
+                            title = "M.T. Hymns",
                             subtitle = "Mangalore Kannada hymns and tunes collection",
                             icon = "🎹",
                             gradient = listOf(Color(0xFFE65100), Color(0xFFFF8F00)),
@@ -338,7 +338,7 @@ fun ChristmasLandingScreen(
                     item { Spacer(Modifier.height(cardGap)) }
                     item {
                         ChristmasCategoryCard(
-                            title = "MT Hymns",
+                            title = "M.T. Hymns",
                             subtitle = "Mangalore Kannada hymns and tunes collection",
                             icon = "🎹",
                             gradient = listOf(Color(0xFFE65100), Color(0xFFFF8F00)),

@@ -150,6 +150,35 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _privacyAccepted.value = accepted
     }
 
+    private val _isLocalOverridesEnabled = MutableStateFlow(appConfigRepository.isLocalOverridesEnabled())
+    val isLocalOverridesEnabled: StateFlow<Boolean> = _isLocalOverridesEnabled.asStateFlow()
+
+    fun setLocalOverridesEnabled(enabled: Boolean) {
+        appConfigRepository.setLocalOverridesEnabled(enabled)
+        _isLocalOverridesEnabled.value = enabled
+        refreshAppConfig()
+    }
+
+    fun saveConfigValue(key: String, value: Any?, onComplete: (String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                appConfigRepository.saveConfigValue(key, value)
+                refreshAppConfig()
+                onComplete(null)
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsViewModel", "Failed to save config value for key=$key", e)
+                onComplete(e.localizedMessage ?: e.message ?: e.toString())
+            }
+        }
+    }
+
+    fun clearLocalOverrides() {
+        appConfigRepository.clearOverrides()
+        _isLocalOverridesEnabled.value = false
+        appConfigRepository.setLocalOverridesEnabled(false)
+        refreshAppConfig()
+    }
+
     private val _midiInstrument = MutableStateFlow(prefs.getInt("midi_instrument", 19))
     val midiInstrument: StateFlow<Int> = _midiInstrument.asStateFlow()
 

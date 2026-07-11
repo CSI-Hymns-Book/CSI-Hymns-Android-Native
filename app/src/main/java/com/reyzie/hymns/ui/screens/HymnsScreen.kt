@@ -90,7 +90,7 @@ fun HymnsScreen(
         topBar = {
             if (!isLandscape) {
                 ExpressiveScreenTopBar(
-                    title = if (activeSection == AppSection.MT) "MT Hymns" else "CSI Kannada Hymns",
+                    title = if (activeSection == AppSection.MT) "M.T. Hymns" else "CSI Kannada Hymns",
                     onMenuClick = onSettingsClick,
                     navigationIcon = navigationIcon,
                     actions = {
@@ -220,7 +220,7 @@ fun HymnsScreen(
                     if (isLandscape) {
                         item {
                             ExpressiveScreenTopBar(
-                                title = if (activeSection == AppSection.MT) "MT Hymns" else "CSI Kannada Hymns",
+                                title = if (activeSection == AppSection.MT) "M.T. Hymns" else "CSI Kannada Hymns",
                                 onMenuClick = onSettingsClick,
                                 navigationIcon = navigationIcon,
                                 actions = {

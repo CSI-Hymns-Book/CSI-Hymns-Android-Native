@@ -1,5 +1,22 @@
 [
     {
+        "title": "M.T. Hymns, MIDI Playback & Admin Tools ⛪🎶",
+        "version": "5.1.0",
+        "date": "12-07-2026",
+        "changes": [
+            "NEW Mangalore Tunes (M.T.) Hymns section — browse the full M.T. Hymns book with lyrics, categories, favorites, and search",
+            "NEW MIDI Playback Engine — listen to hymn tunes with realistic Pipe Organ sound right inside the app. Configurable instrument in Settings",
+            "NEW Section Selector Screen — choose between CSI Hymns & Keerthanes or M.T. Hymns with beautiful cards and Kannada subtitles (ಕನ್ನಡ ಸಂಗೀತಗಳು, ಕನ್ನಡ ಸಂಕೀರ್ತನೆಗಳು, ಆರಾಧನಾ ಕ್ರಮ)",
+            "NEW Hide/Show Controls toggle on Hymn Detail — collapse playback and action controls for distraction-free reading, persists across orientation changes and songs",
+            "NEW Admin Controls: App Configuration Manager — edit remote feature flags, force update settings, Google Cast config, and system keys directly from the app",
+            "NEW Local Testing Mode for Admin — toggle on-device-only overrides to safely test config changes without affecting live users",
+            "Improved landscape layout with collapsible right-side controls panel and smooth slide animations",
+            "Section selector icons now use the actual hymn and keerthane drawable assets instead of generic vector icons",
+            "General stability improvements, animation polish, and bug fixes across the app",
+            "Thank you for using CSI Hymns! Report any issues from the app or Settings"
+        ]
+    },
+    {
         "title": "CSI Hymns — Native Android Rewrite",
         "version": "5.0.0",
         "date": "23-06-2026",

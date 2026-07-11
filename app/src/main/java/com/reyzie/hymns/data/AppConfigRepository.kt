@@ -2,6 +2,9 @@ package com.reyzie.hymns.data
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.*
 
 /**
  * Single entry point for Supabase `app_config` remote flags.
@@ -73,7 +76,7 @@ class AppConfigRepository(
             )
         )
 
-        return RemoteAppConfig(
+        val remoteConfig = RemoteAppConfig(
             isChristmasTime = appConfigService.parseBoolean(raw[AppConfigKeys.IS_CHRISTMAS_TIME]),
             forceUpdateEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.FORCE_UPDATE_ENABLED]),
             forceUpdateMinVersion = raw[AppConfigKeys.FORCE_UPDATE_MIN_VERSION]?.trim()?.takeIf { it.isNotEmpty() },
@@ -87,33 +90,138 @@ class AppConfigRepository(
             adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]?.trim()?.takeIf { it.isNotEmpty() },
             githubToken = raw[AppConfigKeys.GITHUB_TOKEN]?.trim()?.takeIf { it.isNotEmpty() },
             isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED])
-        ).also { config ->
-            // Cache remote values locally
-            prefs?.edit()?.apply {
-                if (config.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, config.isChristmasTime)
-                if (config.isMangaloreHymnsEnabled != null) putBoolean(PREF_MANGALORE_REMOTE, config.isMangaloreHymnsEnabled)
-                if (config.githubToken != null) putString("github_token_cached", config.githubToken)
-                if (config.adminEmails != null) putString("admin_emails_cached", config.adminEmails)
-                if (config.castEnabled != null) putBoolean("cast_enabled_cached", config.castEnabled)
-                if (config.pageFlipVisible != null) putBoolean("page_flip_visible_cached", config.pageFlipVisible)
-                apply()
-            }
-            Log.d(
-                "AppConfigRepository",
-                "Loaded app_config: christmas=${config.isChristmasTime}, mangalore=${config.isMangaloreHymnsEnabled}, cast=${config.castEnabled}, pageFlipVisible=${config.pageFlipVisible}, adminEmails=${config.adminEmails}, githubToken=${config.githubToken != null}"
-            )
+        )
+
+        // Cache remote values locally
+        prefs?.edit()?.apply {
+            if (remoteConfig.isChristmasTime != null) putBoolean("is_christmas_time_cached", remoteConfig.isChristmasTime)
+            if (remoteConfig.forceUpdateEnabled != null) putBoolean("force_update_enabled_cached", remoteConfig.forceUpdateEnabled)
+            putString("force_update_min_version_cached", remoteConfig.forceUpdateMinVersion)
+            putLong("force_update_min_build_number_cached", remoteConfig.forceUpdateMinBuildNumber ?: 0L)
+            putString("force_update_message_cached", remoteConfig.forceUpdateMessage)
+            putString("force_update_android_store_url_cached", remoteConfig.forceUpdateAndroidStoreUrl)
+            if (remoteConfig.castEnabled != null) putBoolean("cast_enabled_cached", remoteConfig.castEnabled)
+            putString("cast_app_id_cached", remoteConfig.castAppId)
+            putString("cast_receiver_url_cached", remoteConfig.castReceiverUrl)
+            if (remoteConfig.pageFlipVisible != null) putBoolean("page_flip_visible_cached", remoteConfig.pageFlipVisible)
+            putString("admin_emails_cached", remoteConfig.adminEmails)
+            putString("github_token_cached", remoteConfig.githubToken)
+            if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean("is_mangalore_hymns_enabled_cached", remoteConfig.isMangaloreHymnsEnabled)
+            
+            // Legacy / flutter compatibility
+            if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
+            if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean(PREF_MANGALORE_REMOTE, remoteConfig.isMangaloreHymnsEnabled)
+            apply()
         }
+
+        Log.d(
+            "AppConfigRepository",
+            "Loaded app_config: christmas=${remoteConfig.isChristmasTime}, mangalore=${remoteConfig.isMangaloreHymnsEnabled}, cast=${remoteConfig.castEnabled}, pageFlipVisible=${remoteConfig.pageFlipVisible}, adminEmails=${remoteConfig.adminEmails}, githubToken=${remoteConfig.githubToken != null}"
+        )
+
+        return applyLocalOverrides(remoteConfig)
     }
 
     fun getCachedRemoteConfig(): RemoteAppConfig {
-        return RemoteAppConfig(
-            isChristmasTime = cachedChristmasRemote(),
-            isMangaloreHymnsEnabled = cachedMangaloreRemote(),
-            githubToken = prefs?.getString("github_token_cached", null),
-            adminEmails = prefs?.getString("admin_emails_cached", null),
+        val cached = RemoteAppConfig(
+            isChristmasTime = if (prefs?.contains("is_christmas_time_cached") == true) prefs.getBoolean("is_christmas_time_cached", false) else cachedChristmasRemote(),
+            forceUpdateEnabled = prefs?.getBoolean("force_update_enabled_cached", false),
+            forceUpdateMinVersion = prefs?.getString("force_update_min_version_cached", null),
+            forceUpdateMinBuildNumber = prefs?.getLong("force_update_min_build_number_cached", 0L)?.takeIf { it > 0 },
+            forceUpdateMessage = prefs?.getString("force_update_message_cached", null),
+            forceUpdateAndroidStoreUrl = prefs?.getString("force_update_android_store_url_cached", null),
             castEnabled = prefs?.getBoolean("cast_enabled_cached", false),
-            pageFlipVisible = prefs?.getBoolean("page_flip_visible_cached", false)
+            castAppId = prefs?.getString("cast_app_id_cached", null),
+            castReceiverUrl = prefs?.getString("cast_receiver_url_cached", null),
+            pageFlipVisible = prefs?.getBoolean("page_flip_visible_cached", false),
+            adminEmails = prefs?.getString("admin_emails_cached", null),
+            githubToken = prefs?.getString("github_token_cached", null),
+            isMangaloreHymnsEnabled = if (prefs?.contains("is_mangalore_hymns_enabled_cached") == true) prefs.getBoolean("is_mangalore_hymns_enabled_cached", false) else cachedMangaloreRemote()
         )
+        return applyLocalOverrides(cached)
+    }
+
+    fun isLocalOverridesEnabled(): Boolean {
+        val enabled = prefs?.getBoolean("app_config_use_local_overrides", false) == true
+        android.util.Log.d("AppConfigRepository", "isLocalOverridesEnabled: $enabled")
+        return enabled
+    }
+
+    fun setLocalOverridesEnabled(enabled: Boolean) {
+        android.util.Log.d("AppConfigRepository", "setLocalOverridesEnabled: $enabled")
+        prefs?.edit()?.putBoolean("app_config_use_local_overrides", enabled)?.commit()
+    }
+
+    fun applyLocalOverrides(config: RemoteAppConfig): RemoteAppConfig {
+        val enabled = isLocalOverridesEnabled()
+        android.util.Log.d("AppConfigRepository", "applyLocalOverrides: enabled=$enabled, inputConfig=$config")
+        if (!enabled) return config
+        val overridden = RemoteAppConfig(
+            isChristmasTime = if (prefs?.contains("app_config_override_is_christmas_time") == true) {
+                prefs.getBoolean("app_config_override_is_christmas_time", false)
+            } else config.isChristmasTime,
+            forceUpdateEnabled = if (prefs?.contains("app_config_override_force_update_enabled") == true) {
+                prefs.getBoolean("app_config_override_force_update_enabled", false)
+            } else config.forceUpdateEnabled,
+            forceUpdateMinVersion = prefs?.getString("app_config_override_force_update_min_version", null) ?: config.forceUpdateMinVersion,
+            forceUpdateMinBuildNumber = if (prefs?.contains("app_config_override_force_update_min_build_number") == true) {
+                prefs.getLong("app_config_override_force_update_min_build_number", 0L)
+            } else config.forceUpdateMinBuildNumber,
+            forceUpdateMessage = prefs?.getString("app_config_override_force_update_message", null) ?: config.forceUpdateMessage,
+            forceUpdateAndroidStoreUrl = prefs?.getString("app_config_override_force_update_android_store_url", null) ?: config.forceUpdateAndroidStoreUrl,
+            castEnabled = if (prefs?.contains("app_config_override_cast_enabled") == true) {
+                prefs.getBoolean("app_config_override_cast_enabled", false)
+            } else config.castEnabled,
+            castAppId = prefs?.getString("app_config_override_cast_app_id", null) ?: config.castAppId,
+            castReceiverUrl = prefs?.getString("app_config_override_cast_receiver_url", null) ?: config.castReceiverUrl,
+            pageFlipVisible = if (prefs?.contains("app_config_override_page_flip_visible") == true) {
+                prefs.getBoolean("app_config_override_page_flip_visible", false)
+            } else config.pageFlipVisible,
+            adminEmails = prefs?.getString("app_config_override_admin_emails", null) ?: config.adminEmails,
+            githubToken = prefs?.getString("app_config_override_github_token", null) ?: config.githubToken,
+            isMangaloreHymnsEnabled = if (prefs?.contains("app_config_override_is_mangalore_hymns_enabled") == true) {
+                prefs.getBoolean("app_config_override_is_mangalore_hymns_enabled", false)
+            } else config.isMangaloreHymnsEnabled
+        )
+        android.util.Log.d("AppConfigRepository", "applyLocalOverrides: outputConfig=$overridden")
+        return overridden
+    }
+
+    suspend fun saveConfigValue(key: String, value: Any?) = withContext(Dispatchers.IO) {
+        val useLocal = isLocalOverridesEnabled()
+        android.util.Log.d("AppConfigRepository", "saveConfigValue key=$key, value=$value, useLocal=$useLocal")
+        if (useLocal) {
+            prefs?.edit()?.run {
+                val prefKey = "app_config_override_$key"
+                when (value) {
+                    null -> remove(prefKey)
+                    is Boolean -> putBoolean(prefKey, value)
+                    is Long -> putLong(prefKey, value)
+                    is Int -> putLong(prefKey, value.toLong())
+                    else -> putString(prefKey, value.toString())
+                }
+                val success = commit()
+                android.util.Log.d("AppConfigRepository", "saveConfigValue (local): key=$prefKey, success=$success")
+            }
+        } else {
+            val jsonValue = when (value) {
+                null -> JsonNull
+                is Boolean -> JsonPrimitive(value)
+                is Number -> JsonPrimitive(value)
+                else -> JsonPrimitive(value.toString())
+            }
+            android.util.Log.d("AppConfigRepository", "saveConfigValue (remote): key=$key, jsonValue=$jsonValue")
+            appConfigService.update(key, jsonValue)
+        }
+    }
+
+    fun clearOverrides() {
+        prefs?.edit()?.run {
+            prefs.all.keys.filter { it.startsWith("app_config_override_") }.forEach {
+                remove(it)
+            }
+            commit()
+        }
     }
 
     fun hasManualChristmasOverride(): Boolean {
