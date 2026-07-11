@@ -1,6 +1,7 @@
 package com.reyzie.hymns.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,6 +23,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
 import com.reyzie.hymns.data.AppSection
 import androidx.compose.ui.unit.sp
@@ -50,7 +53,9 @@ fun HymnsScreen(
     settingsViewModel: SettingsViewModel = viewModel(),
     onHymnClick: (Hymn) -> Unit = {},
     onSettingsClick: () -> Unit = {},
-    activeSection: AppSection = AppSection.CSI
+    activeSection: AppSection = AppSection.CSI,
+    onOpenCarols: (() -> Unit)? = null,
+    navigationIcon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.Menu
 ) {
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
     val filteredHymns by viewModel.filteredHymns.collectAsState()
@@ -85,12 +90,9 @@ fun HymnsScreen(
         topBar = {
             if (!isLandscape) {
                 ExpressiveScreenTopBar(
-                    title = when {
-                        isChristmasMode -> "Christmas Carols"
-                        activeSection == AppSection.MT -> "MT Hymns"
-                        else -> "CSI Kannada Hymns"
-                    },
+                    title = if (activeSection == AppSection.MT) "MT Hymns" else "CSI Kannada Hymns",
                     onMenuClick = onSettingsClick,
+                    navigationIcon = navigationIcon,
                     actions = {
                         if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
                             IconButton(onClick = {
@@ -210,8 +212,9 @@ fun HymnsScreen(
                     if (isLandscape) {
                         item {
                             ExpressiveScreenTopBar(
-                                title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
+                                title = if (activeSection == AppSection.MT) "MT Hymns" else "CSI Kannada Hymns",
                                 onMenuClick = onSettingsClick,
+                                navigationIcon = navigationIcon,
                                 actions = {
                                     if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
                                         IconButton(onClick = {

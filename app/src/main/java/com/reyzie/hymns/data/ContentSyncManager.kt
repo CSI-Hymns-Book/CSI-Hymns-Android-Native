@@ -12,9 +12,10 @@ data class ContentSyncResult(
     val hymnsUpdated: Boolean = false,
     val keerthanesUpdated: Boolean = false,
     val orderUpdated: Boolean = false,
+    val mangaloreUpdated: Boolean = false,
     val errorMessage: String? = null
 ) {
-    val anyUpdated: Boolean get() = hymnsUpdated || keerthanesUpdated || orderUpdated
+    val anyUpdated: Boolean get() = hymnsUpdated || keerthanesUpdated || orderUpdated || mangaloreUpdated
 }
 
 class ContentSyncManager(context: Context) {
@@ -49,6 +50,7 @@ class ContentSyncManager(context: Context) {
         var hymnsUpdated = false
         var keerthanesUpdated = false
         var orderUpdated = false
+        var mangaloreUpdated = false
         var lastError: String? = null
 
         fetchUrl(AppConstants.HYMNS_DATA_URL)?.let { body ->
@@ -79,11 +81,21 @@ class ContentSyncManager(context: Context) {
             }
         }
 
-        if (hymnsUpdated || keerthanesUpdated || orderUpdated) {
+        fetchUrl(AppConstants.MANGALORE_HYMNS_DATA_URL)?.let { body ->
+            store.writeMangaloreHymnsJson(body)
+            prefs.edit().putLong(KEY_LAST_MANGALORE_SYNC, System.currentTimeMillis()).apply()
+            mangaloreUpdated = true
+        } ?: run {
+            if (lastError == null) {
+                lastError = ContentErrorMessages.forThrowable(null, store.hasMangaloreHymns())
+            }
+        }
+
+        if (hymnsUpdated || keerthanesUpdated || orderUpdated || mangaloreUpdated) {
             prefs.edit().putLong(KEY_LAST_SYNC, System.currentTimeMillis()).apply()
             lastError = null
             ContentUpdateBus.notifyFrom(
-                ContentSyncResult(hymnsUpdated, keerthanesUpdated, orderUpdated)
+                ContentSyncResult(hymnsUpdated, keerthanesUpdated, orderUpdated, mangaloreUpdated)
             )
         }
 
@@ -91,7 +103,8 @@ class ContentSyncManager(context: Context) {
             hymnsUpdated = hymnsUpdated,
             keerthanesUpdated = keerthanesUpdated,
             orderUpdated = orderUpdated,
-            errorMessage = if (hymnsUpdated || keerthanesUpdated || orderUpdated) null else lastError
+            mangaloreUpdated = mangaloreUpdated,
+            errorMessage = if (hymnsUpdated || keerthanesUpdated || orderUpdated || mangaloreUpdated) null else lastError
         )
     }
 
@@ -124,6 +137,7 @@ class ContentSyncManager(context: Context) {
         private const val KEY_LAST_HYMNS_SYNC = "lastHymnsSync"
         private const val KEY_LAST_KEERTHANE_SYNC = "lastKeerthaneSync"
         private const val KEY_LAST_ORDER_SYNC = "lastOrderSync"
+        private const val KEY_LAST_MANGALORE_SYNC = "lastMangaloreSync"
         val SYNC_INTERVAL_MS: Long = TimeUnit.DAYS.toMillis(3)
         val STALE_LAUNCH_MS: Long = TimeUnit.DAYS.toMillis(7)
     }

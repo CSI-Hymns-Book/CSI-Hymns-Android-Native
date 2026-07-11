@@ -5,6 +5,8 @@ object AppConstants {
     const val KEERTHANE_DATA_URL = "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/main/keerthane_data.json"
     const val ORDER_OF_SERVICE_DATA_URL =
         "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/refs/heads/main/order-of-service_data.json"
+    const val MANGALORE_HYMNS_DATA_URL =
+        "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/refs/heads/main/mangalore_hymns_data.json"
 }
 
 data class Hymn(

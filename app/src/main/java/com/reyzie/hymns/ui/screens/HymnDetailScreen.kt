@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -66,7 +67,8 @@ fun HymnDetailScreen(
     val context = LocalContext.current
     val readingProgressService = remember { ReadingProgressService(context) }
     var selectedLanguage by remember { mutableStateOf("Kannada") }
-    var fontSize by remember { mutableStateOf(18.sp) }
+    val prefs = remember { context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE) }
+    var fontSize by remember { mutableStateOf(prefs.getInt("global_songs_font_size", 18).sp) }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val rightColumnScrollState = rememberScrollState()
@@ -105,7 +107,7 @@ fun HymnDetailScreen(
     
     LaunchedEffect(hymn.number) {
         val progress = readingProgressService.getProgress(if (isKeerthane) "keerthane" else "hymn", hymn.number.toString()).first()
-        progress.fontSize?.let { fontSize = it.sp }
+        fontSize = prefs.getInt("global_songs_font_size", 18).sp
         progress.language?.let { selectedLanguage = it }
         progress.scrollOffset?.let { scrollState.scrollTo(it.toInt()) }
         
@@ -243,7 +245,9 @@ fun HymnDetailScreen(
                                         index = 0,
                                         onClick = {
                                             HapticFeedbackManager.smoothClick(context)
-                                            fontSize = (fontSize.value - 2f).coerceAtLeast(14f).sp
+                                            val newSize = (fontSize.value - 2f).coerceAtLeast(14f)
+                                            fontSize = newSize.sp
+                                            prefs.edit().putInt("global_songs_font_size", newSize.toInt()).apply()
                                         },
                                         icon = Icons.Default.Remove,
                                         label = "Smaller",
@@ -264,7 +268,9 @@ fun HymnDetailScreen(
                                         index = 2,
                                         onClick = {
                                             HapticFeedbackManager.smoothClick(context)
-                                            fontSize = (fontSize.value + 2f).coerceAtMost(44f).sp
+                                            val newSize = (fontSize.value + 2f).coerceAtMost(44f)
+                                            fontSize = newSize.sp
+                                            prefs.edit().putInt("global_songs_font_size", newSize.toInt()).apply()
                                         },
                                         icon = Icons.Default.Add,
                                         label = "Bigger",
@@ -460,7 +466,9 @@ fun HymnDetailScreen(
                                     index = 0,
                                     onClick = {
                                         HapticFeedbackManager.smoothClick(context)
-                                        fontSize = (fontSize.value - 2f).coerceAtLeast(14f).sp
+                                        val newSize = (fontSize.value - 2f).coerceAtLeast(14f)
+                                        fontSize = newSize.sp
+                                        prefs.edit().putInt("global_songs_font_size", newSize.toInt()).apply()
                                     },
                                     icon = Icons.Default.Remove,
                                     label = "Smaller",
@@ -481,7 +489,9 @@ fun HymnDetailScreen(
                                     index = 2,
                                     onClick = {
                                         HapticFeedbackManager.smoothClick(context)
-                                        fontSize = (fontSize.value + 2f).coerceAtMost(44f).sp
+                                        val newSize = (fontSize.value + 2f).coerceAtMost(44f)
+                                        fontSize = newSize.sp
+                                        prefs.edit().putInt("global_songs_font_size", newSize.toInt()).apply()
                                     },
                                     icon = Icons.Default.Add,
                                     label = "Bigger",

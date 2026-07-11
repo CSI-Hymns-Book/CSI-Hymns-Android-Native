@@ -29,7 +29,9 @@ class HymnsRepository(context: Context) {
     suspend fun loadHymns(section: AppSection = AppSection.CSI): List<Hymn> = withContext(Dispatchers.IO) {
         store.ensureSeeded()
         if (section == AppSection.MT) {
-            readLocalMangaloreHymns()
+            readLocalMangaloreHymns().ifEmpty {
+                fetchAndUpdateMangaloreHymns().data
+            }
         } else {
             readLocalHymns().ifEmpty {
                 fetchAndUpdateHymns().data
@@ -77,6 +79,26 @@ class HymnsRepository(context: Context) {
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching keerthanes", e)
+            ContentFetchResult(
+                data = cached,
+                errorMessage = ContentErrorMessages.forThrowable(e, cached.isNotEmpty())
+            )
+        }
+    }
+
+    suspend fun fetchAndUpdateMangaloreHymns(): ContentFetchResult<Hymn> = withContext(Dispatchers.IO) {
+        store.ensureSeeded()
+        val cached = readLocalMangaloreHymns()
+        try {
+            val body = fetchUrl(AppConstants.MANGALORE_HYMNS_DATA_URL)
+                ?: throw IOException("Could not download Mangalore hymns")
+            store.writeMangaloreHymnsJson(body)
+            ContentFetchResult(
+                data = parseHymnsJson(body),
+                fromNetwork = true
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching Mangalore hymns", e)
             ContentFetchResult(
                 data = cached,
                 errorMessage = ContentErrorMessages.forThrowable(e, cached.isNotEmpty())

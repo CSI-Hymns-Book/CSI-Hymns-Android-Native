@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -219,112 +220,272 @@ fun CommunityCarolsScreen(
                 }
             },
         ) { padding ->
-            Column(Modifier.padding(padding).fillMaxSize()) {
-                SearchField(
-                    query = query,
-                    onQueryChange = viewModel::onSearchChanged,
-                    placeholder = if (activeChurch == null) "Search churches or songs..." else "Search in this church...",
-                )
-
-                if (isInitialLoading && churches.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        ExpressiveCircularProgress()
-                    }
-                } else if (activeChurch == null) {
-                    if (filteredChurches.isEmpty()) {
-                        EmptyChurchesState(
-                            syncHint = syncHint,
-                            isAuthenticated = viewModel.isAuthenticated,
-                            onRefresh = { viewModel.refresh() },
-                        )
-                    } else {
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
-                        ) {
-                            items(filteredChurches, key = { it.id }) { church ->
-                                val (songCount, pdfCount) = viewModel.churchStats(church.id, songs, pdfs)
-                                ChurchListCard(
-                                    church = church,
-                                    songCount = songCount,
-                                    pdfCount = pdfCount,
-                                    canDelete = viewModel.canDeleteChurch(church),
-                                    onTap = { viewModel.setSelectedChurch(church.id) },
-                                    onDelete = { deleteChurchTarget = church },
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    activeChurch.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                        Text(
-                            desc,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = contentColorMuted,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        )
-                    }
-                    SortChipRow(viewModel = viewModel)
-                    StandardButtonGroup(
-                        buttonCount = 2,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        highContrast = true,
+            val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                if (isLandscape) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Button(
-                            index = 0,
-                            onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                viewModel.setContentTab(CarolContentTab.SONGS)
-                            },
-                            icon = Icons.Default.MusicNote,
-                            label = "Songs (${churchSongs.size})",
-                            isSelected = contentTab == CarolContentTab.SONGS,
-                        )
-                        Button(
-                            index = 1,
-                            onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                viewModel.setContentTab(CarolContentTab.PDFS)
-                            },
-                            icon = Icons.Default.PictureAsPdf,
-                            label = "PDFs (${churchPdfs.size})",
-                            isSelected = contentTab == CarolContentTab.PDFS,
-                        )
-                    }
-                    when (contentTab) {
-                        CarolContentTab.SONGS -> {
-                            if (churchSongs.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("No songs yet", color = contentColorMuted)
+                        // Left Pane: Search & Meta info
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .padding(start = 16.dp, top = 8.dp)
+                        ) {
+                            SearchField(
+                                query = query,
+                                onQueryChange = viewModel::onSearchChanged,
+                                placeholder = if (activeChurch == null) "Search churches/songs..." else "Search in this church...",
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            if (activeChurch == null) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Select a church from the list to view its custom carol sheet-music and bilingual lyrics.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = contentColorMuted,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             } else {
-                                LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
-                                    items(churchSongs, key = { it.id }) { song ->
-                                        SongRow(
-                                            song = song,
-                                            canDelete = viewModel.canDeleteSong(song),
-                                            onOpen = { selectedSong = song },
-                                            onDelete = { viewModel.deleteSong(song.id) },
-                                        )
+                                activeChurch.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                                    Text(
+                                        desc,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = contentColorMuted,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                                        maxLines = 4,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                }
+                                SortChipRow(viewModel = viewModel)
+                                Spacer(Modifier.height(8.dp))
+                                StandardButtonGroup(
+                                    buttonCount = 2,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    highContrast = true,
+                                ) {
+                                    Button(
+                                        index = 0,
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            viewModel.setContentTab(CarolContentTab.SONGS)
+                                        },
+                                        icon = Icons.Default.MusicNote,
+                                        label = "Songs (${churchSongs.size})",
+                                        isSelected = contentTab == CarolContentTab.SONGS,
+                                    )
+                                    Button(
+                                        index = 1,
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            viewModel.setContentTab(CarolContentTab.PDFS)
+                                        },
+                                        icon = Icons.Default.PictureAsPdf,
+                                        label = "PDFs (${churchPdfs.size})",
+                                        isSelected = contentTab == CarolContentTab.PDFS,
+                                    )
+                                }
+                            }
+                        }
+
+                        // Right Pane: Lists
+                        Box(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxHeight()
+                        ) {
+                            if (isInitialLoading && churches.isEmpty()) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    ExpressiveCircularProgress()
+                                }
+                            } else if (activeChurch == null) {
+                                if (filteredChurches.isEmpty()) {
+                                    EmptyChurchesState(
+                                        syncHint = syncHint,
+                                        isAuthenticated = viewModel.isAuthenticated,
+                                        onRefresh = { viewModel.refresh() },
+                                    )
+                                } else {
+                                    LazyColumn(
+                                        contentPadding = PaddingValues(16.dp, 8.dp, 24.dp, 80.dp),
+                                    ) {
+                                        items(filteredChurches, key = { it.id }) { church ->
+                                            val (songCount, pdfCount) = viewModel.churchStats(church.id, songs, pdfs)
+                                            ChurchListCard(
+                                                church = church,
+                                                songCount = songCount,
+                                                pdfCount = pdfCount,
+                                                canDelete = viewModel.canDeleteChurch(church),
+                                                onTap = { viewModel.setSelectedChurch(church.id) },
+                                                onDelete = { deleteChurchTarget = church },
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                                when (contentTab) {
+                                    CarolContentTab.SONGS -> {
+                                        if (churchSongs.isEmpty()) {
+                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Text("No songs yet", color = contentColorMuted)
+                                            }
+                                        } else {
+                                            LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 24.dp, 80.dp)) {
+                                                items(churchSongs, key = { it.id }) { song ->
+                                                    SongRow(
+                                                        song = song,
+                                                        canDelete = viewModel.canDeleteSong(song),
+                                                        onOpen = { selectedSong = song },
+                                                        onDelete = { viewModel.deleteSong(song.id) },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                    CarolContentTab.PDFS -> {
+                                        if (churchPdfs.isEmpty()) {
+                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Text("No PDFs yet", color = contentColorMuted)
+                                            }
+                                        } else {
+                                            LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 24.dp, 80.dp)) {
+                                                items(churchPdfs, key = { it.id }) { pdf ->
+                                                    PdfRow(
+                                                        pdf = pdf,
+                                                        canDelete = viewModel.canDeletePdf(pdf),
+                                                        onOpen = { selectedPdf = pdf },
+                                                        onDelete = { viewModel.deletePdf(pdf.id) },
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
-                        CarolContentTab.PDFS -> {
-                            if (churchPdfs.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("No PDFs yet", color = contentColorMuted)
-                                }
+                    }
+                } else {
+                    Column(Modifier.fillMaxSize()) {
+                        SearchField(
+                            query = query,
+                            onQueryChange = viewModel::onSearchChanged,
+                            placeholder = if (activeChurch == null) "Search churches or songs..." else "Search in this church...",
+                        )
+
+                        if (isInitialLoading && churches.isEmpty()) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                ExpressiveCircularProgress()
+                            }
+                        } else if (activeChurch == null) {
+                            if (filteredChurches.isEmpty()) {
+                                EmptyChurchesState(
+                                    syncHint = syncHint,
+                                    isAuthenticated = viewModel.isAuthenticated,
+                                    onRefresh = { viewModel.refresh() },
+                                )
                             } else {
-                                LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
-                                    items(churchPdfs, key = { it.id }) { pdf ->
-                                        PdfRow(
-                                            pdf = pdf,
-                                            canDelete = viewModel.canDeletePdf(pdf),
-                                            onOpen = { selectedPdf = pdf },
-                                            onDelete = { viewModel.deletePdf(pdf.id) },
+                                LazyColumn(
+                                    contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
+                                ) {
+                                    items(filteredChurches, key = { it.id }) { church ->
+                                        val (songCount, pdfCount) = viewModel.churchStats(church.id, songs, pdfs)
+                                        ChurchListCard(
+                                            church = church,
+                                            songCount = songCount,
+                                            pdfCount = pdfCount,
+                                            canDelete = viewModel.canDeleteChurch(church),
+                                            onTap = { viewModel.setSelectedChurch(church.id) },
+                                            onDelete = { deleteChurchTarget = church },
                                         )
+                                    }
+                                }
+                            }
+                        } else {
+                            activeChurch.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                                Text(
+                                    desc,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = contentColorMuted,
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                )
+                            }
+                            SortChipRow(viewModel = viewModel)
+                            StandardButtonGroup(
+                                buttonCount = 2,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                highContrast = true,
+                            ) {
+                                Button(
+                                    index = 0,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.setContentTab(CarolContentTab.SONGS)
+                                    },
+                                    icon = Icons.Default.MusicNote,
+                                    label = "Songs (${churchSongs.size})",
+                                    isSelected = contentTab == CarolContentTab.SONGS,
+                                )
+                                Button(
+                                    index = 1,
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        viewModel.setContentTab(CarolContentTab.PDFS)
+                                    },
+                                    icon = Icons.Default.PictureAsPdf,
+                                    label = "PDFs (${churchPdfs.size})",
+                                    isSelected = contentTab == CarolContentTab.PDFS,
+                                )
+                            }
+                            when (contentTab) {
+                                CarolContentTab.SONGS -> {
+                                    if (churchSongs.isEmpty()) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Text("No songs yet", color = contentColorMuted)
+                                        }
+                                    } else {
+                                        LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
+                                            items(churchSongs, key = { it.id }) { song ->
+                                                SongRow(
+                                                    song = song,
+                                                    canDelete = viewModel.canDeleteSong(song),
+                                                    onOpen = { selectedSong = song },
+                                                    onDelete = { viewModel.deleteSong(song.id) },
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                CarolContentTab.PDFS -> {
+                                    if (churchPdfs.isEmpty()) {
+                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Text("No PDFs yet", color = contentColorMuted)
+                                        }
+                                    } else {
+                                        LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
+                                            items(churchPdfs, key = { it.id }) { pdf ->
+                                                PdfRow(
+                                                    pdf = pdf,
+                                                    canDelete = viewModel.canDeletePdf(pdf),
+                                                    onOpen = { selectedPdf = pdf },
+                                                    onDelete = { viewModel.deletePdf(pdf.id) },
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }

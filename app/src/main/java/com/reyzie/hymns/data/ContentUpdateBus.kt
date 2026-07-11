@@ -15,6 +15,9 @@ object ContentUpdateBus {
     private val _orderUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val orderUpdated: SharedFlow<Unit> = _orderUpdated.asSharedFlow()
 
+    private val _mangaloreHymnsUpdated = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val mangaloreHymnsUpdated: SharedFlow<Unit> = _mangaloreHymnsUpdated.asSharedFlow()
+
     fun notifyHymnsUpdated() {
         _hymnsUpdated.tryEmit(Unit)
     }
@@ -27,9 +30,14 @@ object ContentUpdateBus {
         _orderUpdated.tryEmit(Unit)
     }
 
+    fun notifyMangaloreHymnsUpdated() {
+        _mangaloreHymnsUpdated.tryEmit(Unit)
+    }
+
     fun notifyFrom(result: ContentSyncResult) {
         if (result.hymnsUpdated) notifyHymnsUpdated()
         if (result.keerthanesUpdated) notifyKeerthanesUpdated()
         if (result.orderUpdated) notifyOrderUpdated()
+        if (result.mangaloreUpdated) notifyMangaloreHymnsUpdated()
     }
 }

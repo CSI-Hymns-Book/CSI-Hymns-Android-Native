@@ -23,6 +23,9 @@ import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import android.content.Context
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,6 +63,9 @@ fun OrderOfServiceReaderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { OrderOfServiceRepository(context) }
+
+    val prefs = remember { context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE) }
+    var serviceFontSize by remember { mutableStateOf(prefs.getInt("global_service_font_size", 18)) }
 
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -141,11 +147,32 @@ fun OrderOfServiceReaderScreen(
                 },
                 actions = {
                     if (hasSelectedPage && pages.isNotEmpty()) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("Page ${pages[pagerState.currentPage].pageNo}") },
-                            modifier = Modifier.padding(end = 8.dp)
+                        IconButton(onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            val newSize = (serviceFontSize - 2).coerceAtLeast(14)
+                            serviceFontSize = newSize
+                            prefs.edit().putInt("global_service_font_size", newSize).apply()
+                        }) {
+                            Icon(Icons.Default.Remove, contentDescription = "Decrease Font Size")
+                        }
+                        
+                        Text(
+                            text = "$serviceFontSize",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         )
+                        
+                        IconButton(onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            val newSize = (serviceFontSize + 2).coerceAtMost(44)
+                            serviceFontSize = newSize
+                            prefs.edit().putInt("global_service_font_size", newSize).apply()
+                        }) {
+                            Icon(Icons.Default.Add, contentDescription = "Increase Font Size")
+                        }
+                        
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -305,8 +332,8 @@ fun OrderOfServiceReaderScreen(
                             Spacer(Modifier.height(16.dp))
                             Text(
                                 pageData.content,
-                                fontSize = 18.sp,
-                                lineHeight = 28.sp,
+                                fontSize = serviceFontSize.sp,
+                                lineHeight = (serviceFontSize * 1.6).sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(96.dp))

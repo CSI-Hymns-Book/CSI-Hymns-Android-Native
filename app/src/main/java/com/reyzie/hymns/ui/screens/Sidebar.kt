@@ -148,20 +148,7 @@ fun Sidebar(
                 }
             }
 
-            if (isMangaloreHymnsEnabled) {
-                SidebarSectionLabel("Book Sections")
-                SidebarListBlock {
-                    SidebarDrawerItem(
-                        icon = Icons.Outlined.Book,
-                        label = "Switch Hymn Book",
-                        onClick = {
-                            HapticFeedbackManager.smoothClick(context)
-                            onCloseDrawer()
-                            onChangeSectionClick()
-                        }
-                    )
-                }
-            }
+
 
             SidebarSectionLabel("Explore")
             SidebarListBlock {

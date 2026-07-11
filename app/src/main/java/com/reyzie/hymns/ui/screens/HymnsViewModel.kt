@@ -72,6 +72,11 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             ContentUpdateBus.hymnsUpdated.collectLatest { reloadFromLocal() }
         }
+        viewModelScope.launch {
+            ContentUpdateBus.mangaloreHymnsUpdated.collectLatest {
+                if (currentSection == AppSection.MT) reloadFromLocal()
+            }
+        }
         loadHymns()
     }
 
@@ -100,14 +105,14 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private var syncJob: kotlinx.coroutines.Job? = null
 
     fun refreshHymns() {
-        if (currentSection == AppSection.MT) {
-            loadHymns()
-            return
-        }
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Loading
-            val result = repository.fetchAndUpdateHymns()
+            val result = if (currentSection == AppSection.MT) {
+                repository.fetchAndUpdateMangaloreHymns()
+            } else {
+                repository.fetchAndUpdateHymns()
+            }
             if (result.errorMessage != null) {
                 _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Error(result.errorMessage)
             } else {

@@ -54,7 +54,8 @@ enum class AdminTab {
 enum class LyricSongType {
     Hymn,
     Keerthane,
-    OrderOfService
+    OrderOfService,
+    MangaloreHymn
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -226,7 +227,7 @@ private fun AdminMenuSelection(
 private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 4 })
     var searchQuery by remember { mutableStateOf("") }
 
     val settingsViewModel: SettingsViewModel = viewModel()
@@ -265,18 +266,21 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
     var allHymns by remember { mutableStateOf<List<Hymn>>(emptyList()) }
     var allKeerthanes by remember { mutableStateOf<List<Keerthane>>(emptyList()) }
     var allOrderPages by remember { mutableStateOf<List<OrderPage>>(emptyList()) }
+    var allMangaloreHymns by remember { mutableStateOf<List<Hymn>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
     // Editor target states
     var editingHymn by remember { mutableStateOf<Hymn?>(null) }
     var editingKeerthane by remember { mutableStateOf<Keerthane?>(null) }
     var editingOrderPage by remember { mutableStateOf<OrderPage?>(null) }
+    var editingMangaloreHymn by remember { mutableStateOf<Hymn?>(null) }
 
     fun loadData() {
         scope.launch {
             isLoading = true
             allHymns = hymnsRepo.loadHymns()
             allKeerthanes = hymnsRepo.loadKeerthanes()
+            allMangaloreHymns = hymnsRepo.loadHymns(AppSection.MT)
             
             val regular = orderServiceRepo.loadPages("regular").pages
             val festival = orderServiceRepo.loadPages("festival").pages
@@ -378,6 +382,36 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                 }
             }
         )
+    } else if (editingMangaloreHymn != null) {
+        LyricEditorForm(
+            title = "Edit MT Hymn ${editingMangaloreHymn!!.number}",
+            initialTitle = editingMangaloreHymn!!.title,
+            initialSignature = editingMangaloreHymn!!.signature,
+            initialLyrics = editingMangaloreHymn!!.lyrics,
+            initialKannadaLyrics = editingMangaloreHymn!!.kannadaLyrics ?: "",
+            onDismiss = { editingMangaloreHymn = null },
+            onSave = { title, signature, lyrics, kannada ->
+                scope.launch {
+                    val updated = editingMangaloreHymn!!.copy(
+                        title = title,
+                        signature = signature,
+                        lyrics = lyrics,
+                        kannadaLyrics = kannada.takeIf { it.isNotBlank() }
+                    )
+                    hymnsRepo.saveHymn(updated, AppSection.MT)
+                    Toast.makeText(context, "MT Hymn updated locally!", Toast.LENGTH_SHORT).show()
+                    editingMangaloreHymn = null
+                    loadData()
+
+                    // Read updated json content and push to github
+                    val store = ContentLocalStore(context)
+                    val json = store.readMangaloreHymnsJson()
+                    if (json != null) {
+                        syncFileToGitHub("mangalore_hymns_data.json", json, "Update MT Hymn ${updated.number} lyrics via App")
+                    }
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -401,7 +435,7 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                 .padding(innerPadding)
         ) {
             StandardButtonGroup(
-            buttonCount = 3,
+            buttonCount = 4,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -433,8 +467,19 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                     scope.launch { pagerState.animateScrollToPage(2) }
                 },
                 icon = Icons.Default.Book,
-                label = "Order of Service",
+                label = "Order",
                 isSelected = pagerState.currentPage == 2,
+                autoSizeLabel = true
+            )
+            Button(
+                index = 3,
+                onClick = {
+                    HapticFeedbackManager.smoothClick(context)
+                    scope.launch { pagerState.animateScrollToPage(3) }
+                },
+                icon = Icons.Default.LibraryMusic,
+                label = "MT Tunes",
+                isSelected = pagerState.currentPage == 3,
                 autoSizeLabel = true
             )
         }
@@ -644,6 +689,59 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                                                 onClick = {
                                                     HapticFeedbackManager.smoothClick(context)
                                                     editingOrderPage = page
+                                                },
+                                                colors = IconButtonDefaults.filledTonalIconButtonColors()
+                                            ) {
+                                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                            }
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    3 -> {
+                        val filtered = allMangaloreHymns.filter {
+                            it.number.toString().contains(searchQuery) ||
+                                    it.title.contains(searchQuery, ignoreCase = true)
+                        }
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filtered) { hymn ->
+                                Surface(
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        editingMangaloreHymn = hymn
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(
+                                                text = "${hymn.number}. ${hymn.title}",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                        },
+                                        supportingContent = {
+                                            Text(
+                                                text = hymn.signature,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        },
+                                        trailingContent = {
+                                            IconButton(
+                                                onClick = {
+                                                    HapticFeedbackManager.smoothClick(context)
+                                                    editingMangaloreHymn = hymn
                                                 },
                                                 colors = IconButtonDefaults.filledTonalIconButtonColors()
                                             ) {
