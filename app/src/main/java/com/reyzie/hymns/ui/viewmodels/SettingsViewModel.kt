@@ -149,4 +149,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         prefs.edit().putInt("privacy_accepted", accepted).apply()
         _privacyAccepted.value = accepted
     }
+
+    private val _midiInstrument = MutableStateFlow(prefs.getInt("midi_instrument", 19))
+    val midiInstrument: StateFlow<Int> = _midiInstrument.asStateFlow()
+
+    fun onMidiInstrumentChanged(instrument: Int) {
+        _midiInstrument.value = instrument
+        prefs.edit().putInt("midi_instrument", instrument).apply()
+    }
 }
