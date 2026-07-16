@@ -25,6 +25,10 @@ class AuthViewModel : ViewModel() {
             sessionStatus.collect { status ->
                 if (status is SessionStatus.Authenticated) {
                     syncProfileAndPrivacy()
+                    val user = status.session.user
+                    com.reyzie.hymns.data.AnalyticsService.syncAuthIdentity(user?.id)
+                } else if (status is SessionStatus.NotAuthenticated) {
+                    com.reyzie.hymns.data.AnalyticsService.syncAuthIdentity(null)
                 }
             }
         }
