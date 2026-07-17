@@ -119,7 +119,13 @@ fun Sidebar(
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
                             onCloseDrawer()
-                            navController.navigate("auth")
+                            try {
+                                if (navController.currentDestination != null && navController.currentDestination?.route != "auth") {
+                                    navController.navigate("auth")
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("Sidebar", "Navigation to auth failed", e)
+                            }
                         }
                     )
                 } else {
