@@ -28,13 +28,23 @@ data class AudioState(
     val duration: Long = 0,
     val error: String? = null,
     val isLoading: Boolean = false,
-    val currentAudioUrl: String? = null
+    val currentAudioUrl: String? = null,
+    val midiTranspose: Int = 0,
+    val isSopranoEnabled: Boolean = true,
+    val isAltoEnabled: Boolean = true,
+    val isTenorEnabled: Boolean = true,
+    val isBassEnabled: Boolean = true,
+    val sopranoInstrument: Int = 19,
+    val altoInstrument: Int = 19,
+    val tenorInstrument: Int = 19,
+    val bassInstrument: Int = 19
 )
 
 class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private val exoPlayer = ExoPlayer.Builder(application).build()
     private var mediaPlayer: android.media.MediaPlayer? = null
     private var isUsingMediaPlayer = false
+    private var rawMidiCache: ByteArray? = null
     
     private val _audioState = MutableStateFlow(AudioState())
     val audioState: StateFlow<AudioState> = _audioState.asStateFlow()
@@ -85,8 +95,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 if (!isUsingMediaPlayer) {
+                    val is404 = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+                            || error.message?.contains("404") == true
+                            || error.cause?.message?.contains("404") == true
+                    val errorMsg = if (is404) {
+                        "AUDIO_NOT_FOUND"
+                    } else {
+                        com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE
+                    }
                     _audioState.value = _audioState.value.copy(
-                        error = com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE,
+                        error = errorMsg,
                         isLoading = false,
                         isPlaying = false
                     )
@@ -141,6 +159,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             if (isMidi) {
                 val mp = mediaPlayer
                 if (mp == null) {
+                    rawMidiCache = null
                     playMidi(audioUrl, number, title, isKeerthane)
                 } else {
                     mp.seekTo(0)
@@ -161,6 +180,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        rawMidiCache = null
         stopProgressUpdate()
         isUsingMediaPlayer = isMidi
         _audioState.value = _audioState.value.copy(
@@ -202,11 +222,25 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 connection.connectTimeout = 10000
                 connection.readTimeout = 10000
                 val midiBytes = connection.inputStream.use { it.readBytes() }
+                rawMidiCache = midiBytes
                 
                 // 2. Patch to chosen MIDI Instrument from preferences
                 val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
                 val instrument = prefs.getInt("midi_instrument", 19)
-                val patchedBytes = patchMidiInstrument(midiBytes, instrument)
+                val state = _audioState.value
+                val patchedBytes = patchMidiInstrument(
+                    midiBytes = midiBytes,
+                    instrumentProgram = instrument,
+                    transposeSemitones = state.midiTranspose,
+                    isSopranoEnabled = state.isSopranoEnabled,
+                    isAltoEnabled = state.isAltoEnabled,
+                    isTenorEnabled = state.isTenorEnabled,
+                    isBassEnabled = state.isBassEnabled,
+                    sopranoInstrument = state.sopranoInstrument,
+                    altoInstrument = state.altoInstrument,
+                    tenorInstrument = state.tenorInstrument,
+                    bassInstrument = state.bassInstrument
+                )
                 
                 // 3. Write to temp file
                 val tempFile = File(getApplication<Application>().cacheDir, "temp_patched_${number}.mid")
@@ -262,8 +296,14 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
+                    val is404 = e is java.io.FileNotFoundException || e.message?.contains("404") == true
+                    val errorMsg = if (is404) {
+                        "AUDIO_NOT_FOUND"
+                    } else {
+                        com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE
+                    }
                     _audioState.value = _audioState.value.copy(
-                        error = com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE,
+                        error = errorMsg,
                         isLoading = false,
                         isPlaying = false
                     )
@@ -273,7 +313,19 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun patchMidiInstrument(midiBytes: ByteArray, instrumentProgram: Int): ByteArray {
+    private fun patchMidiInstrument(
+        midiBytes: ByteArray,
+        instrumentProgram: Int,
+        transposeSemitones: Int,
+        isSopranoEnabled: Boolean,
+        isAltoEnabled: Boolean,
+        isTenorEnabled: Boolean,
+        isBassEnabled: Boolean,
+        sopranoInstrument: Int = 19,
+        altoInstrument: Int = 19,
+        tenorInstrument: Int = 19,
+        bassInstrument: Int = 19
+    ): ByteArray {
         val result = midiBytes.clone()
         var i = 0
         val length = result.size
@@ -363,7 +415,37 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     } else {
                         // Channel Voice Message
                         when (statusType) {
-                            0x80, 0x90, 0xA0, 0xB0, 0xE0 -> {
+                            0x90 -> {
+                                // Note On: data1 = note, data2 = velocity
+                                if (trackPtr + 1 < trackEnd) {
+                                    val isMuted = when (channel) {
+                                        0 -> !isSopranoEnabled
+                                        1 -> !isAltoEnabled
+                                        2 -> !isTenorEnabled
+                                        3 -> !isBassEnabled
+                                        else -> false
+                                    }
+                                    if (isMuted) {
+                                        result[trackPtr + 1] = 0.toByte()
+                                    }
+                                }
+                                if (trackPtr < trackEnd && channel != 9) {
+                                    var note = result[trackPtr].toInt() and 0xFF
+                                    note = (note + transposeSemitones).coerceIn(0, 127)
+                                    result[trackPtr] = note.toByte()
+                                }
+                                trackPtr += 2
+                            }
+                            0x80, 0xA0 -> {
+                                // Note Off, Key Pressure: transpose note
+                                if (trackPtr < trackEnd && channel != 9) {
+                                    var note = result[trackPtr].toInt() and 0xFF
+                                    note = (note + transposeSemitones).coerceIn(0, 127)
+                                    result[trackPtr] = note.toByte()
+                                }
+                                trackPtr += 2
+                            }
+                            0xB0, 0xE0 -> {
                                 // 2 data bytes
                                 trackPtr += 2
                             }
@@ -372,8 +454,14 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 if (trackPtr < trackEnd) {
                                     // Channel 9 is standard MIDI drums. Skip it.
                                     if (channel != 9) {
-                                        // Set Program to selected instrument
-                                        result[trackPtr] = instrumentProgram.toByte()
+                                        val instr = when (channel) {
+                                            0 -> sopranoInstrument
+                                            1 -> altoInstrument
+                                            2 -> tenorInstrument
+                                            3 -> bassInstrument
+                                            else -> instrumentProgram
+                                        }
+                                        result[trackPtr] = instr.toByte()
                                     }
                                     trackPtr++
                                 }
@@ -407,6 +495,18 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun togglePlayback() {
+        val state = _audioState.value
+        if (state.error != null) {
+            val num = state.currentSongNumber
+            val title = state.currentSongTitle
+            val isKeerthane = state.isKeerthane
+            val url = state.currentAudioUrl
+            if (num != null && title != null) {
+                playSong(num, title, isKeerthane, url)
+                return
+            }
+        }
+
         if (isUsingMediaPlayer) {
             val mp = mediaPlayer ?: return
             if (mp.isPlaying) {
@@ -434,6 +534,109 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 exoPlayer.play()
             }
+        }
+    }
+
+    fun setMidiInstrument(instrument: Int) {
+        val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putInt("midi_instrument", instrument).apply()
+        
+        val state = _audioState.value
+        val url = state.currentAudioUrl
+        if (url != null && url.endsWith(".mid", ignoreCase = true)) {
+            applyRealtimeMidiChanges()
+        }
+    }
+
+    fun setMidiTranspose(semitones: Int) {
+        _audioState.value = _audioState.value.copy(midiTranspose = semitones)
+        
+        val state = _audioState.value
+        val url = state.currentAudioUrl
+        if (url != null && url.endsWith(".mid", ignoreCase = true)) {
+            applyRealtimeMidiChanges()
+        }
+    }
+
+    fun setSatbRoute(soprano: Boolean, alto: Boolean, tenor: Boolean, bass: Boolean) {
+        _audioState.value = _audioState.value.copy(
+            isSopranoEnabled = soprano,
+            isAltoEnabled = alto,
+            isTenorEnabled = tenor,
+            isBassEnabled = bass
+        )
+        
+        val state = _audioState.value
+        val url = state.currentAudioUrl
+        if (url != null && url.endsWith(".mid", ignoreCase = true)) {
+            applyRealtimeMidiChanges()
+        }
+    }
+
+    fun setSatbInstruments(soprano: Int, alto: Int, tenor: Int, bass: Int) {
+        _audioState.value = _audioState.value.copy(
+            sopranoInstrument = soprano,
+            altoInstrument = alto,
+            tenorInstrument = tenor,
+            bassInstrument = bass
+        )
+        
+        val state = _audioState.value
+        val url = state.currentAudioUrl
+        if (url != null && url.endsWith(".mid", ignoreCase = true)) {
+            applyRealtimeMidiChanges()
+        }
+    }
+
+    private fun applyRealtimeMidiChanges() {
+        val mp = mediaPlayer ?: return
+        val isPlaying = mp.isPlaying
+        val currentPos = mp.currentPosition
+        
+        stopProgressUpdate()
+        if (isPlaying) {
+            mp.pause()
+        }
+        
+        val midiBytes = rawMidiCache ?: return
+        val state = _audioState.value
+        val num = state.currentSongNumber ?: return
+        
+        val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        val instrument = prefs.getInt("midi_instrument", 19)
+        
+        val patchedBytes = patchMidiInstrument(
+            midiBytes = midiBytes,
+            instrumentProgram = instrument,
+            transposeSemitones = state.midiTranspose,
+            isSopranoEnabled = state.isSopranoEnabled,
+            isAltoEnabled = state.isAltoEnabled,
+            isTenorEnabled = state.isTenorEnabled,
+            isBassEnabled = state.isBassEnabled,
+            sopranoInstrument = state.sopranoInstrument,
+            altoInstrument = state.altoInstrument,
+            tenorInstrument = state.tenorInstrument,
+            bassInstrument = state.bassInstrument
+        )
+        
+        val tempFile = File(getApplication<Application>().cacheDir, "temp_patched_${num}.mid")
+        tempFile.writeBytes(patchedBytes)
+        
+        mp.reset()
+        mp.setDataSource(tempFile.absolutePath)
+        mp.prepare()
+        mp.seekTo(currentPos)
+        
+        try {
+            mp.playbackParams = mp.playbackParams.setSpeed(state.playbackSpeed)
+        } catch (e: Exception) {}
+        
+        if (isPlaying) {
+            mp.start()
+            _audioState.value = _audioState.value.copy(isPlaying = true)
+            startProgressUpdate()
+        } else {
+            _audioState.value = _audioState.value.copy(isPlaying = false)
         }
     }
 

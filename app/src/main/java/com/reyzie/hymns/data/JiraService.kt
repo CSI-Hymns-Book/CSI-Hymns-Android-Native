@@ -6,6 +6,7 @@ import io.ktor.client.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.client.request.forms.*
 import io.ktor.http.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,7 +46,8 @@ class JiraService {
         songTitle: String,
         description: String?,
         appVersion: String,
-        guestDeviceId: String? = null
+        guestDeviceId: String? = null,
+        isAudioContribution: Boolean = false
     ): JiraTicketResult = withContext(Dispatchers.IO) {
         if (!isConfigured) {
             return@withContext JiraTicketResult(false, errorMessage = "Jira is not configured in app build")
@@ -62,7 +64,11 @@ class JiraService {
 
             val apiUrl = if (url.endsWith("/")) "${url}rest/api/3/issue" else "$url/rest/api/3/issue"
 
-            val summary = "$songType $songNumber Lyrics Issue"
+            val summary = if (isAudioContribution) {
+                "$songType $songNumber Audio Contribution"
+            } else {
+                "$songType $songNumber Lyrics Issue"
+            }
             val ticketDescription = """
                 *Song Information:*
                 * Type: $songType
@@ -99,7 +105,11 @@ class JiraService {
                         })
                     })
                     put("labels", org.json.JSONArray().apply {
-                        put("lyrics-issue")
+                        if (isAudioContribution) {
+                            put("audio-contribution")
+                        } else {
+                            put("lyrics-issue")
+                        }
                         put("app-reported")
                         put("android-app")
                     })
@@ -320,5 +330,41 @@ class JiraService {
             }
         }
         return sb.toString().trim()
+    }
+    suspend fun uploadAttachment(
+        ticketKey: String,
+        fileBytes: ByteArray,
+        fileName: String
+    ): Boolean = withContext(Dispatchers.IO) {
+        if (!isConfigured) return@withContext false
+        try {
+            val url = BuildConfig.JIRA_URL
+            val email = BuildConfig.JIRA_EMAIL
+            val apiToken = BuildConfig.JIRA_API_TOKEN
+            val credentials = Base64.encodeToString("$email:$apiToken".toByteArray(), Base64.NO_WRAP)
+            
+            val apiUrl = if (url.endsWith("/")) "${url}rest/api/3/issue/$ticketKey/attachments"
+            else "$url/rest/api/3/issue/$ticketKey/attachments"
+
+            val response: HttpResponse = client.post(apiUrl) {
+                header("Authorization", "Basic $credentials")
+                header("X-Atlassian-Token", "no-check")
+                setBody(
+                    MultiPartFormDataContent(
+                        formData {
+                            append("file", fileBytes, Headers.build {
+                                append(HttpHeaders.ContentType, "application/octet-stream")
+                                append(HttpHeaders.ContentDisposition, "form-data; name=\"file\"; filename=\"$fileName\"")
+                            })
+                        }
+                    )
+                )
+            }
+
+            response.status.value == 200 || response.status.value == 201
+        } catch (e: Exception) {
+            Log.e("JiraService", "Error uploading attachment to $ticketKey", e)
+            false
+        }
     }
 }

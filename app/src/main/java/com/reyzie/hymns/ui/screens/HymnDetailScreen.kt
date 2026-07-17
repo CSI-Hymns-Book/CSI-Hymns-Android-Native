@@ -53,6 +53,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlin.math.sin
+import android.widget.Toast
+import com.reyzie.hymns.data.JiraService
+import com.reyzie.hymns.data.TicketsRepository
+import androidx.activity.compose.rememberLauncherForActivityResult
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -887,7 +891,16 @@ fun ExpressiveAudioPlayer(
     isMt: Boolean = false
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var showSpeedMenu by remember { mutableStateOf(false) }
+    var showAdvancedMidiBottomSheet by remember { mutableStateOf(false) }
+    var showAudioContributionDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(audioState.error) {
+        if (audioState.error == "AUDIO_NOT_FOUND") {
+            showAudioContributionDialog = true
+        }
+    }
 
     val formatTime: (Long) -> String = { ms ->
         val totalSecs = ms / 1000
@@ -1173,10 +1186,11 @@ fun ExpressiveAudioPlayer(
                             showSpeedMenu = true
                         },
                         icon = Icons.Default.Speed,
-                        label = if (isLandscape) "Speed" else "${audioState.playbackSpeed}x",
-                        forceShowLabel = !isLandscape,
-                        showLabelWhenUnselected = !isLandscape,
-                        iconSize = if (isLandscape) 28.dp else null,
+                        label = "Speed",
+                        showLabelWhenUnselected = false,
+                        alwaysCircle = !isLandscape,
+                        compact = !isLandscape,
+                        iconSize = if (isLandscape) 28.dp else 24.dp,
                         variant = GroupButtonVariant.Accent
                     )
                 }
@@ -1222,6 +1236,301 @@ fun ExpressiveAudioPlayer(
                         )
                     }
                 }
+            }
+
+            // Advanced Audio Controls launcher button
+            val isMidi = audioState.currentAudioUrl?.endsWith(".mid", ignoreCase = true) == true
+            if (isMidi) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TextButton(
+                    onClick = { showAdvancedMidiBottomSheet = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Advanced Audio Controls",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Advanced Audio Controls Modal Bottom Sheet
+            if (showAdvancedMidiBottomSheet) {
+                ModalBottomSheet(
+                    onDismissRequest = { showAdvancedMidiBottomSheet = false },
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 16.dp)
+                            .navigationBarsPadding(),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            text = "Advanced Audio Controls",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        val instruments = listOf(
+                            Pair("Church Organ", 19),
+                            Pair("Grand Piano", 0),
+                            Pair("Drawbar Organ", 16),
+                            Pair("Nylon Guitar", 24),
+                            Pair("Violin", 40),
+                            Pair("Flute", 73)
+                        )
+
+                        // 1. Default / Set All Instrument override
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Default / Set All Instrument",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            var showInstrumentMenu by remember { mutableStateOf(false) }
+                            val currentInstrumentId = remember {
+                                val prefs = context.getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+                                mutableStateOf(prefs.getInt("midi_instrument", 19))
+                            }
+                            val currentInstrumentName = instruments.firstOrNull { it.second == currentInstrumentId.value }?.first ?: "Church Organ"
+                            
+                            Box {
+                                TextButton(onClick = { showInstrumentMenu = true }) {
+                                    Text(currentInstrumentName)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                }
+                                DropdownMenu(
+                                    expanded = showInstrumentMenu,
+                                    onDismissRequest = { showInstrumentMenu = false }
+                                ) {
+                                    instruments.forEach { (name, id) ->
+                                        DropdownMenuItem(
+                                            text = { Text(name) },
+                                            onClick = {
+                                                currentInstrumentId.value = id
+                                                audioViewModel.setMidiInstrument(id)
+                                                audioViewModel.setSatbInstruments(id, id, id, id)
+                                                showInstrumentMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 2. Transpose (Pitch)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Transpose (Pitch)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val currentTranspose = audioState.midiTranspose
+                                OutlinedIconButton(
+                                    onClick = { audioViewModel.setMidiTranspose(currentTranspose - 1) },
+                                    modifier = Modifier.size(36.dp),
+                                    enabled = currentTranspose > -6
+                                ) {
+                                    Text("-", style = MaterialTheme.typography.titleMedium)
+                                }
+                                
+                                Text(
+                                    text = if (currentTranspose == 0) "Normal" else if (currentTranspose > 0) "+$currentTranspose" else "$currentTranspose",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.width(60.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                
+                                OutlinedIconButton(
+                                    onClick = { audioViewModel.setMidiTranspose(currentTranspose + 1) },
+                                    modifier = Modifier.size(36.dp),
+                                    enabled = currentTranspose < 6
+                                ) {
+                                    Text("+", style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                        }
+                        
+                        // 3. SATB Routing with Individual Instruments
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "SATB Vocal Routing & Instruments",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                            
+                            val satbParts = listOf(
+                                SatbPartConfig("Soprano", audioState.isSopranoEnabled, audioState.sopranoInstrument,
+                                    onToggle = { enabled -> audioViewModel.setSatbRoute(enabled, audioState.isAltoEnabled, audioState.isTenorEnabled, audioState.isBassEnabled) },
+                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(inst, audioState.altoInstrument, audioState.tenorInstrument, audioState.bassInstrument) }
+                                ),
+                                SatbPartConfig("Alto", audioState.isAltoEnabled, audioState.altoInstrument,
+                                    onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, enabled, audioState.isTenorEnabled, audioState.isBassEnabled) },
+                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, inst, audioState.tenorInstrument, audioState.bassInstrument) }
+                                ),
+                                SatbPartConfig("Tenor", audioState.isTenorEnabled, audioState.tenorInstrument,
+                                    onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, audioState.isAltoEnabled, enabled, audioState.isBassEnabled) },
+                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, audioState.altoInstrument, inst, audioState.bassInstrument) }
+                                ),
+                                SatbPartConfig("Bass", audioState.isBassEnabled, audioState.bassInstrument,
+                                    onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, audioState.isAltoEnabled, audioState.isTenorEnabled, enabled) },
+                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, audioState.altoInstrument, audioState.tenorInstrument, inst) }
+                                )
+                            )
+                            
+                            satbParts.forEach { part ->
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Checkbox(
+                                                checked = part.isEnabled,
+                                                onCheckedChange = { part.onToggle(it) }
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = part.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (part.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
+                                        }
+                                        
+                                        var showPartMenu by remember { mutableStateOf(false) }
+                                        val currentPartInstrumentName = instruments.firstOrNull { it.second == part.currentInstrument }?.first ?: "Church Organ"
+                                        
+                                        Box {
+                                            TextButton(
+                                                onClick = { showPartMenu = true },
+                                                enabled = part.isEnabled
+                                            ) {
+                                                Text(
+                                                    text = currentPartInstrumentName,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Icon(
+                                                    imageVector = Icons.Default.ArrowDropDown,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                            DropdownMenu(
+                                                expanded = showPartMenu,
+                                                onDismissRequest = { showPartMenu = false }
+                                            ) {
+                                                instruments.forEach { (name, id) ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(name) },
+                                                        onClick = {
+                                                            part.onInstrumentChange(id)
+                                                            showPartMenu = false
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Audio Contribution Dialog
+            if (showAudioContributionDialog) {
+                AudioContributionDialog(
+                    songNumber = audioState.currentSongNumber ?: 0,
+                    songTitle = audioState.currentSongTitle ?: "Unknown",
+                    isKeerthane = audioState.isKeerthane,
+                    onDismiss = {
+                        showAudioContributionDialog = false
+                        audioViewModel.stopAndReset()
+                    },
+                    onSubmit = { name, bytes ->
+                        showAudioContributionDialog = false
+                        scope.launch {
+                            val appVersion = try {
+                                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
+                            } catch (e: Exception) {
+                                "Unknown"
+                            }
+                            val ticketsRepository = TicketsRepository(context)
+                            val jiraService = JiraService()
+                            
+                            Toast.makeText(context, "Uploading audio contribution...", Toast.LENGTH_SHORT).show()
+                            
+                            val ticketResult = jiraService.createTicket(
+                                songType = if (audioState.isKeerthane) "Keerthane" else "Hymn",
+                                songNumber = audioState.currentSongNumber ?: 0,
+                                songTitle = audioState.currentSongTitle ?: "Unknown",
+                                description = "User contributed audio file: $name for this song. Please review and add to raw assets.",
+                                appVersion = appVersion,
+                                guestDeviceId = ticketsRepository.getDeviceIdForGuest(),
+                                isAudioContribution = true
+                            )
+                            
+                            if (ticketResult.success && ticketResult.ticketKey != null) {
+                                val uploadSuccess = jiraService.uploadAttachment(
+                                    ticketKey = ticketResult.ticketKey,
+                                    fileBytes = bytes,
+                                    fileName = name
+                                )
+                                if (uploadSuccess) {
+                                    Toast.makeText(context, "Thank you! Audio contribution ticket ${ticketResult.ticketKey} submitted.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Ticket created (${ticketResult.ticketKey}) but file attachment upload failed.", Toast.LENGTH_LONG).show()
+                                }
+                            } else {
+                                Toast.makeText(context, "Failed to submit contribution: ${ticketResult.errorMessage}", Toast.LENGTH_LONG).show()
+                            }
+                            audioViewModel.stopAndReset()
+                        }
+                    }
+                )
             }
         }
     }
@@ -1305,3 +1614,136 @@ suspend fun checkUrlExists(urlStr: String): Boolean = kotlinx.coroutines.withCon
         false
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AudioContributionDialog(
+    songNumber: Int,
+    songTitle: String,
+    isKeerthane: Boolean,
+    onDismiss: () -> Unit,
+    onSubmit: (fileName: String, fileBytes: ByteArray) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedFileUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    var selectedFileName by remember { mutableStateOf<String?>(null) }
+    
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val name = getFileName(context, uri)
+            val ext = name.substringAfterLast('.', "").lowercase()
+            val isValid = ext == "mid" || ext == "midi" || ext == "mp3" || ext == "ogg" || ext == "wav" || ext == "m4a" || ext == "aac" || ext == "flac" || context.contentResolver.getType(uri)?.startsWith("audio/") == true
+            
+            if (isValid) {
+                selectedFileUri = uri
+                selectedFileName = name
+            } else {
+                Toast.makeText(context, "Please select an audio file (e.g. .mp3, .ogg, .wav, .mid)", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("No Audio Available") },
+        text = {
+            Column {
+                Text(
+                    text = "No audio is available for \"$songTitle\". Would you like to submit an audio or MIDI file to help improve the library for everyone?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (selectedFileName != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.MusicNote,
+                                contentDescription = "Audio File",
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = selectedFileName ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (selectedFileUri == null) {
+                Button(onClick = { filePickerLauncher.launch("*/*") }) {
+                    Text("Select Audio File")
+                }
+            } else {
+                Button(onClick = {
+                    val uri = selectedFileUri!!
+                    val name = selectedFileName!!
+                    try {
+                        val inputStream = context.contentResolver.openInputStream(uri)
+                        val bytes = inputStream?.readBytes()
+                        if (bytes != null) {
+                            onSubmit(name, bytes)
+                        } else {
+                            Toast.makeText(context, "Could not read file data", Toast.LENGTH_SHORT).show()
+                        }
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Error reading file: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }) {
+                    Text("Submit Audio")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
+fun getFileName(context: android.content.Context, uri: android.net.Uri): String {
+    var result: String? = null
+    if (uri.scheme == "content") {
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
+        try {
+            if (cursor != null && cursor.moveToFirst()) {
+                val index = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (index != -1) {
+                    result = cursor.getString(index)
+                }
+            }
+        } finally {
+            cursor?.close()
+        }
+    }
+    if (result == null) {
+        result = uri.path
+        val cut = result?.lastIndexOf('/') ?: -1
+        if (cut != -1) {
+            result = result?.substring(cut + 1)
+        }
+    }
+    return result ?: "audio_contribution"
+}
+
+data class SatbPartConfig(
+    val name: String,
+    val isEnabled: Boolean,
+    val currentInstrument: Int,
+    val onToggle: (Boolean) -> Unit,
+    val onInstrumentChange: (Int) -> Unit
+)
