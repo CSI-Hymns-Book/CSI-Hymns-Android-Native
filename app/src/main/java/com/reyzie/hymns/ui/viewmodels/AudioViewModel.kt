@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import com.reyzie.hymns.data.AppConfigRepository
 
 data class AudioState(
     val isPlaying: Boolean = false,
@@ -41,6 +42,7 @@ data class AudioState(
 )
 
 class AudioViewModel(application: Application) : AndroidViewModel(application) {
+    private val appConfigRepository = AppConfigRepository(context = application)
     private val exoPlayer = ExoPlayer.Builder(application).build()
     private var mediaPlayer: android.media.MediaPlayer? = null
     private var isUsingMediaPlayer = false
@@ -142,10 +144,25 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun playSong(number: Int, title: String, isKeerthane: Boolean, customAudioUrl: String? = null) {
-        val audioUrl = customAudioUrl ?: if (isKeerthane) {
-            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
+        val config = appConfigRepository.getCachedRemoteConfig()
+        val isMidiMigrated = if (isKeerthane) {
+            config.parsedMidiKeerthanes.contains(number)
         } else {
-            "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
+            config.parsedMidiHymns.contains(number)
+        }
+
+        val audioUrl = customAudioUrl ?: if (isKeerthane) {
+            if (isMidiMigrated) {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$number.mid"
+            } else {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
+            }
+        } else {
+            if (isMidiMigrated) {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_$number.mid"
+            } else {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
+            }
         }
 
         val isMidi = audioUrl.endsWith(".mid", ignoreCase = true)
@@ -239,7 +256,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     sopranoInstrument = state.sopranoInstrument,
                     altoInstrument = state.altoInstrument,
                     tenorInstrument = state.tenorInstrument,
-                    bassInstrument = state.bassInstrument
+                    bassInstrument = state.bassInstrument,
+                    speed = state.playbackSpeed
                 )
                 
                 // 3. Write to temp file
@@ -263,9 +281,6 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 isPlaying = true,
                                 error = null
                             )
-                            try {
-                                preparedMp.playbackParams = preparedMp.playbackParams.setSpeed(_audioState.value.playbackSpeed)
-                            } catch (e: Exception) {}
                             preparedMp.start()
                             startProgressUpdate()
                         }
@@ -324,7 +339,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         sopranoInstrument: Int = 19,
         altoInstrument: Int = 19,
         tenorInstrument: Int = 19,
-        bassInstrument: Int = 19
+        bassInstrument: Int = 19,
+        speed: Float = 1.0f
     ): ByteArray {
         val result = midiBytes.clone()
         var i = 0
@@ -395,6 +411,17 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 lenByte = result[trackPtr].toInt() and 0xFF
                                 trackPtr++
                                 metaLen = (metaLen shl 7) or (lenByte and 0x7F)
+                            }
+                        }
+                        if (metaType == 0x51 && metaLen == 3 && trackPtr + 2 < trackEnd) {
+                            val oldTempo = ((result[trackPtr].toInt() and 0xFF) shl 16) or
+                                           ((result[trackPtr + 1].toInt() and 0xFF) shl 8) or
+                                           (result[trackPtr + 2].toInt() and 0xFF)
+                            if (speed != 1.0f && speed > 0f) {
+                                val newTempo = (oldTempo / speed).toInt().coerceIn(10000, 10000000)
+                                result[trackPtr] = ((newTempo shr 16) and 0xFF).toByte()
+                                result[trackPtr + 1] = ((newTempo shr 8) and 0xFF).toByte()
+                                result[trackPtr + 2] = (newTempo and 0xFF).toByte()
                             }
                         }
                         trackPtr += metaLen
@@ -514,9 +541,6 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 _audioState.value = _audioState.value.copy(isPlaying = false)
                 stopProgressUpdate()
             } else {
-                try {
-                    mp.playbackParams = mp.playbackParams.setSpeed(_audioState.value.playbackSpeed)
-                } catch (e: Exception) {}
                 mp.start()
                 _audioState.value = _audioState.value.copy(isPlaying = true)
                 startProgressUpdate()
@@ -616,7 +640,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             sopranoInstrument = state.sopranoInstrument,
             altoInstrument = state.altoInstrument,
             tenorInstrument = state.tenorInstrument,
-            bassInstrument = state.bassInstrument
+            bassInstrument = state.bassInstrument,
+            speed = state.playbackSpeed
         )
         
         val tempFile = File(getApplication<Application>().cacheDir, "temp_patched_${num}.mid")
@@ -626,10 +651,6 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         mp.setDataSource(tempFile.absolutePath)
         mp.prepare()
         mp.seekTo(currentPos)
-        
-        try {
-            mp.playbackParams = mp.playbackParams.setSpeed(state.playbackSpeed)
-        } catch (e: Exception) {}
         
         if (isPlaying) {
             mp.start()
@@ -662,16 +683,15 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setPlaybackSpeed(speed: Float) {
+        _audioState.value = _audioState.value.copy(playbackSpeed = speed)
         if (isUsingMediaPlayer) {
-            mediaPlayer?.let { mp ->
-                try {
-                    mp.playbackParams = mp.playbackParams.setSpeed(speed)
-                } catch (e: Exception) {}
+            val mp = mediaPlayer
+            if (mp != null) {
+                applyRealtimeMidiChanges()
             }
         } else {
             exoPlayer.setPlaybackSpeed(speed)
         }
-        _audioState.value = _audioState.value.copy(playbackSpeed = speed)
     }
 
     fun toggleLoop() {

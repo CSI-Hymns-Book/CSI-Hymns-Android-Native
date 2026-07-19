@@ -58,6 +58,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.togetherWith
@@ -235,6 +237,7 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         OnboardingPrefs.migrateFromLegacy(context)
     }
+
     var showOnboarding by rememberSaveable {
         mutableStateOf(!OnboardingPrefs.isWelcomeCompleted(context))
     }
@@ -249,6 +252,49 @@ fun MainScreen(
     val ticketAckService = remember { TicketAcknowledgementService(context) }
 
     var forceUpdateDecision by remember { mutableStateOf<ForceUpdateDecision?>(null) }
+
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(
+        selectedHymn,
+        selectedKeerthane,
+        selectedReaderType,
+        selectedCategory,
+        showSettings,
+        showPraiseApp,
+        showTickets,
+        showAboutDeveloper,
+        showRecentSongs,
+        showChristmasCarols,
+        selectedCommonCategory,
+        showPrivacyPolicy,
+        showAboutApp,
+        showProfileEdit,
+        showChangelog,
+        showAdminControls
+    ) {
+        if (selectedHymn != null ||
+            selectedKeerthane != null ||
+            selectedReaderType != null ||
+            selectedCategory != null ||
+            showSettings ||
+            showPraiseApp ||
+            showTickets ||
+            showAboutDeveloper ||
+            showRecentSongs ||
+            showChristmasCarols ||
+            selectedCommonCategory != null ||
+            showPrivacyPolicy ||
+            showAboutApp ||
+            showProfileEdit ||
+            showChangelog ||
+            showAdminControls
+        ) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }
+    }
 
     if (showOnboarding) {
         OnboardingScreen(

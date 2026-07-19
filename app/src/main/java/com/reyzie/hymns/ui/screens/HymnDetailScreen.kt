@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.data.Hymn
 import com.reyzie.hymns.data.ReadingProgressService
+import com.reyzie.hymns.data.RemoteAppConfig
 import com.reyzie.hymns.ui.viewmodels.*
 import com.reyzie.hymns.cast.SongCastRequest
 import com.reyzie.hymns.ui.motion.expressiveAudioPlayerEnter
@@ -86,19 +87,38 @@ fun HymnDetailScreen(
     
     val isPageFlipEnabled by settingsViewModel.isPageFlipEnabled.collectAsState()
     val audioState by audioViewModel.audioState.collectAsState()
+    
+    val remoteAppConfig by settingsViewModel.remoteAppConfig.collectAsState()
+    val castEnabled = remoteAppConfig.castEnabled == true
+    val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
+    
+    val isMidiMigrated = if (isKeerthane) {
+        remoteAppConfig.parsedMidiKeerthanes.contains(hymn.number)
+    } else {
+        remoteAppConfig.parsedMidiHymns.contains(hymn.number)
+    }
+
     val targetAudioUrl = hymn.audioUrl ?: when {
-        isKeerthane -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
+        isKeerthane -> {
+            if (isMidiMigrated) {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_${hymn.number}.mid"
+            } else {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
+            }
+        }
         isMt -> {
             val mtNumber = hymn.signature.split(Regex("[,/\\s]+")).firstOrNull()?.trim() ?: hymn.number.toString()
             "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
         }
-        else -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
+        else -> {
+            if (isMidiMigrated) {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_${hymn.number}.mid"
+            } else {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
+            }
+        }
     }
     val isSameSong = audioState.currentAudioUrl == targetAudioUrl
-
-    val remoteAppConfig by settingsViewModel.remoteAppConfig.collectAsState()
-    val castEnabled = remoteAppConfig.castEnabled == true
-    val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
     var showCastSheet by remember { mutableStateOf(false) }
     
     var showReportDialog by remember { mutableStateOf(false) }
@@ -113,7 +133,8 @@ fun HymnDetailScreen(
                     isKeerthane -> "Keerthane ${hymn.number}"
                     isMt -> "MT ${hymn.number}"
                     else -> "Hymn ${hymn.number}"
-                }
+                },
+                contentType = if (streamUrl.endsWith(".mid", ignoreCase = true) || streamUrl.endsWith(".midi", ignoreCase = true)) "audio/midi" else "audio/ogg"
             ),
             onDismiss = { showCastSheet = false }
         )
@@ -548,7 +569,8 @@ fun HymnDetailScreen(
                                 audioState = audioState,
                                 audioViewModel = audioViewModel,
                                 tuneOptions = verifiedTuneOptions,
-                                isMt = isMt
+                                isMt = isMt,
+                                remoteAppConfig = remoteAppConfig
                             )
                         }
                     }
@@ -805,7 +827,8 @@ fun HymnDetailScreen(
                                 audioState = audioState,
                                 audioViewModel = audioViewModel,
                                 tuneOptions = verifiedTuneOptions,
-                                isMt = isMt
+                                isMt = isMt,
+                                remoteAppConfig = remoteAppConfig
                             )
                         }
                     }
@@ -888,7 +911,8 @@ fun ExpressiveAudioPlayer(
     audioState: AudioState,
     audioViewModel: AudioViewModel,
     tuneOptions: List<String> = emptyList(),
-    isMt: Boolean = false
+    isMt: Boolean = false,
+    remoteAppConfig: RemoteAppConfig
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -988,10 +1012,28 @@ fun ExpressiveAudioPlayer(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     tuneOptions.forEach { option ->
+                        val currentSongNum = audioState.currentSongNumber ?: 0
+                        val isOptionMidiMigrated = if (audioState.isKeerthane) {
+                            remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum)
+                        } else {
+                            remoteAppConfig.parsedMidiHymns.contains(currentSongNum)
+                        }
                         val optionUrl = when {
-                            audioState.isKeerthane -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                            audioState.isKeerthane -> {
+                                if (isOptionMidiMigrated) {
+                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$option.mid"
+                                } else {
+                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                                }
+                            }
                             isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
-                            else -> "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$option.ogg"
+                            else -> {
+                                if (isOptionMidiMigrated) {
+                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_$option.mid"
+                                } else {
+                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$option.ogg"
+                                }
+                            }
                         }
                         val isSelected = audioState.currentAudioUrl == optionUrl
                         
@@ -1371,6 +1413,92 @@ fun ExpressiveAudioPlayer(
                                     onClick = { audioViewModel.setMidiTranspose(currentTranspose + 1) },
                                     modifier = Modifier.size(36.dp),
                                     enabled = currentTranspose < 6
+                                ) {
+                                    Text("+", style = MaterialTheme.typography.titleMedium)
+                                }
+                            }
+                        }
+                        
+                        // 2.5. Playback Speed Slider
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "Playback Speed",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (kotlin.math.abs(audioState.playbackSpeed - 1.0f) > 0.01f) {
+                                        Text(
+                                            text = "•",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                        Text(
+                                            text = "Reset",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.clickable {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                audioViewModel.setPlaybackSpeed(1.0f)
+                                            }
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = String.format(java.util.Locale.US, "%.2fx", audioState.playbackSpeed),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedIconButton(
+                                    onClick = { 
+                                        val newSpeed = (audioState.playbackSpeed - 0.05f).coerceAtLeast(0.5f)
+                                        audioViewModel.setPlaybackSpeed(newSpeed)
+                                    },
+                                    modifier = Modifier.size(36.dp),
+                                    enabled = audioState.playbackSpeed > 0.5f
+                                ) {
+                                    Text("-", style = MaterialTheme.typography.titleMedium)
+                                }
+                                
+                                Slider(
+                                    value = audioState.playbackSpeed,
+                                    onValueChange = { audioViewModel.setPlaybackSpeed(it) },
+                                    valueRange = 0.5f..1.5f,
+                                    modifier = Modifier.weight(1f),
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = MaterialTheme.colorScheme.primary,
+                                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                )
+                                
+                                OutlinedIconButton(
+                                    onClick = { 
+                                        val newSpeed = (audioState.playbackSpeed + 0.05f).coerceAtMost(1.5f)
+                                        audioViewModel.setPlaybackSpeed(newSpeed)
+                                    },
+                                    modifier = Modifier.size(36.dp),
+                                    enabled = audioState.playbackSpeed < 1.5f
                                 ) {
                                     Text("+", style = MaterialTheme.typography.titleMedium)
                                 }

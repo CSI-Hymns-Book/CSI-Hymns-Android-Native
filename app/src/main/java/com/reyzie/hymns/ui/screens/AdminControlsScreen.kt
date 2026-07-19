@@ -1371,6 +1371,8 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
     var forceStoreUrl by remember(remoteConfig.forceUpdateAndroidStoreUrl) { mutableStateOf(remoteConfig.forceUpdateAndroidStoreUrl ?: "") }
     var adminEmails by remember(remoteConfig.adminEmails) { mutableStateOf(remoteConfig.adminEmails ?: "") }
     var githubToken by remember(remoteConfig.githubToken) { mutableStateOf(remoteConfig.githubToken ?: "") }
+    var midiHymnsRanges by remember(remoteConfig.midiHymnsRanges) { mutableStateOf(remoteConfig.midiHymnsRanges ?: "") }
+    var midiKeerthanesRanges by remember(remoteConfig.midiKeerthanesRanges) { mutableStateOf(remoteConfig.midiKeerthanesRanges ?: "") }
 
     var showGithubToken by remember { mutableStateOf(false) }
 
@@ -1511,6 +1513,26 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
                     subtitle = "Show page-turn transition settings for users.",
                     checked = remoteConfig.pageFlipVisible == true,
                     onCheckedChange = { saveValue(AppConfigKeys.PAGE_FLIP_VISIBLE, it) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "MIDI Hymns Ranges",
+                    subtitle = "Gradually migrate hymns to .mid format (e.g. 1-10, 15, 20-30).",
+                    value = midiHymnsRanges,
+                    onValueChange = { midiHymnsRanges = it },
+                    onSave = { saveValue(AppConfigKeys.MIDI_HYMNS_RANGES, midiHymnsRanges.trim()) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "MIDI Keerthanes Ranges",
+                    subtitle = "Gradually migrate keerthanes to .mid format (e.g. 1-5, 8).",
+                    value = midiKeerthanesRanges,
+                    onValueChange = { midiKeerthanesRanges = it },
+                    onSave = { saveValue(AppConfigKeys.MIDI_KEERTHANES_RANGES, midiKeerthanesRanges.trim()) }
                 )
             }
 
