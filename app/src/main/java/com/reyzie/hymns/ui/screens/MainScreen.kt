@@ -3,6 +3,8 @@ package com.reyzie.hymns.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.reyzie.hymns.R
+import androidx.compose.ui.res.painterResource
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -11,8 +13,13 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.Alignment.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -42,9 +49,25 @@ import com.reyzie.hymns.ui.motion.expressiveBackExit
 import com.reyzie.hymns.ui.motion.expressiveForwardEnter
 import com.reyzie.hymns.ui.motion.expressiveForwardExit
 import com.reyzie.hymns.ui.motion.expressivePagerPage
+import com.reyzie.hymns.data.AppSection
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.Saver
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.animateFloatAsState
+import com.reyzie.hymns.ui.motion.expressivePredictiveBackTransform
 
 private val HymnSaver = Saver<Hymn?, String>(
     save = { hymn ->
@@ -152,6 +175,11 @@ fun MainScreen(
     val isLoggedIn = sessionStatus is io.github.jan.supabase.auth.status.SessionStatus.Authenticated
     
     val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
+    val isMangaloreHymnsEnabled = remoteConfig.isMangaloreHymnsEnabled == true
+    var activeSection by rememberSaveable { mutableStateOf<AppSection?>(null) }
+    var initialRoute by rememberSaveable { mutableStateOf(Screen.Hymns.route) }
+    val effectiveSection = if (isMangaloreHymnsEnabled) (activeSection ?: AppSection.CSI) else AppSection.CSI
+
     val adminEmailsString = remoteConfig.adminEmails ?: "reynoldclare02@gmail.com,admin@reyzie.com"
     val adminEmails = remember(adminEmailsString) {
         adminEmailsString.replace("[", "")
@@ -168,8 +196,15 @@ fun MainScreen(
     val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
     val audioState by audioViewModel.audioState.collectAsState()
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
-    val activeScreens = if (isChristmasMode) christmasMainScreens else mainScreens
-    val navScreens = if (isChristmasMode) christmasNavScreens else mainNavScreens
+
+    val activeScreens = when (effectiveSection) {
+        AppSection.MT -> listOf(Screen.Hymns, Screen.Categories, Screen.Favorites)
+        else -> if (isChristmasMode) christmasMainScreens else mainScreens
+    }
+    val navScreens = when (effectiveSection) {
+        AppSection.MT -> listOf(Screen.Hymns, Screen.Categories)
+        else -> if (isChristmasMode) christmasNavScreens else mainNavScreens
+    }
     val favoritesPageIndex = activeScreens.indexOf(Screen.Favorites)
     
     var selectedHymn by rememberSaveable(stateSaver = HymnSaver) { mutableStateOf<Hymn?>(null) }
@@ -190,6 +225,7 @@ fun MainScreen(
     var showRecentSongs by rememberSaveable { mutableStateOf(false) }
     var showChristmasCarols by rememberSaveable { mutableStateOf(false) }
     var showHymnsFromChristmas by rememberSaveable { mutableStateOf(false) }
+    var showMtHymnsFromChristmas by rememberSaveable { mutableStateOf(false) }
     var showKeerthanesFromChristmas by rememberSaveable { mutableStateOf(false) }
     var selectedCommonCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
@@ -197,11 +233,13 @@ fun MainScreen(
     var showAboutApp by rememberSaveable { mutableStateOf(false) }
     var showProfileEdit by rememberSaveable { mutableStateOf(false) }
     var showMenuShowcase by rememberSaveable { mutableStateOf(false) }
+    var showAuthOverlay by rememberSaveable { mutableStateOf(false) }
     var homeSettled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         OnboardingPrefs.migrateFromLegacy(context)
     }
+
     var showOnboarding by rememberSaveable {
         mutableStateOf(!OnboardingPrefs.isWelcomeCompleted(context))
     }
@@ -216,6 +254,51 @@ fun MainScreen(
     val ticketAckService = remember { TicketAcknowledgementService(context) }
 
     var forceUpdateDecision by remember { mutableStateOf<ForceUpdateDecision?>(null) }
+
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(
+        selectedHymn,
+        selectedKeerthane,
+        selectedReaderType,
+        selectedCategory,
+        showSettings,
+        showPraiseApp,
+        showTickets,
+        showAboutDeveloper,
+        showRecentSongs,
+        showChristmasCarols,
+        selectedCommonCategory,
+        showPrivacyPolicy,
+        showAboutApp,
+        showProfileEdit,
+        showChangelog,
+        showAdminControls,
+        showAuthOverlay
+    ) {
+        if (selectedHymn != null ||
+            selectedKeerthane != null ||
+            selectedReaderType != null ||
+            selectedCategory != null ||
+            showSettings ||
+            showPraiseApp ||
+            showTickets ||
+            showAboutDeveloper ||
+            showRecentSongs ||
+            showChristmasCarols ||
+            selectedCommonCategory != null ||
+            showPrivacyPolicy ||
+            showAboutApp ||
+            showProfileEdit ||
+            showChangelog ||
+            showAdminControls ||
+            showAuthOverlay
+        ) {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+        }
+    }
 
     if (showOnboarding) {
         OnboardingScreen(
@@ -361,9 +444,9 @@ fun MainScreen(
 
     val isStackedOverlayOpen = showProfileEdit || showPrivacyPolicy || showChangelog || showAboutApp ||
         showPraiseApp || showTickets || showAboutDeveloper || showRecentSongs ||
-        showChristmasCarols || showHymnsFromChristmas || showKeerthanesFromChristmas ||
+        showChristmasCarols || showHymnsFromChristmas || showMtHymnsFromChristmas || showKeerthanesFromChristmas ||
         selectedCommonCategory != null || pickSongsForCategory != null || selectedCategory != null ||
-        showAdminControls
+        showAdminControls || showAuthOverlay
 
     if (forceUpdateDecision != null) {
         AlertDialog(
@@ -424,156 +507,233 @@ fun MainScreen(
                 onAboutDeveloperClick = { showAboutDeveloper = true },
                 onProfileEditClick = { showProfileEdit = true },
                 onAdminControlsClick = { showAdminControls = true },
-                isAdmin = isAdmin
+                isAdmin = isAdmin,
+                isMangaloreHymnsEnabled = isMangaloreHymnsEnabled,
+                onChangeSectionClick = { activeSection = null },
+                onSignInClick = { showAuthOverlay = true }
             )
         }
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0)
-            ) { innerPadding ->
-                NavHost(
-                    navController = navController,
-                    startDestination = Screen.Hymns.route,
-                    modifier = Modifier.padding(innerPadding)
-                ) {
-                    activeScreens.forEach { screen ->
-                        composable(screen.route) {
-                            HorizontalPager(
-                                state = pagerState,
-                                beyondViewportPageCount = 1,
-                                modifier = Modifier.fillMaxSize()
-                            ) { page ->
-                                Box(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .expressivePagerPage(
-                                            page = page,
-                                            currentPage = pagerState.currentPage,
-                                            pageOffsetFraction = pagerState.currentPageOffsetFraction
-                                        )
-                                ) {
-                                when (activeScreens[page]) {
-                                    Screen.Hymns -> {
-                                        if (isChristmasMode) {
-                                            ChristmasLandingScreen(
-                                                onOpenHymns = { showHymnsFromChristmas = true },
-                                                onOpenKeerthanes = { showKeerthanesFromChristmas = true },
-                                                onOpenCarols = { showChristmasCarols = true },
-                                                onMenuClick = { scope.launch { drawerState.open() } }
-                                            )
-                                        } else {
-                                            HymnsScreen(
-                                                onHymnClick = { hymn -> selectedHymn = hymn },
-                                                onSettingsClick = { scope.launch { drawerState.open() } }
-                                            )
-                                        }
-                                    }
-                                    Screen.Keerthane -> KeerthaneScreen(
-                                        onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
-                                        onMenuClick = { scope.launch { drawerState.open() } }
-                                    )
-                                    Screen.Service -> OrderOfServiceScreen(
-                                        onNavigateToReader = { type -> selectedReaderType = type },
-                                        onMenuClick = { scope.launch { drawerState.open() } }
-                                    )
-                                    Screen.Categories -> CategoriesScreen(
-                                        onSignInClick = { navController.navigate(Screen.Auth.route) },
-                                        onCategoryClick = { id, name -> selectedCategory = Pair(id, name) },
-                                        onRecentSongsClick = { showRecentSongs = true },
-                                        onCommonCategoryClick = { category -> selectedCommonCategory = category },
-                                        onMenuClick = { scope.launch { drawerState.open() } }
-                                    )
-                                    Screen.Favorites -> FavoritesScreen(
-                                        viewModel = favoritesViewModel,
-                                        onHymnClick = { hymn -> selectedHymn = hymn },
-                                        onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
-                                        onMenuClick = { scope.launch { drawerState.open() } }
-                                    )
-                                    else -> {}
-                                }
-                                }
-                            }
-                        }
+            var activeSectionSwipeProgress by remember { mutableFloatStateOf(0f) }
+            var activeSectionSwipeActive by remember { mutableStateOf(false) }
+
+            val animatedActiveSectionSwipe by animateFloatAsState(
+                targetValue = activeSectionSwipeProgress,
+                animationSpec = if (activeSectionSwipeActive) snap() else spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                ),
+                label = "activeSectionPredictiveBack"
+            )
+
+            if (isMangaloreHymnsEnabled && activeSection != null) {
+                PredictiveExpressiveBackHandler(
+                    enabled = !isStackedOverlayOpen && selectedHymn == null && selectedKeerthane == null && selectedReaderType == null && !showSettings,
+                    onBack = {
+                        activeSection = null
+                    },
+                    onProgress = { progress ->
+                        activeSectionSwipeActive = progress > 0f
+                        activeSectionSwipeProgress = progress
                     }
-                    composable(
-                        route = Screen.Auth.route,
-                        enterTransition = { expressiveForwardEnter() },
-                        exitTransition = { expressiveForwardExit() },
-                        popEnterTransition = { expressiveBackEnter() },
-                        popExitTransition = { expressiveBackExit() }
-                    ) {
-                        AuthScreen(
-                            onAuthComplete = { navController.navigateUp() },
-                            onBackClick = { navController.navigateUp() }
-                        )
-                    }
-                }
+                )
             }
 
-            // --- Essentials-style vibrant floating toolbar ---
-            if (currentRoute != Screen.Auth.route) {
-                val navScrim = MaterialTheme.colorScheme.background
-                val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.BottomCenter
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(if (isLandscape) 76.dp else 120.dp)
-                            .align(Alignment.BottomCenter)
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(
-                                        Color.Transparent,
-                                        navScrim.copy(alpha = 0.4f),
-                                        navScrim.copy(alpha = 0.85f)
-                                    )
-                                )
-                            )
-                    )
-                    val isFavoritesSelected = pagerState.currentPage == favoritesPageIndex
-                    val navSelectedIndex = if (isFavoritesSelected) {
-                        -1
+            AnimatedContent(
+                targetState = activeSection,
+                transitionSpec = {
+                    if (targetState != null) {
+                        expressiveForwardEnter() togetherWith expressiveForwardExit()
                     } else {
-                        navScreens.indexOf(activeScreens[pagerState.currentPage])
+                        expressiveBackEnter() togetherWith expressiveBackExit()
                     }
-                    HymnsFloatingToolbar(
-                        screens = navScreens,
-                        selectedIndex = navSelectedIndex,
-                        isChristmasMode = isChristmasMode,
-                        favoritesScreen = Screen.Favorites,
-                        isFavoritesSelected = isFavoritesSelected,
-                        onFavoritesSelected = {
-                            scope.launch {
-                                pagerState.animateScrollToPage(favoritesPageIndex)
+                },
+                label = "sectionTransition",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) { sectionState ->
+                if (isChristmasMode && sectionState == null) {
+                    ChristmasLandingScreen(
+                        onOpenHymns = { showHymnsFromChristmas = true },
+                        onOpenKeerthanes = { showKeerthanesFromChristmas = true },
+                        onOpenCarols = { showChristmasCarols = true },
+                        onOpenMtHymns = { showMtHymnsFromChristmas = true },
+                        onMenuClick = { scope.launch { drawerState.open() } }
+                    )
+                } else if (isMangaloreHymnsEnabled && sectionState == null) {
+                    SectionSelectorScreen(
+                        onSelectCsiPage = { pageIndex ->
+                            val targetRoute = when (pageIndex) {
+                                0 -> Screen.Hymns.route
+                                1 -> Screen.Keerthane.route
+                                2 -> Screen.Service.route
+                                else -> Screen.Hymns.route
                             }
-                            navController.navigate(Screen.Favorites.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
+                            initialRoute = targetRoute
+                            activeSection = AppSection.CSI
+                            scope.launch {
+                                pagerState.scrollToPage(pageIndex)
                             }
                         },
-                        onTabSelected = { navIndex ->
-                            val screen = navScreens[navIndex]
-                            val pageIndex = activeScreens.indexOf(screen)
+                        onSelectMtPage = {
+                            initialRoute = Screen.Hymns.route
+                            activeSection = AppSection.MT
                             scope.launch {
-                                pagerState.animateScrollToPage(pageIndex)
+                                pagerState.scrollToPage(0)
                             }
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
+                        },
+                        onMenuClick = {
+                            scope.launch { drawerState.open() }
                         }
                     )
+                } else {
+                    val localSection = sectionState ?: AppSection.CSI
+                    val localActiveScreens = when (localSection) {
+                        AppSection.MT -> listOf(Screen.Hymns, Screen.Categories, Screen.Favorites)
+                        else -> if (isChristmasMode) christmasMainScreens else mainScreens
+                    }
+                    val localNavScreens = when (localSection) {
+                        AppSection.MT -> listOf(Screen.Hymns, Screen.Categories)
+                        else -> if (isChristmasMode) christmasNavScreens else mainNavScreens
+                    }
+                    val localFavoritesPageIndex = localActiveScreens.indexOf(Screen.Favorites)
+
+                    Scaffold(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .expressivePredictiveBackTransform(animatedActiveSectionSwipe)
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                            NavHost(
+                                navController = navController,
+                                startDestination = initialRoute,
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                localActiveScreens.forEach { screen ->
+                                    composable(screen.route) {
+                                        HorizontalPager(
+                                            state = pagerState,
+                                            beyondViewportPageCount = 1,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) { page ->
+                                            Box(
+                                                Modifier
+                                                    .fillMaxSize()
+                                                    .expressivePagerPage(
+                                                        page = page,
+                                                        currentPage = pagerState.currentPage,
+                                                        pageOffsetFraction = pagerState.currentPageOffsetFraction
+                                                    )
+                                            ) {
+                                                when (localActiveScreens.getOrNull(page)) {
+                                                    Screen.Hymns -> {
+                                                        HymnsScreen(
+                                                            onHymnClick = { hymn -> selectedHymn = hymn },
+                                                            onSettingsClick = { scope.launch { drawerState.open() } },
+                                                            activeSection = localSection
+                                                        )
+                                                    }
+                                                    Screen.Keerthane -> KeerthaneScreen(
+                                                        onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
+                                                        onMenuClick = { scope.launch { drawerState.open() } }
+                                                    )
+                                                    Screen.Service -> OrderOfServiceScreen(
+                                                        onNavigateToReader = { type -> selectedReaderType = type },
+                                                        onMenuClick = { scope.launch { drawerState.open() } }
+                                                    )
+                                                    Screen.Categories -> CategoriesScreen(
+                                                        onSignInClick = { showAuthOverlay = true },
+                                                        onCategoryClick = { id, name -> selectedCategory = Pair(id, name) },
+                                                        onRecentSongsClick = { showRecentSongs = true },
+                                                        onCommonCategoryClick = { category -> selectedCommonCategory = category },
+                                                        activeSection = localSection,
+                                                        onMenuClick = { scope.launch { drawerState.open() } }
+                                                    )
+                                                    Screen.Favorites -> FavoritesScreen(
+                                                        viewModel = favoritesViewModel,
+                                                        onHymnClick = { hymn -> selectedHymn = hymn },
+                                                        onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
+                                                        onMenuClick = { scope.launch { drawerState.open() } },
+                                                        activeSection = localSection
+                                                    )
+                                                    else -> {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // --- Essentials-style vibrant floating toolbar ---
+                            if (currentRoute != Screen.Auth.route && !showAuthOverlay) {
+                                val navScrim = MaterialTheme.colorScheme.background
+                                val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.BottomCenter
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(if (isLandscape) 76.dp else 120.dp)
+                                            .align(Alignment.BottomCenter)
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    colors = listOf(
+                                                        Color.Transparent,
+                                                        navScrim.copy(alpha = 0.4f),
+                                                        navScrim.copy(alpha = 0.85f)
+                                                    )
+                                                )
+                                            )
+                                    )
+                                    val isFavoritesSelected = pagerState.currentPage == localFavoritesPageIndex
+                                    val navSelectedIndex = if (isFavoritesSelected) {
+                                        -1
+                                    } else {
+                                        localNavScreens.indexOf(localActiveScreens.getOrNull(pagerState.currentPage))
+                                    }
+                                    HymnsFloatingToolbar(
+                                        screens = localNavScreens,
+                                        selectedIndex = navSelectedIndex,
+                                        isChristmasMode = isChristmasMode,
+                                        favoritesScreen = Screen.Favorites,
+                                        isFavoritesSelected = isFavoritesSelected,
+                                        onFavoritesSelected = {
+                                            scope.launch {
+                                                pagerState.animateScrollToPage(localFavoritesPageIndex)
+                                            }
+                                            navController.navigate(Screen.Favorites.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        },
+                                        onTabSelected = { navIndex ->
+                                            val screen = localNavScreens[navIndex]
+                                            val pageIndex = localActiveScreens.indexOf(screen)
+                                            scope.launch {
+                                                pagerState.animateScrollToPage(pageIndex)
+                                            }
+                                            navController.navigate(screen.route) {
+                                                popUpTo(navController.graph.findStartDestination().id) {
+                                                    saveState = true
+                                                }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -600,7 +760,7 @@ fun MainScreen(
                     onAboutAppClick = { showAboutApp = true },
                     onSignInClick = {
                         showSettings = false
-                        navController.navigate(Screen.Auth.route)
+                        showAuthOverlay = true
                     }
                 )
             }
@@ -613,8 +773,18 @@ fun MainScreen(
                     onBackClick = { showProfileEdit = false },
                     onAccountDeleted = {
                         showProfileEdit = false
-                        navController.navigate(Screen.Auth.route)
+                        showAuthOverlay = true
                     }
+                )
+            }
+
+            ExpressiveOverlayScreen(
+                visible = showAuthOverlay,
+                onDismiss = { showAuthOverlay = false }
+            ) {
+                AuthScreen(
+                    onAuthComplete = { showAuthOverlay = false },
+                    onBackClick = { showAuthOverlay = false }
                 )
             }
 
@@ -707,7 +877,9 @@ fun MainScreen(
                 Box(Modifier.fillMaxSize()) {
                     HymnsScreen(
                         onHymnClick = { hymn -> selectedHymn = hymn },
-                        onSettingsClick = { showHymnsFromChristmas = false }
+                        onSettingsClick = { showHymnsFromChristmas = false },
+                        activeSection = AppSection.CSI,
+                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
                     )
                     ExpressiveOverlayScreen(
                         item = selectedHymn,
@@ -721,6 +893,40 @@ fun MainScreen(
                             isKeerthane = false,
                             favoritesViewModel = favoritesViewModel,
                             audioViewModel = audioViewModel,
+                            isMt = false,
+                            onBackClick = { 
+                                selectedHymn = null
+                                audioViewModel.stopAndReset()
+                            }
+                        )
+                    }
+                }
+            }
+
+            ExpressiveOverlayScreen(
+                visible = showMtHymnsFromChristmas,
+                onDismiss = { showMtHymnsFromChristmas = false }
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    HymnsScreen(
+                        onHymnClick = { hymn -> selectedHymn = hymn },
+                        onSettingsClick = { showMtHymnsFromChristmas = false },
+                        activeSection = AppSection.MT,
+                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
+                    )
+                    ExpressiveOverlayScreen(
+                        item = selectedHymn,
+                        onDismiss = { 
+                            selectedHymn = null
+                            audioViewModel.stopAndReset()
+                        }
+                    ) { hymn ->
+                        HymnDetailScreen(
+                            hymn = hymn,
+                            isKeerthane = false,
+                            favoritesViewModel = favoritesViewModel,
+                            audioViewModel = audioViewModel,
+                            isMt = true,
                             onBackClick = { 
                                 selectedHymn = null
                                 audioViewModel.stopAndReset()
@@ -737,7 +943,8 @@ fun MainScreen(
                 Box(Modifier.fillMaxSize()) {
                     KeerthaneScreen(
                         onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
-                        onMenuClick = { showKeerthanesFromChristmas = false }
+                        onMenuClick = { showKeerthanesFromChristmas = false },
+                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
                     )
                     ExpressiveOverlayScreen(
                         item = selectedKeerthane,
@@ -781,6 +988,7 @@ fun MainScreen(
                         onKeerthaneClick = { keerthane ->
                             selectedKeerthane = keerthane
                         },
+                        activeSection = effectiveSection,
                     )
                 }
             }
@@ -800,7 +1008,8 @@ fun MainScreen(
                     },
                     onKeerthaneClick = { keerthane ->
                         selectedKeerthane = keerthane
-                    }
+                    },
+                    activeSection = effectiveSection
                 )
             }
 
@@ -814,7 +1023,8 @@ fun MainScreen(
                     onBackClick = { 
                         pickSongsForCategory = null 
                         categoryRefreshTrigger++
-                    }
+                    },
+                    activeSection = effectiveSection
                 )
             }
             ExpressiveOverlayScreen(
@@ -829,6 +1039,7 @@ fun MainScreen(
                     isKeerthane = false,
                     favoritesViewModel = favoritesViewModel,
                     audioViewModel = audioViewModel,
+                    isMt = effectiveSection == AppSection.MT,
                     onBackClick = { 
                         selectedHymn = null
                         audioViewModel.stopAndReset()
@@ -889,6 +1100,239 @@ fun PlaceholderOverlay(title: String, onBackClick: () -> Unit) {
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
             Text(text = "Coming Soon: $title")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SectionSelectorScreen(
+    onSelectCsiPage: (Int) -> Unit,
+    onSelectMtPage: () -> Unit,
+    onMenuClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Christian Hymn Book", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        onMenuClick()
+                    }) {
+                        Icon(Icons.Default.Menu, contentDescription = "Open Drawer")
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color.Transparent
+                )
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            MaterialTheme.colorScheme.surface,
+                            MaterialTheme.colorScheme.surfaceContainerLow
+                        )
+                    )
+                )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Choose Hymn Book",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Select CSI Hymns and Mangalore Hymns",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                SectionGroupCard(
+                    title = "CSI Hymns & Keerthanes",
+                    bottomHint = "csi hymns",
+                    accentColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        SubItemSelectionCard(
+                            title = "CSI Hymns",
+                            subtitle = "ಕನ್ನಡ ಸಂಗೀತಗಳು",
+                            iconResId = R.drawable.hymn,
+                            onClick = { onSelectCsiPage(0) }
+                        )
+                        SubItemSelectionCard(
+                            title = "CSI Keerthanes",
+                            subtitle = "ಕನ್ನಡ ಸಂಕೀರ್ತನೆಗಳು",
+                            iconResId = R.drawable.keerthane,
+                            onClick = { onSelectCsiPage(1) }
+                        )
+                        SubItemSelectionCard(
+                            title = "CSI Order of Service",
+                            subtitle = "ಸಿ.ಎಸ್.ಐ. ಆರಾಧನಾ ಕ್ರಮ",
+                            iconResId = R.drawable.ic_colored_book,
+                            onClick = { onSelectCsiPage(2) }
+                        )
+                    }
+                }
+
+                SectionGroupCard(
+                    title = "Mangalore Hymns",
+                    bottomHint = "mt hymns",
+                    accentColor = MaterialTheme.colorScheme.secondary
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        SubItemSelectionCard(
+                            title = "M.T. Hymns",
+                            subtitle = "ಮಂಗಳೂರು ಕನ್ನಡ ಸಂಗೀತಗಳು",
+                            iconResId = R.drawable.hymn,
+                            onClick = onSelectMtPage
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionGroupCard(
+    title: String,
+    bottomHint: String,
+    accentColor: Color,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Surface(
+                    color = accentColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = bottomHint.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = accentColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SubItemSelectionCard(
+    title: String,
+    subtitle: String,
+    iconResId: Int? = null,
+    iconVector: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    val context = LocalContext.current
+    Surface(
+        onClick = {
+            HapticFeedbackManager.smoothClick(context)
+            onClick()
+        },
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    if (iconResId != null) {
+                        Icon(
+                            painter = painterResource(id = iconResId),
+                            contentDescription = null,
+                            tint = androidx.compose.ui.graphics.Color.Unspecified,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    } else if (iconVector != null) {
+                        Icon(
+                            imageVector = iconVector,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
         }
     }
 }

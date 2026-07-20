@@ -37,7 +37,10 @@ fun Sidebar(
     onProfileEditClick: () -> Unit = {},
     onAdminControlsClick: () -> Unit = {},
     isAdmin: Boolean = false,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(),
+    isMangaloreHymnsEnabled: Boolean = false,
+    onChangeSectionClick: () -> Unit = {},
+    onSignInClick: () -> Unit = {}
 ) {
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
     val isLoggedIn = sessionStatus is SessionStatus.Authenticated
@@ -117,7 +120,7 @@ fun Sidebar(
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
                             onCloseDrawer()
-                            navController.navigate("auth")
+                            onSignInClick()
                         }
                     )
                 } else {
@@ -145,6 +148,8 @@ fun Sidebar(
                     )
                 }
             }
+
+
 
             SidebarSectionLabel("Explore")
             SidebarListBlock {

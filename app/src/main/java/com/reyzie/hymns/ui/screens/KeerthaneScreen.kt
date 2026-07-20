@@ -33,6 +33,7 @@ import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.ui.widgets.SyncStatusDialog
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.sp
 
@@ -41,7 +42,8 @@ import androidx.compose.ui.unit.sp
 fun KeerthaneScreen(
     viewModel: KeerthaneViewModel = viewModel(),
     onKeerthaneClick: (Keerthane) -> Unit = {},
-    onMenuClick: () -> Unit = {}
+    onMenuClick: () -> Unit = {},
+    navigationIcon: ImageVector = Icons.Default.Menu
 ) {
     val filteredKeerthanes by viewModel.filteredKeerthanes.collectAsState()
     val groupedKeerthanes by viewModel.groupedKeerthanes.collectAsState()
@@ -69,7 +71,8 @@ fun KeerthaneScreen(
             if (!isLandscape) {
                 ExpressiveScreenTopBar(
                     title = "CSI Kannada Keerthanes",
-                    onMenuClick = onMenuClick
+                    onMenuClick = onMenuClick,
+                    navigationIcon = navigationIcon
                 )
             }
         }
@@ -177,7 +180,8 @@ fun KeerthaneScreen(
                         item {
                             ExpressiveScreenTopBar(
                                 title = "CSI Kannada Keerthanes",
-                                onMenuClick = onMenuClick
+                                onMenuClick = onMenuClick,
+                                navigationIcon = navigationIcon
                             )
                         }
                         item {

@@ -5,12 +5,7 @@ import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.*
 
 @Serializable
 data class AppConfigEntry(
@@ -64,6 +59,28 @@ class AppConfigService(
             "1", "true", "yes", "on" -> true
             "0", "false", "no", "off" -> false
             else -> null
+        }
+    }
+
+    suspend fun update(key: String, jsonValue: JsonElement): Unit = withContext(Dispatchers.IO) {
+        try {
+            val response = supabaseService.client.from(TABLE).update(
+                buildJsonObject {
+                    put("value", jsonValue)
+                }
+            ) {
+                filter {
+                    eq("key", key)
+                }
+                select()
+            }
+            val rows = response.decodeList<AppConfigEntry>()
+            if (rows.isEmpty()) {
+                throw Exception("RLS policy restriction or invalid key. 0 rows updated.")
+            }
+        } catch (e: Exception) {
+            Log.e("AppConfigService", "Failed to update app_config key $key", e)
+            throw e
         }
     }
 }

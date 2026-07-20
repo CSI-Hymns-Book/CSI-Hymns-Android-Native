@@ -29,6 +29,7 @@ import com.reyzie.hymns.R
 import com.reyzie.hymns.data.Hymn
 import com.reyzie.hymns.data.Keerthane
 import com.reyzie.hymns.data.HymnsRepository
+import com.reyzie.hymns.data.AppSection
 import com.reyzie.hymns.data.CustomCategoriesRepository
 import com.reyzie.hymns.data.CustomCategorySong
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
@@ -43,7 +44,8 @@ fun CategoryDetailScreen(
     onBackClick: () -> Unit,
     onAddSongsClick: () -> Unit,
     onHymnClick: (Hymn) -> Unit,
-    onKeerthaneClick: (Keerthane) -> Unit
+    onKeerthaneClick: (Keerthane) -> Unit,
+    activeSection: AppSection = AppSection.CSI
 ) {
     val context = LocalContext.current
     val repository = remember { CustomCategoriesRepository(context) }
@@ -71,7 +73,7 @@ fun CategoryDetailScreen(
 
     LaunchedEffect(categoryId, refreshTrigger) {
         scope.launch {
-            allHymns = hymnsRepository.loadHymns().associateBy { it.number }
+            allHymns = hymnsRepository.loadHymns(activeSection).associateBy { it.number }
             allKeerthanes = hymnsRepository.loadKeerthanes().associateBy { it.number }
         }
         loadSongs()

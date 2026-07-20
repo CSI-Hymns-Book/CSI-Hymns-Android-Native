@@ -2,6 +2,7 @@ package com.reyzie.hymns.data
 
 import android.content.Context
 import android.content.pm.PackageInfo
+import androidx.core.content.pm.PackageInfoCompat
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,7 +25,7 @@ class ForceUpdateService(
     suspend fun getDecision(): ForceUpdateDecision = withContext(Dispatchers.IO) {
         val packageInfo: PackageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val currentVersion = packageInfo.versionName ?: "1.0.0"
-        val currentBuild = packageInfo.longVersionCode
+        val currentBuild = PackageInfoCompat.getLongVersionCode(packageInfo)
 
         try {
             val remote = appConfigRepository.fetchRemoteConfig()

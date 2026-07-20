@@ -22,7 +22,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val carolsRepository = CarolsRepository.getInstance(application)
     private val appConfigRepository = AppConfigRepository(context = application)
 
-    private val _remoteAppConfig = MutableStateFlow(RemoteAppConfig())
+    private val _remoteAppConfig = MutableStateFlow(appConfigRepository.getCachedRemoteConfig())
     val remoteAppConfig: StateFlow<RemoteAppConfig> = _remoteAppConfig.asStateFlow()
 
     init {
@@ -40,7 +40,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 CastService.getInstance().applyRemoteConfig(getApplication(), remote)
                 applyChristmasFromRemote(remote.isChristmasTime)
             } catch (e: Exception) {
-                android.util.Log.e("SettingsViewModel", "Error fetching app_config", e)
+                android.util.Log.e("SettingsViewModel", "Error fetching app_config, falling back to local/cached", e)
+                val fallback = appConfigRepository.getCachedRemoteConfig()
+                _remoteAppConfig.value = fallback
                 loadLocalChristmasMode()
             }
         }
@@ -146,5 +148,42 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun setPrivacyAccepted(accepted: Int) {
         prefs.edit().putInt("privacy_accepted", accepted).apply()
         _privacyAccepted.value = accepted
+    }
+
+    private val _isLocalOverridesEnabled = MutableStateFlow(appConfigRepository.isLocalOverridesEnabled())
+    val isLocalOverridesEnabled: StateFlow<Boolean> = _isLocalOverridesEnabled.asStateFlow()
+
+    fun setLocalOverridesEnabled(enabled: Boolean) {
+        appConfigRepository.setLocalOverridesEnabled(enabled)
+        _isLocalOverridesEnabled.value = enabled
+        refreshAppConfig()
+    }
+
+    fun saveConfigValue(key: String, value: Any?, onComplete: (String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                appConfigRepository.saveConfigValue(key, value)
+                refreshAppConfig()
+                onComplete(null)
+            } catch (e: Exception) {
+                android.util.Log.e("SettingsViewModel", "Failed to save config value for key=$key", e)
+                onComplete(e.localizedMessage ?: e.message ?: e.toString())
+            }
+        }
+    }
+
+    fun clearLocalOverrides() {
+        appConfigRepository.clearOverrides()
+        _isLocalOverridesEnabled.value = false
+        appConfigRepository.setLocalOverridesEnabled(false)
+        refreshAppConfig()
+    }
+
+    private val _midiInstrument = MutableStateFlow(prefs.getInt("midi_instrument", 19))
+    val midiInstrument: StateFlow<Int> = _midiInstrument.asStateFlow()
+
+    fun onMidiInstrumentChanged(instrument: Int) {
+        _midiInstrument.value = instrument
+        prefs.edit().putInt("midi_instrument", instrument).apply()
     }
 }

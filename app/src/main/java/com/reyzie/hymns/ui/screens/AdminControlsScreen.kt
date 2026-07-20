@@ -48,13 +48,15 @@ import kotlinx.coroutines.launch
 enum class AdminTab {
     Main,
     Lyrics,
-    Announcements
+    Announcements,
+    AppConfig
 }
 
 enum class LyricSongType {
     Hymn,
     Keerthane,
-    OrderOfService
+    OrderOfService,
+    MangaloreHymn
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +107,13 @@ fun AdminControlsScreen(
             onDismiss = { currentTab = AdminTab.Main }
         ) {
             AnnouncementsManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+        }
+
+        ExpressiveOverlayScreen(
+            visible = currentTab == AdminTab.AppConfig,
+            onDismiss = { currentTab = AdminTab.Main }
+        ) {
+            AppConfigManagerPanel(onBackClick = { currentTab = AdminTab.Main })
         }
     }
 }
@@ -218,6 +227,55 @@ private fun AdminMenuSelection(
                 }
             }
         }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(140.dp)
+                .clickable {
+                    HapticFeedbackManager.smoothClick(context)
+                    onSelectTab(AdminTab.AppConfig)
+                },
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.size(60.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.SettingsSuggest,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text(
+                        text = "App Configuration",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Manage remote feature flags, force update requirements, Christmas mode, and metadata keys.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -226,7 +284,7 @@ private fun AdminMenuSelection(
 private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(pageCount = { 3 })
+    val pagerState = rememberPagerState(pageCount = { 4 })
     var searchQuery by remember { mutableStateOf("") }
 
     val settingsViewModel: SettingsViewModel = viewModel()
@@ -265,18 +323,21 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
     var allHymns by remember { mutableStateOf<List<Hymn>>(emptyList()) }
     var allKeerthanes by remember { mutableStateOf<List<Keerthane>>(emptyList()) }
     var allOrderPages by remember { mutableStateOf<List<OrderPage>>(emptyList()) }
+    var allMangaloreHymns by remember { mutableStateOf<List<Hymn>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
     // Editor target states
     var editingHymn by remember { mutableStateOf<Hymn?>(null) }
     var editingKeerthane by remember { mutableStateOf<Keerthane?>(null) }
     var editingOrderPage by remember { mutableStateOf<OrderPage?>(null) }
+    var editingMangaloreHymn by remember { mutableStateOf<Hymn?>(null) }
 
     fun loadData() {
         scope.launch {
             isLoading = true
             allHymns = hymnsRepo.loadHymns()
             allKeerthanes = hymnsRepo.loadKeerthanes()
+            allMangaloreHymns = hymnsRepo.loadHymns(AppSection.MT)
             
             val regular = orderServiceRepo.loadPages("regular").pages
             val festival = orderServiceRepo.loadPages("festival").pages
@@ -378,6 +439,36 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                 }
             }
         )
+    } else if (editingMangaloreHymn != null) {
+        LyricEditorForm(
+            title = "Edit MT Hymn ${editingMangaloreHymn!!.number}",
+            initialTitle = editingMangaloreHymn!!.title,
+            initialSignature = editingMangaloreHymn!!.signature,
+            initialLyrics = editingMangaloreHymn!!.lyrics,
+            initialKannadaLyrics = editingMangaloreHymn!!.kannadaLyrics ?: "",
+            onDismiss = { editingMangaloreHymn = null },
+            onSave = { title, signature, lyrics, kannada ->
+                scope.launch {
+                    val updated = editingMangaloreHymn!!.copy(
+                        title = title,
+                        signature = signature,
+                        lyrics = lyrics,
+                        kannadaLyrics = kannada.takeIf { it.isNotBlank() }
+                    )
+                    hymnsRepo.saveHymn(updated, AppSection.MT)
+                    Toast.makeText(context, "MT Hymn updated locally!", Toast.LENGTH_SHORT).show()
+                    editingMangaloreHymn = null
+                    loadData()
+
+                    // Read updated json content and push to github
+                    val store = ContentLocalStore(context)
+                    val json = store.readMangaloreHymnsJson()
+                    if (json != null) {
+                        syncFileToGitHub("mangalore_hymns_data.json", json, "Update MT Hymn ${updated.number} lyrics via App")
+                    }
+                }
+            }
+        )
     }
 
     Scaffold(
@@ -401,7 +492,7 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                 .padding(innerPadding)
         ) {
             StandardButtonGroup(
-            buttonCount = 3,
+            buttonCount = 4,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
@@ -433,8 +524,19 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                     scope.launch { pagerState.animateScrollToPage(2) }
                 },
                 icon = Icons.Default.Book,
-                label = "Order of Service",
+                label = "Order",
                 isSelected = pagerState.currentPage == 2,
+                autoSizeLabel = true
+            )
+            Button(
+                index = 3,
+                onClick = {
+                    HapticFeedbackManager.smoothClick(context)
+                    scope.launch { pagerState.animateScrollToPage(3) }
+                },
+                icon = Icons.Default.LibraryMusic,
+                label = "MT Tunes",
+                isSelected = pagerState.currentPage == 3,
                 autoSizeLabel = true
             )
         }
@@ -644,6 +746,59 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                                                 onClick = {
                                                     HapticFeedbackManager.smoothClick(context)
                                                     editingOrderPage = page
+                                                },
+                                                colors = IconButtonDefaults.filledTonalIconButtonColors()
+                                            ) {
+                                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                            }
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    3 -> {
+                        val filtered = allMangaloreHymns.filter {
+                            it.number.toString().contains(searchQuery) ||
+                                    it.title.contains(searchQuery, ignoreCase = true)
+                        }
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filtered) { hymn ->
+                                Surface(
+                                    onClick = {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        editingMangaloreHymn = hymn
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    ListItem(
+                                        headlineContent = {
+                                            Text(
+                                                text = "${hymn.number}. ${hymn.title}",
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.titleMedium
+                                            )
+                                        },
+                                        supportingContent = {
+                                            Text(
+                                                text = hymn.signature,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        },
+                                        trailingContent = {
+                                            IconButton(
+                                                onClick = {
+                                                    HapticFeedbackManager.smoothClick(context)
+                                                    editingMangaloreHymn = hymn
                                                 },
                                                 colors = IconButtonDefaults.filledTonalIconButtonColors()
                                             ) {
@@ -1196,5 +1351,391 @@ private fun AnnouncementEditorDialog(
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val settingsViewModel: SettingsViewModel = viewModel()
+    val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
+    val isLocalOverrides by settingsViewModel.isLocalOverridesEnabled.collectAsState()
+
+    var castAppId by remember(remoteConfig.castAppId) { mutableStateOf(remoteConfig.castAppId ?: "") }
+    var castReceiverUrl by remember(remoteConfig.castReceiverUrl) { mutableStateOf(remoteConfig.castReceiverUrl ?: "") }
+    var forceMinVersion by remember(remoteConfig.forceUpdateMinVersion) { mutableStateOf(remoteConfig.forceUpdateMinVersion ?: "") }
+    var forceMinBuild by remember(remoteConfig.forceUpdateMinBuildNumber) { mutableStateOf(remoteConfig.forceUpdateMinBuildNumber?.toString() ?: "") }
+    var forceMessage by remember(remoteConfig.forceUpdateMessage) { mutableStateOf(remoteConfig.forceUpdateMessage ?: "") }
+    var forceStoreUrl by remember(remoteConfig.forceUpdateAndroidStoreUrl) { mutableStateOf(remoteConfig.forceUpdateAndroidStoreUrl ?: "") }
+    var adminEmails by remember(remoteConfig.adminEmails) { mutableStateOf(remoteConfig.adminEmails ?: "") }
+    var githubToken by remember(remoteConfig.githubToken) { mutableStateOf(remoteConfig.githubToken ?: "") }
+    var midiHymnsRanges by remember(remoteConfig.midiHymnsRanges) { mutableStateOf(remoteConfig.midiHymnsRanges ?: "") }
+    var midiKeerthanesRanges by remember(remoteConfig.midiKeerthanesRanges) { mutableStateOf(remoteConfig.midiKeerthanesRanges ?: "") }
+
+    var showGithubToken by remember { mutableStateOf(false) }
+
+    fun saveValue(key: String, value: Any?) {
+        settingsViewModel.saveConfigValue(key, value) { error ->
+            if (error == null) {
+                Toast.makeText(context, "Saved successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Failed to save: $error", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize().imePadding(),
+        topBar = {
+            TopAppBar(
+                title = { Text("App Configuration", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        onBackClick()
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        settingsViewModel.refreshAppConfig()
+                        Toast.makeText(context, "Refreshed configuration!", Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 32.dp)
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isLocalOverrides) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        }
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(0.85f)) {
+                                Text(
+                                    "Local Testing Mode (On-Device)",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isLocalOverrides) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "Saves config updates ONLY on this local device. Toggled off writes directly to the live Supabase database.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Switch(
+                                checked = isLocalOverrides,
+                                onCheckedChange = { settingsViewModel.setLocalOverridesEnabled(it) }
+                            )
+                        }
+                        if (isLocalOverrides) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    settingsViewModel.clearLocalOverrides()
+                                    Toast.makeText(context, "Cleared local overrides!", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.error,
+                                    contentColor = MaterialTheme.colorScheme.onError
+                                )
+                            ) {
+                                Icon(Icons.Default.DeleteSweep, contentDescription = null)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Clear On-Device Overrides", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    text = "Feature Toggles",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Christmas Time Active",
+                    subtitle = "Enable Christmas theme, styling and carols globally.",
+                    checked = remoteConfig.isChristmasTime == true,
+                    onCheckedChange = { saveValue(AppConfigKeys.IS_CHRISTMAS_TIME, it) }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Mangalore Hymns Enabled",
+                    subtitle = "Enable access to the Mangalore Hymns book.",
+                    checked = remoteConfig.isMangaloreHymnsEnabled == true,
+                    onCheckedChange = { saveValue(AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED, it) }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Page Flip Option Visible",
+                    subtitle = "Show page-turn transition settings for users.",
+                    checked = remoteConfig.pageFlipVisible == true,
+                    onCheckedChange = { saveValue(AppConfigKeys.PAGE_FLIP_VISIBLE, it) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "MIDI Hymns Ranges",
+                    subtitle = "Gradually migrate hymns to .mid format (e.g. 1-10, 15, 20-30).",
+                    value = midiHymnsRanges,
+                    onValueChange = { midiHymnsRanges = it },
+                    onSave = { saveValue(AppConfigKeys.MIDI_HYMNS_RANGES, midiHymnsRanges.trim()) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "MIDI Keerthanes Ranges",
+                    subtitle = "Gradually migrate keerthanes to .mid format (e.g. 1-5, 8).",
+                    value = midiKeerthanesRanges,
+                    onValueChange = { midiKeerthanesRanges = it },
+                    onSave = { saveValue(AppConfigKeys.MIDI_KEERTHANES_RANGES, midiKeerthanesRanges.trim()) }
+                )
+            }
+
+            item {
+                Text(
+                    text = "Google Cast Configuration",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Google Cast Enabled",
+                    subtitle = "Enable Google Cast media streaming capabilities.",
+                    checked = remoteConfig.castEnabled == true,
+                    onCheckedChange = { saveValue(AppConfigKeys.CAST_ENABLED, it) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Cast Application ID",
+                    subtitle = "Application ID registered in Google Cast Console.",
+                    value = castAppId,
+                    onValueChange = { castAppId = it },
+                    onSave = { saveValue(AppConfigKeys.CAST_APP_ID, castAppId.takeIf { it.isNotBlank() }) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Cast Receiver URL",
+                    subtitle = "Receiver HTML custom web player address.",
+                    value = castReceiverUrl,
+                    onValueChange = { castReceiverUrl = it },
+                    onSave = { saveValue(AppConfigKeys.CAST_RECEIVER_URL, castReceiverUrl.takeIf { it.isNotBlank() }) }
+                )
+            }
+
+            item {
+                Text(
+                    text = "App Updates & Force Control",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Force App Update Active",
+                    subtitle = "Prevent app usage if user is below required build version.",
+                    checked = remoteConfig.forceUpdateEnabled == true,
+                    onCheckedChange = { saveValue(AppConfigKeys.FORCE_UPDATE_ENABLED, it) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Minimum Required Version",
+                    subtitle = "Minimum semantic version code (e.g. 1.2.0).",
+                    value = forceMinVersion,
+                    onValueChange = { forceMinVersion = it },
+                    onSave = { saveValue(AppConfigKeys.FORCE_UPDATE_MIN_VERSION, forceMinVersion.takeIf { it.isNotBlank() }) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Minimum Required Build Number",
+                    subtitle = "Minimum internal version code integer.",
+                    value = forceMinBuild,
+                    onValueChange = { forceMinBuild = it },
+                    onSave = { saveValue(AppConfigKeys.FORCE_UPDATE_MIN_BUILD_NUMBER, forceMinBuild.toLongOrNull() ?: 0L) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Google Play Store URL",
+                    subtitle = "URL to redirect users to download updates.",
+                    value = forceStoreUrl,
+                    onValueChange = { forceStoreUrl = it },
+                    onSave = { saveValue(AppConfigKeys.FORCE_UPDATE_ANDROID_STORE_URL, forceStoreUrl.takeIf { it.isNotBlank() }) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Force Update Message",
+                    subtitle = "Information card shown to users requesting update.",
+                    value = forceMessage,
+                    onValueChange = { forceMessage = it },
+                    onSave = { saveValue(AppConfigKeys.FORCE_UPDATE_MESSAGE, forceMessage.takeIf { it.isNotBlank() }) }
+                )
+            }
+
+            item {
+                Text(
+                    text = "System Settings & Keys",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 16.dp)
+                )
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Admin Emails",
+                    subtitle = "Comma-separated list of authenticated admin emails.",
+                    value = adminEmails,
+                    onValueChange = { adminEmails = it },
+                    onSave = { saveValue(AppConfigKeys.ADMIN_EMAILS, adminEmails.takeIf { it.isNotBlank() }) }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "GitHub Sync Token",
+                    subtitle = "Personal Access Token for committing lyric changes.",
+                    value = githubToken,
+                    onValueChange = { githubToken = it },
+                    onSave = { saveValue(AppConfigKeys.GITHUB_TOKEN, githubToken.takeIf { it.isNotBlank() }) },
+                    visualTransformation = if (showGithubToken) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { showGithubToken = !showGithubToken }) {
+                            Icon(
+                                imageVector = if (showGithubToken) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = null
+                            )
+                        }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfigSwitchRow(
+    label: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(0.85f)) {
+            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
+
+@Composable
+private fun ConfigTextField(
+    label: String,
+    subtitle: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSave: () -> Unit,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
+    trailingIcon: @Composable (() -> Unit)? = null
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = visualTransformation,
+            trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                    if (trailingIcon != null) {
+                        trailingIcon()
+                    }
+                    IconButton(onClick = onSave) {
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Save Value",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        )
     }
 }

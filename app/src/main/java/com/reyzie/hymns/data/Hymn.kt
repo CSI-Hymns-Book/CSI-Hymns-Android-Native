@@ -1,10 +1,14 @@
 package com.reyzie.hymns.data
 
+import com.google.gson.annotations.SerializedName
+
 object AppConstants {
     const val HYMNS_DATA_URL = "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/main/hymns_data.json"
     const val KEERTHANE_DATA_URL = "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/main/keerthane_data.json"
     const val ORDER_OF_SERVICE_DATA_URL =
         "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/refs/heads/main/order-of-service_data.json"
+    const val MANGALORE_HYMNS_DATA_URL =
+        "https://raw.githubusercontent.com/Reynold29/csi-hymns-vault/refs/heads/main/mangalore_hymns_data.json"
 }
 
 data class Hymn(
@@ -12,5 +16,9 @@ data class Hymn(
     val title: String,
     val signature: String,
     val lyrics: String,
-    val kannadaLyrics: String? = null
+    val kannadaLyrics: String? = null,
+    val audioUrl: String? = null,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("kannadaCategory") val kannadaCategory: String? = null,
+    @SerializedName("categoryId") val categoryId: Int? = null
 )

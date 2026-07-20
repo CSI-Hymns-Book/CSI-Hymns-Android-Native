@@ -55,6 +55,8 @@ fun SettingsScreen(
     val remoteAppConfig by viewModel.remoteAppConfig.collectAsState()
     val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
     val scope = rememberCoroutineScope()
+    var showMidiInstrumentDialog by remember { mutableStateOf(false) }
+    val midiInstrument by viewModel.midiInstrument.collectAsState()
     
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
     val user = (sessionStatus as? SessionStatus.Authenticated)?.session?.user
@@ -221,6 +223,25 @@ fun SettingsScreen(
                 )
             }
 
+            SettingsSectionHeader(title = "Audio", icon = Icons.Default.VolumeUp)
+            SettingsExpressiveCard {
+                SettingsActionTile(
+                    title = "MIDI Playback Sound",
+                    subtitle = when (midiInstrument) {
+                        0 -> "Acoustic Grand Piano"
+                        16 -> "Drawbar Organ (Hammond)"
+                        17 -> "Percussive Organ (Punchy)"
+                        18 -> "Rock Organ (Heavy)"
+                        19 -> "Church Organ (Pipe Organ)"
+                        48 -> "Orchestral Strings (Lush)"
+                        14 -> "Church Bells (Tubular)"
+                        else -> "Drawbar Organ (Hammond)"
+                    },
+                    icon = Icons.Default.MusicNote,
+                    onClick = { showMidiInstrumentDialog = true }
+                )
+            }
+
             SettingsSectionHeader(title = "Account", icon = Icons.Default.AccountCircle)
             SettingsExpressiveCard {
                 if (user != null) {
@@ -328,6 +349,56 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.height(48.dp))
         }
+    }
+
+    if (showMidiInstrumentDialog) {
+        val instruments = listOf(
+            0 to "Acoustic Grand Piano",
+            16 to "Drawbar Organ (Hammond)",
+            17 to "Percussive Organ (Punchy)",
+            18 to "Rock Organ (Heavy)",
+            19 to "Church Organ (Pipe Organ)",
+            48 to "Orchestral Strings (Lush)",
+            14 to "Church Bells (Tubular)"
+        )
+        AlertDialog(
+            onDismissRequest = { showMidiInstrumentDialog = false },
+            title = { Text("MIDI Playback Sound", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    instruments.forEach { (program, name) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.medium)
+                                .clickable {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    viewModel.onMidiInstrumentChanged(program)
+                                    showMidiInstrumentDialog = false
+                                }
+                                .padding(vertical = 12.dp, horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = midiInstrument == program,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    viewModel.onMidiInstrumentChanged(program)
+                                    showMidiInstrumentDialog = false
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = name, style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showMidiInstrumentDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

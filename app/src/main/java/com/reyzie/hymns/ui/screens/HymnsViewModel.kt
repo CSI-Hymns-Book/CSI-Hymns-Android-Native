@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import android.content.Context
+import com.reyzie.hymns.data.AppSection
 
 enum class SortOrder {
     NUMBER, TITLE, METER
@@ -21,6 +22,14 @@ enum class SortOrder {
 class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = HymnsRepository(application)
     private val settingsPrefs = application.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+    private var currentSection = AppSection.CSI
+
+    fun setSection(section: AppSection) {
+        if (currentSection != section) {
+            currentSection = section
+            loadHymns()
+        }
+    }
 
     private val _allHymns = MutableStateFlow<List<Hymn>>(emptyList())
     private val _filteredHymns = MutableStateFlow<List<Hymn>>(emptyList())
@@ -63,6 +72,11 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             ContentUpdateBus.hymnsUpdated.collectLatest { reloadFromLocal() }
         }
+        viewModelScope.launch {
+            ContentUpdateBus.mangaloreHymnsUpdated.collectLatest {
+                if (currentSection == AppSection.MT) reloadFromLocal()
+            }
+        }
         loadHymns()
     }
 
@@ -73,7 +87,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadHymns() {
         viewModelScope.launch {
             _isLoading.value = true
-            val hymns = repository.loadHymns()
+            val hymns = repository.loadHymns(currentSection)
             _allHymns.value = hymns
             applySortAndFilter()
             _isLoading.value = false
@@ -81,7 +95,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun reloadFromLocal() {
-        val hymns = repository.loadHymns()
+        val hymns = repository.loadHymns(currentSection)
         if (hymns.isNotEmpty()) {
             _allHymns.value = hymns
             applySortAndFilter()
@@ -94,7 +108,11 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
         syncJob?.cancel()
         syncJob = viewModelScope.launch {
             _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Loading
-            val result = repository.fetchAndUpdateHymns()
+            val result = if (currentSection == AppSection.MT) {
+                repository.fetchAndUpdateMangaloreHymns()
+            } else {
+                repository.fetchAndUpdateHymns()
+            }
             if (result.errorMessage != null) {
                 _syncState.value = com.reyzie.hymns.ui.widgets.SyncState.Error(result.errorMessage)
             } else {
@@ -157,10 +175,21 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
             if (_sortOrder.value == SortOrder.METER) {
                 val filteredGroups = mutableMapOf<String, List<Hymn>>()
                 _groupedHymns.value.forEach { (key, hymns) ->
-                    val keyMatches = key.lowercase() == query
+                    val keyMatches = if (currentSection == AppSection.MT) {
+                        val normKey = key.filter { it.isDigit() }
+                        val normQuery = query.filter { it.isDigit() }
+                        (normKey.isNotEmpty() && normQuery.isNotEmpty() && normKey == normQuery) || key.lowercase().contains(query)
+                    } else {
+                        key.lowercase() == query
+                    }
                     val matchingHymns = hymns.filter { hymn ->
-                        keyMatches || hymn.title.lowercase().contains(query) ||
-                        hymn.number.toString().contains(query)
+                        if (currentSection == AppSection.MT) {
+                            keyMatches
+                        } else {
+                            keyMatches || hymn.title.lowercase().contains(query) ||
+                            hymn.number.toString().contains(query) ||
+                            hymn.kannadaLyrics?.lowercase()?.contains(query) == true
+                        }
                     }
                     if (matchingHymns.isNotEmpty()) {
                         filteredGroups[key] = matchingHymns
@@ -173,7 +202,8 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
                 _filteredHymns.value = currentHymns.filter { hymn ->
                     hymn.title.lowercase().contains(query) ||
                     hymn.number.toString().contains(query) ||
-                    hymn.signature.lowercase().contains(query)
+                    hymn.signature.lowercase().contains(query) ||
+                    hymn.kannadaLyrics?.lowercase()?.contains(query) == true
                 }
             }
         }

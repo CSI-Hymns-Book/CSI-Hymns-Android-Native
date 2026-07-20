@@ -22,6 +22,7 @@ fun JumpToMeterSheet(
     meters: List<String>,
     onMeterSelected: (String) -> Unit,
     onDismiss: () -> Unit,
+    isMt: Boolean = false,
 ) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
@@ -42,13 +43,13 @@ fun JumpToMeterSheet(
                 .navigationBarsPadding(),
         ) {
             Text(
-                "Jump to Meter",
+                if (isMt) "Jump to MT Tune" else "Jump to Meter",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Pick a meter group to scroll the list instantly.",
+                if (isMt) "Pick an MT tune group to scroll the list instantly." else "Pick a meter group to scroll the list instantly.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -57,7 +58,7 @@ fun JumpToMeterSheet(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search meters…") },
+                placeholder = { Text(if (isMt) "Search MT tunes…" else "Search meters…") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
@@ -71,7 +72,7 @@ fun JumpToMeterSheet(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "No meters match your search",
+                        if (isMt) "No MT tunes match your search" else "No meters match your search",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -84,7 +85,7 @@ fun JumpToMeterSheet(
                         ListItem(
                             headlineContent = {
                                 Text(
-                                    if (meter.isEmpty()) "(No meter)" else meter,
+                                    if (meter.isEmpty()) "(No meter)" else if (isMt) "M.T. $meter" else meter,
                                     fontWeight = FontWeight.SemiBold,
                                 )
                             },

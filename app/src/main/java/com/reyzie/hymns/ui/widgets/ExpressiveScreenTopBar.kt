@@ -26,6 +26,7 @@ fun ExpressiveScreenTopBar(
     title: String,
     onMenuClick: () -> Unit,
     modifier: Modifier = Modifier,
+    navigationIcon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.Menu,
     actions: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -50,7 +51,7 @@ fun ExpressiveScreenTopBar(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                 )
             ) {
-                Icon(Icons.Default.Menu, contentDescription = "Menu")
+                Icon(navigationIcon, contentDescription = "Navigation Icon")
             }
         },
         actions = { actions() },

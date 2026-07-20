@@ -1,5 +1,5 @@
 <p align="center">
-  <strong style="font-size: 3rem;">🎵</strong>
+  <img src="app/src/main/res/drawable-nodpi/playstore_icon.png" width="128" height="128" alt="CSI Hymns Book Logo" />
 </p>
 
 <h1 align="center">CSI Hymns Book</h1>
@@ -47,6 +47,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - Adjustable font size and reading progress resume
 - Favorites with cloud sync when signed in
 - Report lyric issues → Jira tickets
+- Dynamic page selection state preservation (remembers your tab choices without page resets)
 
 ### Lyrics experience
 - **Scroll mode** — classic vertical reading
@@ -70,21 +71,36 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 ### Audio & Cast
 - Built-in expressive audio player (play, seek, speed, loop)
 - Chromecast streaming when enabled via remote config
+- High-precision playback speed control (0.5x - 1.5x) using micro-intervals (+/- 0.05x) and a clean instant-Reset control
+- Byte-level raw MIDI tempo metadata scaling (`0xFF 0x51 0x03` modification) for smooth tempo shifts without post-synth audio distortion
+- Progressive remote range-based transitions (`midi_hymns_ranges` and `midi_keerthanes_ranges` app configs) from `.ogg` to `.mid`
 
 ### Account & Settings
 - Google Sign-In via Supabase
 - Light / Dark / System theme, AMOLED black, 21 accent colors
 - Force-update gate, changelog, privacy policy, onboarding
+- Safe navigation drawer Sign-In triggers and crash-free dynamic `AuthScreen` stacked overlays
+- Optimized class-level Proguard rules for serialization and model parsing, enabling full R8 code shrinking and memory reductions
 
 ---
 
 ## Screenshots
 
-> Add device screenshots here after your next release build.
-
-| Hymns | Detail | Page Flip |
-|:---:|:---:|:---:|
-| *placeholder* | *placeholder* | *placeholder* |
+<p align="center">
+  <img src="screenshots/1.png" width="230" alt="Home Screen" />
+  <img src="screenshots/2.png" width="230" alt="Keerthane List" />
+  <img src="screenshots/3.png" width="230" alt="Order of Service" />
+</p>
+<p align="center">
+  <img src="screenshots/4.png" width="230" alt="Hymn Detail" />
+  <img src="screenshots/5.png" width="230" alt="Advanced Audio" />
+  <img src="screenshots/6.png" width="230" alt="Page Flip" />
+</p>
+<p align="center">
+  <img src="screenshots/7.png" width="230" alt="Categories" />
+  <img src="screenshots/8.png" width="230" alt="Christmas Carols" />
+  <img src="screenshots/9.png" width="230" alt="Settings" />
+</p>
 
 ---
 

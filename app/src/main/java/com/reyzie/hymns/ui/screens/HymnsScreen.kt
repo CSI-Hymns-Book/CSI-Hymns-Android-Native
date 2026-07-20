@@ -1,6 +1,7 @@
 package com.reyzie.hymns.ui.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.WindowInsets
@@ -22,7 +23,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
+import com.reyzie.hymns.data.AppSection
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.res.painterResource
@@ -48,7 +52,10 @@ fun HymnsScreen(
     viewModel: HymnsViewModel = viewModel(),
     settingsViewModel: SettingsViewModel = viewModel(),
     onHymnClick: (Hymn) -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
+    activeSection: AppSection = AppSection.CSI,
+    onOpenCarols: (() -> Unit)? = null,
+    navigationIcon: androidx.compose.ui.graphics.vector.ImageVector = Icons.Default.Menu
 ) {
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
     val filteredHymns by viewModel.filteredHymns.collectAsState()
@@ -71,6 +78,10 @@ fun HymnsScreen(
         }
     }
 
+    LaunchedEffect(activeSection) {
+        viewModel.setSection(activeSection)
+    }
+
     val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
     Scaffold(
@@ -79,8 +90,9 @@ fun HymnsScreen(
         topBar = {
             if (!isLandscape) {
                 ExpressiveScreenTopBar(
-                    title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
+                    title = if (activeSection == AppSection.MT) "M.T. Hymns" else "CSI Kannada Hymns",
                     onMenuClick = onSettingsClick,
+                    navigationIcon = navigationIcon,
                     actions = {
                         if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
                             IconButton(onClick = {
@@ -123,7 +135,7 @@ fun HymnsScreen(
                             value = searchQuery,
                             onValueChange = { viewModel.onSearchQueryChanged(it) },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
+                            placeholder = { Text(if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) "Search MT Tune..." else "Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                             trailingIcon = {
                                 if (searchQuery.isNotEmpty()) {
@@ -144,6 +156,14 @@ fun HymnsScreen(
                             ),
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) {
+                        Text(
+                            text = "ℹ️ Search in Meter mode is restricted to MT numbers only.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp)
                         )
                     }
 
@@ -200,8 +220,9 @@ fun HymnsScreen(
                     if (isLandscape) {
                         item {
                             ExpressiveScreenTopBar(
-                                title = if (isChristmasMode) "Christmas Carols" else "CSI Kannada Hymns",
+                                title = if (activeSection == AppSection.MT) "M.T. Hymns" else "CSI Kannada Hymns",
                                 onMenuClick = onSettingsClick,
+                                navigationIcon = navigationIcon,
                                 actions = {
                                     if (sortOrder == SortOrder.METER && groupedHymns.isNotEmpty()) {
                                         IconButton(onClick = {
@@ -229,7 +250,7 @@ fun HymnsScreen(
                                     value = searchQuery,
                                     onValueChange = { viewModel.onSearchQueryChanged(it) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    placeholder = { Text("Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
+                                    placeholder = { Text(if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) "Search MT Tune..." else "Search number, title, or meter...", style = MaterialTheme.typography.bodyMedium) },
                                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                                     trailingIcon = {
                                         if (searchQuery.isNotEmpty()) {
@@ -250,6 +271,16 @@ fun HymnsScreen(
                                     ),
                                     singleLine = true,
                                     textStyle = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        }
+                        if (activeSection == AppSection.MT && sortOrder == SortOrder.METER) {
+                            item {
+                                Text(
+                                    text = "ℹ️ Search in Meter mode is restricted to MT numbers only.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp)
                                 )
                             }
                         }
@@ -324,7 +355,13 @@ fun HymnsScreen(
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Text(
-                                                text = if (signature.isEmpty()) "(No meter)" else signature,
+                                                text = if (signature.isEmpty()) {
+                                                    "(No meter)"
+                                                } else if (activeSection == AppSection.MT) {
+                                                    "M.T. $signature"
+                                                } else {
+                                                    signature
+                                                },
                                                 style = MaterialTheme.typography.titleMedium.copy(
                                                     fontWeight = FontWeight.Bold,
                                                     color = MaterialTheme.colorScheme.primary
@@ -332,7 +369,7 @@ fun HymnsScreen(
                                                 modifier = Modifier.padding(bottom = 8.dp)
                                             )
                                             hymns.forEach { hymn ->
-                                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                                HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                                             }
                                         }
                                     }
@@ -340,7 +377,7 @@ fun HymnsScreen(
                             }
                         } else {
                             items(filteredHymns) { hymn ->
-                                HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                             }
                         }
                     }
@@ -360,6 +397,7 @@ fun HymnsScreen(
                 }
             },
             onDismiss = { showJumpToMeter = false },
+            isMt = activeSection == AppSection.MT,
         )
     }
 
@@ -370,7 +408,7 @@ fun HymnsScreen(
 }
 
 @Composable
-fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
+fun HymnListTile(hymn: Hymn, isMt: Boolean = false, onClick: () -> Unit) {
     val context = LocalContext.current
     Card(
         modifier = Modifier
@@ -426,7 +464,7 @@ fun HymnListTile(hymn: Hymn, onClick: () -> Unit) {
                 )
                 if (hymn.signature.isNotEmpty()) {
                     Text(
-                        text = hymn.signature,
+                        text = if (isMt) "M.T. ${hymn.signature}" else hymn.signature,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
                     )

@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.reyzie.hymns.data.AppSection
 import com.reyzie.hymns.data.Hymn
 import com.reyzie.hymns.data.HymnsRepository
 import com.reyzie.hymns.data.Keerthane
@@ -36,6 +37,7 @@ fun OccasionCategoryScreen(
     onBackClick: () -> Unit,
     onHymnClick: (Hymn) -> Unit,
     onKeerthaneClick: (Keerthane) -> Unit,
+    activeSection: AppSection = AppSection.CSI,
 ) {
     val context = LocalContext.current
     val repository = remember { HymnsRepository(context) }
@@ -46,22 +48,30 @@ fun OccasionCategoryScreen(
     var hymns by remember { mutableStateOf<List<Hymn>>(emptyList()) }
     var keerthanes by remember { mutableStateOf<List<Keerthane>>(emptyList()) }
 
-    LaunchedEffect(categoryName) {
+    LaunchedEffect(categoryName, activeSection) {
         loading = true
         withContext(Dispatchers.IO) {
-            val cat = OccasionCategories.find(categoryName)
-            if (cat != null) {
-                val allHymns = repository.loadHymns()
-                val allKeerthanes = repository.loadKeerthanes()
-                hymns = cat.hymnNumbers.mapNotNull { n -> allHymns.find { it.number == n } }
-                keerthanes = cat.keerthaneNumbers.mapNotNull { n -> allKeerthanes.find { it.number == n } }
+            if (activeSection == AppSection.MT) {
+                val allHymns = repository.loadHymns(AppSection.MT)
+                hymns = allHymns.filter { 
+                    it.category == categoryName || it.kannadaCategory == categoryName
+                }
+                keerthanes = emptyList()
+            } else {
+                val cat = OccasionCategories.find(categoryName)
+                if (cat != null) {
+                    val allHymns = repository.loadHymns(AppSection.CSI)
+                    val allKeerthanes = repository.loadKeerthanes()
+                    hymns = cat.hymnNumbers.mapNotNull { n -> allHymns.find { it.number == n } }
+                    keerthanes = cat.keerthaneNumbers.mapNotNull { n -> allKeerthanes.find { it.number == n } }
+                }
             }
         }
         loading = false
     }
 
-    val showHymns = occasion?.hasHymns == true
-    val showKeerthanes = occasion?.hasKeerthanes == true
+    val showHymns = if (activeSection == AppSection.MT) true else occasion?.hasHymns == true
+    val showKeerthanes = if (activeSection == AppSection.MT) false else occasion?.hasKeerthanes == true
     val tabCount = listOf(showHymns, showKeerthanes).count { it }
     var selectedTab by remember(categoryName) { mutableIntStateOf(0) }
 
@@ -99,7 +109,7 @@ fun OccasionCategoryScreen(
         },
     ) { padding ->
         when {
-            occasion == null -> {
+            occasion == null && activeSection != AppSection.MT -> {
                 Box(
                     Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
@@ -115,7 +125,7 @@ fun OccasionCategoryScreen(
                     ExpressiveCircularProgress()
                 }
             }
-            occasion.isEmpty -> {
+            (activeSection != AppSection.MT && occasion?.isEmpty == true) || (activeSection == AppSection.MT && hymns.isEmpty()) -> {
                 Box(
                     Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center,
@@ -180,7 +190,7 @@ fun OccasionCategoryScreen(
                                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                                 ) {
                                     items(hymns, key = { it.number }) { hymn ->
-                                        HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                        HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                                     }
                                 }
                             } else {
@@ -206,7 +216,7 @@ fun OccasionCategoryScreen(
                         ) {
                             if (showingHymns) {
                                 items(hymns, key = { it.number }) { hymn ->
-                                    HymnListTile(hymn = hymn, onClick = { onHymnClick(hymn) })
+                                    HymnListTile(hymn = hymn, isMt = activeSection == AppSection.MT, onClick = { onHymnClick(hymn) })
                                 }
                             } else {
                                 items(keerthanes, key = { it.number }) { keerthane ->
