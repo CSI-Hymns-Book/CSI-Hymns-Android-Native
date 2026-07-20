@@ -63,6 +63,9 @@ fun HymnsScreen(
     val sortOrder by viewModel.sortOrder.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val currentSectionState by viewModel.currentSectionState.collectAsState()
+    val isStale = currentSectionState != activeSection
+    val displayLoading = isLoading || isStale
     val statusMessage by viewModel.statusMessage.collectAsState()
     val syncState by viewModel.syncState.collectAsState()
     val context = LocalContext.current
@@ -328,7 +331,7 @@ fun HymnsScreen(
                         }
                     }
 
-                    if (isLoading) {
+                    if (displayLoading) {
                         item {
                             Box(
                                 modifier = Modifier

@@ -23,10 +23,13 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = HymnsRepository(application)
     private val settingsPrefs = application.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
     private var currentSection = AppSection.CSI
+    private val _currentSectionState = MutableStateFlow(AppSection.CSI)
+    val currentSectionState: StateFlow<AppSection> = _currentSectionState.asStateFlow()
 
     fun setSection(section: AppSection) {
         if (currentSection != section) {
             currentSection = section
+            _currentSectionState.value = section
             loadHymns()
         }
     }
