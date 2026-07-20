@@ -39,7 +39,8 @@ fun Sidebar(
     isAdmin: Boolean = false,
     authViewModel: AuthViewModel = viewModel(),
     isMangaloreHymnsEnabled: Boolean = false,
-    onChangeSectionClick: () -> Unit = {}
+    onChangeSectionClick: () -> Unit = {},
+    onSignInClick: () -> Unit = {}
 ) {
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
     val isLoggedIn = sessionStatus is SessionStatus.Authenticated
@@ -119,13 +120,7 @@ fun Sidebar(
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
                             onCloseDrawer()
-                            try {
-                                if (navController.currentDestination != null && navController.currentDestination?.route != "auth") {
-                                    navController.navigate("auth")
-                                }
-                            } catch (e: Exception) {
-                                android.util.Log.e("Sidebar", "Navigation to auth failed", e)
-                            }
+                            onSignInClick()
                         }
                     )
                 } else {

@@ -177,6 +177,7 @@ fun MainScreen(
     val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
     val isMangaloreHymnsEnabled = remoteConfig.isMangaloreHymnsEnabled == true
     var activeSection by rememberSaveable { mutableStateOf<AppSection?>(null) }
+    var initialRoute by rememberSaveable { mutableStateOf(Screen.Hymns.route) }
     val effectiveSection = if (isMangaloreHymnsEnabled) (activeSection ?: AppSection.CSI) else AppSection.CSI
 
     val adminEmailsString = remoteConfig.adminEmails ?: "reynoldclare02@gmail.com,admin@reyzie.com"
@@ -232,6 +233,7 @@ fun MainScreen(
     var showAboutApp by rememberSaveable { mutableStateOf(false) }
     var showProfileEdit by rememberSaveable { mutableStateOf(false) }
     var showMenuShowcase by rememberSaveable { mutableStateOf(false) }
+    var showAuthOverlay by rememberSaveable { mutableStateOf(false) }
     var homeSettled by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -272,7 +274,8 @@ fun MainScreen(
         showAboutApp,
         showProfileEdit,
         showChangelog,
-        showAdminControls
+        showAdminControls,
+        showAuthOverlay
     ) {
         if (selectedHymn != null ||
             selectedKeerthane != null ||
@@ -289,7 +292,8 @@ fun MainScreen(
             showAboutApp ||
             showProfileEdit ||
             showChangelog ||
-            showAdminControls
+            showAdminControls ||
+            showAuthOverlay
         ) {
             focusManager.clearFocus()
             keyboardController?.hide()
@@ -442,7 +446,7 @@ fun MainScreen(
         showPraiseApp || showTickets || showAboutDeveloper || showRecentSongs ||
         showChristmasCarols || showHymnsFromChristmas || showMtHymnsFromChristmas || showKeerthanesFromChristmas ||
         selectedCommonCategory != null || pickSongsForCategory != null || selectedCategory != null ||
-        showAdminControls
+        showAdminControls || showAuthOverlay
 
     if (forceUpdateDecision != null) {
         AlertDialog(
@@ -505,7 +509,8 @@ fun MainScreen(
                 onAdminControlsClick = { showAdminControls = true },
                 isAdmin = isAdmin,
                 isMangaloreHymnsEnabled = isMangaloreHymnsEnabled,
-                onChangeSectionClick = { activeSection = null }
+                onChangeSectionClick = { activeSection = null },
+                onSignInClick = { showAuthOverlay = true }
             )
         }
     ) {
@@ -560,12 +565,20 @@ fun MainScreen(
                 } else if (isMangaloreHymnsEnabled && sectionState == null) {
                     SectionSelectorScreen(
                         onSelectCsiPage = { pageIndex ->
+                            val targetRoute = when (pageIndex) {
+                                0 -> Screen.Hymns.route
+                                1 -> Screen.Keerthane.route
+                                2 -> Screen.Service.route
+                                else -> Screen.Hymns.route
+                            }
+                            initialRoute = targetRoute
                             activeSection = AppSection.CSI
                             scope.launch {
                                 pagerState.scrollToPage(pageIndex)
                             }
                         },
                         onSelectMtPage = {
+                            initialRoute = Screen.Hymns.route
                             activeSection = AppSection.MT
                             scope.launch {
                                 pagerState.scrollToPage(0)
@@ -597,7 +610,7 @@ fun MainScreen(
                         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                             NavHost(
                                 navController = navController,
-                                startDestination = Screen.Hymns.route,
+                                startDestination = initialRoute,
                                 modifier = Modifier.fillMaxSize()
                             ) {
                                 localActiveScreens.forEach { screen ->
@@ -633,7 +646,7 @@ fun MainScreen(
                                                         onMenuClick = { scope.launch { drawerState.open() } }
                                                     )
                                                     Screen.Categories -> CategoriesScreen(
-                                                        onSignInClick = { navController.navigate(Screen.Auth.route) },
+                                                        onSignInClick = { showAuthOverlay = true },
                                                         onCategoryClick = { id, name -> selectedCategory = Pair(id, name) },
                                                         onRecentSongsClick = { showRecentSongs = true },
                                                         onCommonCategoryClick = { category -> selectedCommonCategory = category },
@@ -653,22 +666,10 @@ fun MainScreen(
                                         }
                                     }
                                 }
-                                composable(
-                                    route = Screen.Auth.route,
-                                    enterTransition = { expressiveForwardEnter() },
-                                    exitTransition = { expressiveForwardExit() },
-                                    popEnterTransition = { expressiveBackEnter() },
-                                    popExitTransition = { expressiveBackExit() }
-                                ) {
-                                    AuthScreen(
-                                        onAuthComplete = { navController.navigateUp() },
-                                        onBackClick = { navController.navigateUp() }
-                                    )
-                                }
                             }
 
                             // --- Essentials-style vibrant floating toolbar ---
-                            if (currentRoute != Screen.Auth.route) {
+                            if (currentRoute != Screen.Auth.route && !showAuthOverlay) {
                                 val navScrim = MaterialTheme.colorScheme.background
                                 val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
                                 Box(
@@ -759,7 +760,7 @@ fun MainScreen(
                     onAboutAppClick = { showAboutApp = true },
                     onSignInClick = {
                         showSettings = false
-                        navController.navigate(Screen.Auth.route)
+                        showAuthOverlay = true
                     }
                 )
             }
@@ -772,8 +773,18 @@ fun MainScreen(
                     onBackClick = { showProfileEdit = false },
                     onAccountDeleted = {
                         showProfileEdit = false
-                        navController.navigate(Screen.Auth.route)
+                        showAuthOverlay = true
                     }
+                )
+            }
+
+            ExpressiveOverlayScreen(
+                visible = showAuthOverlay,
+                onDismiss = { showAuthOverlay = false }
+            ) {
+                AuthScreen(
+                    onAuthComplete = { showAuthOverlay = false },
+                    onBackClick = { showAuthOverlay = false }
                 )
             }
 

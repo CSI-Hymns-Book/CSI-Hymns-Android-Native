@@ -19,12 +19,19 @@
 
 # App models & repositories
 -keep class com.reyzie.hymns.BuildConfig { *; }
--keep class com.reyzie.hymns.data.** { *; }
+-keep class com.reyzie.hymns.data.Hymn { *; }
+-keep class com.reyzie.hymns.data.Keerthane { *; }
+-keep class com.reyzie.hymns.data.ChristmasCarol { *; }
+-keep class com.reyzie.hymns.data.InAppMessage { *; }
+-keep class com.reyzie.hymns.data.JiraTicketRow { *; }
+-keep class com.reyzie.hymns.data.TicketMessage { *; }
+-keep class com.reyzie.hymns.data.CustomCategory { *; }
+-keep class com.reyzie.hymns.data.CustomCategorySong { *; }
+-keep class com.reyzie.hymns.data.ChangelogEntryData { *; }
+-keep class com.reyzie.hymns.data.ResolvedTicketAckItem { *; }
 -keep class com.reyzie.hymns.carols.data.model.** { *; }
 
 # Supabase / Ktor
--keep class io.github.jan.supabase.** { *; }
--keep class io.ktor.** { *; }
 -dontwarn io.ktor.**
 -dontwarn io.github.jan.**
 
