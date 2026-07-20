@@ -29,7 +29,6 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
     fun setSection(section: AppSection) {
         if (currentSection != section) {
             currentSection = section
-            _currentSectionState.value = section
             loadHymns()
         }
     }
@@ -93,6 +92,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
             val hymns = repository.loadHymns(currentSection)
             _allHymns.value = hymns
             applySortAndFilter()
+            _currentSectionState.value = currentSection
             _isLoading.value = false
         }
     }
@@ -102,6 +102,7 @@ class HymnsViewModel(application: Application) : AndroidViewModel(application) {
         if (hymns.isNotEmpty()) {
             _allHymns.value = hymns
             applySortAndFilter()
+            _currentSectionState.value = currentSection
         }
     }
 
