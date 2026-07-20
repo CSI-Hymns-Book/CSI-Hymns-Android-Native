@@ -269,7 +269,7 @@ private fun AdminMenuSelection(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Manage remote feature flags, force update requirements, Christmas mode, and metadata keys.",
+                        text = "Manage remote feature flags via app_config keys.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                     )

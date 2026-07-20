@@ -39,6 +39,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.data.Hymn
 import com.reyzie.hymns.data.ReadingProgressService
 import com.reyzie.hymns.data.RemoteAppConfig
+import com.reyzie.hymns.data.AppSection
 import com.reyzie.hymns.ui.viewmodels.*
 import com.reyzie.hymns.cast.SongCastRequest
 import com.reyzie.hymns.ui.motion.expressiveAudioPlayerEnter
@@ -92,10 +93,32 @@ fun HymnDetailScreen(
     val castEnabled = remoteAppConfig.castEnabled == true
     val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
     
+    val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
+    var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
+    LaunchedEffect(Unit) {
+        try {
+            val list = repository.loadHymns(AppSection.CSI)
+            csiHymnsMap = list.associateBy { it.number }
+        } catch (e: Exception) {
+            android.util.Log.e("HymnDetailScreen", "Failed to load CSI hymns for options signature lookup", e)
+        }
+    }
+
+    val defaultOption = remember(hymn.number, hymn.signature, isKeerthane, isMt) {
+        extractTuneOptions(hymn.number, hymn.signature, isKeerthane, isMt).firstOrNull() ?: hymn.number.toString()
+    }
+
     val isMidiMigrated = if (isKeerthane) {
         remoteAppConfig.parsedMidiKeerthanes.contains(hymn.number)
     } else {
-        remoteAppConfig.parsedMidiHymns.contains(hymn.number)
+        val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                      defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                      defaultOption.lowercase().startsWith("mt")
+        if (isMtRef) {
+            true
+        } else {
+            remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(defaultOption))
+        }
     }
 
     val targetAudioUrl = hymn.audioUrl ?: when {
@@ -111,11 +134,11 @@ fun HymnDetailScreen(
             "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
         }
         else -> {
-            if (isMidiMigrated) {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_${hymn.number}.mid"
-            } else {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${hymn.number}.ogg"
-            }
+            val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                          defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                          defaultOption.lowercase().startsWith("mt")
+            val isOptMigrated = if (isMtRef) true else remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(defaultOption))
+            getUrlForOption(defaultOption, isOptMigrated, hymn.number)
         }
     }
     val isSameSong = audioState.currentAudioUrl == targetAudioUrl
@@ -479,7 +502,13 @@ fun HymnDetailScreen(
                                             onClick = {
                                                 HapticFeedbackManager.smoothClick(context)
                                                 if (!audioState.isVisible || !isSameSong) {
-                                                    audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, targetAudioUrl)
+                                                    audioViewModel.playSong(
+                                                        number = hymn.number,
+                                                        title = hymn.title,
+                                                        isKeerthane = isKeerthane,
+                                                        signature = hymn.signature,
+                                                        customAudioUrl = targetAudioUrl
+                                                    )
                                                 } else {
                                                     audioViewModel.toggleVisibility()
                                                 }
@@ -693,9 +722,15 @@ fun HymnDetailScreen(
                                 index = 1,
                                 onClick = {
                                     HapticFeedbackManager.smoothClick(context)
-                                     if (!audioState.isVisible || !isSameSong) {
-                                         audioViewModel.playSong(hymn.number, hymn.title, isKeerthane, targetAudioUrl)
-                                     } else {
+                                    if (!audioState.isVisible || !isSameSong) {
+                                        audioViewModel.playSong(
+                                            number = hymn.number,
+                                            title = hymn.title,
+                                            isKeerthane = isKeerthane,
+                                            signature = hymn.signature,
+                                            customAudioUrl = targetAudioUrl
+                                        )
+                                    } else {
                                         audioViewModel.toggleVisibility()
                                     }
                                 },
@@ -1016,7 +1051,14 @@ fun ExpressiveAudioPlayer(
                         val isOptionMidiMigrated = if (audioState.isKeerthane) {
                             remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum)
                         } else {
-                            remoteAppConfig.parsedMidiHymns.contains(currentSongNum)
+                            val isMtRef = option.contains("M.T.", ignoreCase = true) || 
+                                          option.contains("Mang.T.B.", ignoreCase = true) || 
+                                          option.lowercase().startsWith("mt")
+                            if (isMtRef) {
+                                true
+                            } else {
+                                remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(option))
+                            }
                         }
                         val optionUrl = when {
                             audioState.isKeerthane -> {
@@ -1028,11 +1070,7 @@ fun ExpressiveAudioPlayer(
                             }
                             isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
                             else -> {
-                                if (isOptionMidiMigrated) {
-                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_$option.mid"
-                                } else {
-                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$option.ogg"
-                                }
+                                getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
                             }
                         }
                         val isSelected = audioState.currentAudioUrl == optionUrl
@@ -1048,12 +1086,17 @@ fun ExpressiveAudioPlayer(
                                         number = audioState.currentSongNumber ?: 0,
                                         title = audioState.currentSongTitle.orEmpty(),
                                         isKeerthane = audioState.isKeerthane,
+                                        signature = option,
                                         customAudioUrl = optionUrl
                                     )
                                 }
                         ) {
                             Text(
-                                text = if (isMt) option else if (option == audioState.currentSongNumber?.toString()) "Default" else option,
+                                text = if (audioState.isKeerthane || isMt) {
+                                    if (option == audioState.currentSongNumber?.toString()) "Default" else option
+                                } else {
+                                    option
+                                },
                                 style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
@@ -1683,6 +1726,28 @@ fun LanguageChip(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+fun getUrlForOption(option: String, isOptionMidiMigrated: Boolean, songNumber: Int): String {
+    val trimmed = option.trim()
+    val isMtRef = trimmed.contains("M.T.", ignoreCase = true) || 
+                  trimmed.contains("Mang.T.B.", ignoreCase = true) || 
+                  trimmed.lowercase().startsWith("mt")
+    
+    return when {
+        isMtRef -> {
+            val mtNumber = trimmed.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
+            "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+        }
+        else -> {
+            if (isOptionMidiMigrated) {
+                val meterName = MeterUtils.getMeterMidiFileName(trimmed)
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/${meterName}.mid"
+            } else {
+                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${songNumber}.ogg"
+            }
+        }
+    }
+}
+
 fun extractTuneOptions(hymnNumber: Int, signature: String, isKeerthane: Boolean, isMt: Boolean = false): List<String> {
     if (isKeerthane) return listOf(hymnNumber.toString())
     
@@ -1698,31 +1763,11 @@ fun extractTuneOptions(hymnNumber: Int, signature: String, isKeerthane: Boolean,
             options.add(hymnNumber.toString())
         }
     } else {
-        val defaultNumber = hymnNumber.toString()
-        options.add(defaultNumber)
-        
-        val versionRegex = Regex("\\b${defaultNumber}([b-e])\\b", RegexOption.IGNORE_CASE)
-        versionRegex.findAll(signature).forEach { match ->
-            options.add(match.value.lowercase())
-        }
-        
-        val refRegex = Regex("(?:Mang\\.T\\.B\\.|M\\.T\\.|Hymn|Tune|\\()\\s*(\\d+[b-e]?)\\b", RegexOption.IGNORE_CASE)
-        refRegex.findAll(signature).forEach { match ->
-            val tuneNum = match.groupValues[1].lowercase()
-            options.add(tuneNum)
-        }
-        
-        val parenRegex = Regex("\\((\\d+[b-e]?)\\)")
-        parenRegex.findAll(signature).forEach { match ->
-            options.add(match.groupValues[1].lowercase())
-        }
-        
-        for (char in listOf("b", "c", "d")) {
-            if (signature.contains("${defaultNumber}$char", ignoreCase = true) || 
-                signature.contains("version $char", ignoreCase = true) ||
-                signature.contains("($char)", ignoreCase = true)) {
-                options.add("${defaultNumber}$char")
-            }
+        // CSI Hymns
+        if (signature.contains("/")) {
+            options.addAll(signature.split("/").map { it.trim() }.filter { it.isNotEmpty() })
+        } else {
+            options.add(signature.trim())
         }
     }
     

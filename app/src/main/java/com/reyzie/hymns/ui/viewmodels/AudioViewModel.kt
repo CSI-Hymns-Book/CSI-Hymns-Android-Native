@@ -142,13 +142,25 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private fun stopProgressUpdate() {
         progressJob?.cancel()
     }
-
-    fun playSong(number: Int, title: String, isKeerthane: Boolean, customAudioUrl: String? = null) {
+    fun playSong(number: Int, title: String, isKeerthane: Boolean, signature: String? = null, customAudioUrl: String? = null) {
         val config = appConfigRepository.getCachedRemoteConfig()
+        
+        val defaultOption = if (!isKeerthane && !signature.isNullOrBlank()) {
+            if (signature.contains("/")) signature.split("/").firstOrNull()?.trim() ?: "" else signature.trim()
+        } else ""
+
         val isMidiMigrated = if (isKeerthane) {
             config.parsedMidiKeerthanes.contains(number)
         } else {
-            config.parsedMidiHymns.contains(number)
+            val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                          defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                          defaultOption.lowercase().startsWith("mt")
+            if (isMtRef) {
+                true
+            } else {
+                val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(defaultOption)
+                config.parsedMidiHymns.contains(normalized)
+            }
         }
 
         val audioUrl = customAudioUrl ?: if (isKeerthane) {
@@ -159,7 +171,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             }
         } else {
             if (isMidiMigrated) {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_$number.mid"
+                val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                              defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                              defaultOption.lowercase().startsWith("mt")
+                if (isMtRef) {
+                    val mtNumber = defaultOption.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
+                    "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+                } else {
+                    val meterName = com.reyzie.hymns.utils.MeterUtils.getMeterMidiFileName(defaultOption)
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/${meterName}.mid"
+                }
             } else {
                 "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
             }

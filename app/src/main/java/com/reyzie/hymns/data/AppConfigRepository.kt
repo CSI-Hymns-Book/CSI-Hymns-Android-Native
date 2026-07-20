@@ -28,10 +28,18 @@ data class RemoteAppConfig(
     val midiHymnsRanges: String? = null,
     val midiKeerthanesRanges: String? = null
 ) {
-    val parsedMidiHymns: Set<Int> by lazy { parseRanges(midiHymnsRanges) }
+    val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
 
     companion object {
+        fun parseMeters(metersStr: String?): Set<String> {
+            if (metersStr.isNullOrBlank()) return emptySet()
+            return metersStr.split(",")
+                .map { com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(it) }
+                .filter { it.isNotEmpty() && it != "default" }
+                .toSet()
+        }
+
         fun parseRanges(rangeStr: String?): Set<Int> {
             if (rangeStr.isNullOrBlank()) return emptySet()
             val numbers = mutableSetOf<Int>()
