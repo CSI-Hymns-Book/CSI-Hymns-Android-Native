@@ -620,7 +620,8 @@ fun HymnDetailScreen(
                                 audioViewModel = audioViewModel,
                                 tuneOptions = verifiedTuneOptions,
                                 isMt = isMt,
-                                remoteAppConfig = remoteAppConfig
+                                remoteAppConfig = remoteAppConfig,
+                                midiFilesList = midiFilesList
                             )
                         }
                     }
@@ -889,7 +890,8 @@ fun HymnDetailScreen(
                                 audioViewModel = audioViewModel,
                                 tuneOptions = verifiedTuneOptions,
                                 isMt = isMt,
-                                remoteAppConfig = remoteAppConfig
+                                remoteAppConfig = remoteAppConfig,
+                                midiFilesList = midiFilesList
                             )
                         }
                     }
@@ -973,7 +975,8 @@ fun ExpressiveAudioPlayer(
     audioViewModel: AudioViewModel,
     tuneOptions: List<String> = emptyList(),
     isMt: Boolean = false,
-    remoteAppConfig: RemoteAppConfig
+    remoteAppConfig: RemoteAppConfig,
+    midiFilesList: List<String> = emptyList()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1147,7 +1150,8 @@ fun ExpressiveAudioPlayer(
                     audioState = audioState,
                     remoteAppConfig = remoteAppConfig,
                     audioViewModel = audioViewModel,
-                    context = context
+                    context = context,
+                    midiFilesList = midiFilesList
                 )
             }
 
@@ -1940,6 +1944,7 @@ fun TuneSelectorDropdown(
     remoteAppConfig: com.reyzie.hymns.data.RemoteAppConfig,
     audioViewModel: AudioViewModel,
     context: Context,
+    midiFilesList: List<String>,
     modifier: Modifier = Modifier
 ) {
     if (tuneOptions.size <= 1) return
@@ -1958,7 +1963,13 @@ fun TuneSelectorDropdown(
                 true
             } else {
                 val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
-                remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
+                val normalized = MeterUtils.getNormalizedMeter(baseMeter)
+                val hasMatchingFiles = midiFilesList.any { filename ->
+                    val nameWithoutExt = filename.substringBeforeLast(".mid")
+                    val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
+                    normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                }
+                hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized)
             }
         }
         val optionUrl = when {
@@ -2030,7 +2041,13 @@ fun TuneSelectorDropdown(
                         true
                     } else {
                         val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
-                        remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
+                        val normalized = MeterUtils.getNormalizedMeter(baseMeter)
+                        val hasMatchingFiles = midiFilesList.any { filename ->
+                            val nameWithoutExt = filename.substringBeforeLast(".mid")
+                            val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
+                            normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                        }
+                        hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized)
                     }
                 }
                 val optionUrl = when {
