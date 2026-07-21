@@ -35,10 +35,11 @@ data class AudioState(
     val isAltoEnabled: Boolean = true,
     val isTenorEnabled: Boolean = true,
     val isBassEnabled: Boolean = true,
-    val sopranoInstrument: Int = 19,
-    val altoInstrument: Int = 19,
-    val tenorInstrument: Int = 19,
-    val bassInstrument: Int = 19
+    val sopranoInstrument: Int = 16,
+    val altoInstrument: Int = 16,
+    val tenorInstrument: Int = 16,
+    val bassInstrument: Int = 16,
+    val isSatbRoutingEnabled: Boolean = false
 )
 
 class AudioViewModel(application: Application) : AndroidViewModel(application) {
@@ -114,6 +115,18 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         })
+        
+        // Load saved preferences at startup
+        val prefs = application.getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        val defaultInstrument = prefs.getInt("midi_instrument", 16)
+        val isSatbEnabled = prefs.getBoolean("is_satb_routing_enabled", false)
+        _audioState.value = _audioState.value.copy(
+            sopranoInstrument = defaultInstrument,
+            altoInstrument = defaultInstrument,
+            tenorInstrument = defaultInstrument,
+            bassInstrument = defaultInstrument,
+            isSatbRoutingEnabled = isSatbEnabled
+        )
     }
 
     private fun startProgressUpdate() {
@@ -265,7 +278,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 
                 // 2. Patch to chosen MIDI Instrument from preferences
                 val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
-                val instrument = prefs.getInt("midi_instrument", 19)
+                val instrument = prefs.getInt("midi_instrument", 16)
                 val state = _audioState.value
                 val patchedBytes = patchMidiInstrument(
                     midiBytes = midiBytes,
@@ -279,6 +292,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     altoInstrument = state.altoInstrument,
                     tenorInstrument = state.tenorInstrument,
                     bassInstrument = state.bassInstrument,
+                    isSatbRoutingEnabled = state.isSatbRoutingEnabled,
                     speed = state.playbackSpeed
                 )
                 
@@ -358,10 +372,11 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         isAltoEnabled: Boolean,
         isTenorEnabled: Boolean,
         isBassEnabled: Boolean,
-        sopranoInstrument: Int = 19,
-        altoInstrument: Int = 19,
-        tenorInstrument: Int = 19,
-        bassInstrument: Int = 19,
+        sopranoInstrument: Int = 16,
+        altoInstrument: Int = 16,
+        tenorInstrument: Int = 16,
+        bassInstrument: Int = 16,
+        isSatbRoutingEnabled: Boolean = false,
         speed: Float = 1.0f
     ): ByteArray {
         val result = midiBytes.clone()
@@ -467,12 +482,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                             0x90 -> {
                                 // Note On: data1 = note, data2 = velocity
                                 if (trackPtr + 1 < trackEnd) {
-                                    val isMuted = when (channel) {
-                                        0 -> !isSopranoEnabled
-                                        1 -> !isAltoEnabled
-                                        2 -> !isTenorEnabled
-                                        3 -> !isBassEnabled
-                                        else -> false
+                                    val isMuted = if (isSatbRoutingEnabled) {
+                                        when (channel) {
+                                            0 -> !isSopranoEnabled
+                                            1 -> !isAltoEnabled
+                                            2 -> !isTenorEnabled
+                                            3 -> !isBassEnabled
+                                            else -> false
+                                        }
+                                    } else {
+                                        false
                                     }
                                     if (isMuted) {
                                         result[trackPtr + 1] = 0.toByte()
@@ -503,12 +522,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 if (trackPtr < trackEnd) {
                                     // Channel 9 is standard MIDI drums. Skip it.
                                     if (channel != 9) {
-                                        val instr = when (channel) {
-                                            0 -> sopranoInstrument
-                                            1 -> altoInstrument
-                                            2 -> tenorInstrument
-                                            3 -> bassInstrument
-                                            else -> instrumentProgram
+                                        val instr = if (isSatbRoutingEnabled) {
+                                            when (channel) {
+                                                0 -> sopranoInstrument
+                                                1 -> altoInstrument
+                                                2 -> tenorInstrument
+                                                3 -> bassInstrument
+                                                else -> instrumentProgram
+                                            }
+                                        } else {
+                                            instrumentProgram
                                         }
                                         result[trackPtr] = instr.toByte()
                                     }
@@ -634,6 +657,19 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setSatbRoutingEnabled(enabled: Boolean) {
+        val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_satb_routing_enabled", enabled).apply()
+        
+        _audioState.value = _audioState.value.copy(isSatbRoutingEnabled = enabled)
+        
+        val state = _audioState.value
+        val url = state.currentAudioUrl
+        if (url != null && url.endsWith(".mid", ignoreCase = true)) {
+            applyRealtimeMidiChanges()
+        }
+    }
+
     private fun applyRealtimeMidiChanges() {
         val mp = mediaPlayer ?: return
         val isPlaying = mp.isPlaying
@@ -649,7 +685,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         val num = state.currentSongNumber ?: return
         
         val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
-        val instrument = prefs.getInt("midi_instrument", 19)
+        val instrument = prefs.getInt("midi_instrument", 16)
         
         val patchedBytes = patchMidiInstrument(
             midiBytes = midiBytes,
@@ -663,6 +699,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             altoInstrument = state.altoInstrument,
             tenorInstrument = state.tenorInstrument,
             bassInstrument = state.bassInstrument,
+            isSatbRoutingEnabled = state.isSatbRoutingEnabled,
             speed = state.playbackSpeed
         )
         

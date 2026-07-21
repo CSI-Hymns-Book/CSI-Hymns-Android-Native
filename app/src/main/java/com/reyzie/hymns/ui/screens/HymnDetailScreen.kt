@@ -1392,9 +1392,9 @@ fun ExpressiveAudioPlayer(
                             var showInstrumentMenu by remember { mutableStateOf(false) }
                             val currentInstrumentId = remember {
                                 val prefs = context.getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
-                                mutableStateOf(prefs.getInt("midi_instrument", 19))
+                                mutableStateOf(prefs.getInt("midi_instrument", 16))
                             }
-                            val currentInstrumentName = instruments.firstOrNull { it.second == currentInstrumentId.value }?.first ?: "Church Organ"
+                            val currentInstrumentName = instruments.firstOrNull { it.second == currentInstrumentId.value }?.first ?: "Drawbar Organ"
                             
                             Box {
                                 TextButton(onClick = { showInstrumentMenu = true }) {
@@ -1555,93 +1555,104 @@ fun ExpressiveAudioPlayer(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(
-                                text = "SATB Vocal Routing & Instruments",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(bottom = 4.dp)
-                            )
-                            
-                            val satbParts = listOf(
-                                SatbPartConfig("Soprano", audioState.isSopranoEnabled, audioState.sopranoInstrument,
-                                    onToggle = { enabled -> audioViewModel.setSatbRoute(enabled, audioState.isAltoEnabled, audioState.isTenorEnabled, audioState.isBassEnabled) },
-                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(inst, audioState.altoInstrument, audioState.tenorInstrument, audioState.bassInstrument) }
-                                ),
-                                SatbPartConfig("Alto", audioState.isAltoEnabled, audioState.altoInstrument,
-                                    onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, enabled, audioState.isTenorEnabled, audioState.isBassEnabled) },
-                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, inst, audioState.tenorInstrument, audioState.bassInstrument) }
-                                ),
-                                SatbPartConfig("Tenor", audioState.isTenorEnabled, audioState.tenorInstrument,
-                                    onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, audioState.isAltoEnabled, enabled, audioState.isBassEnabled) },
-                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, audioState.altoInstrument, inst, audioState.bassInstrument) }
-                                ),
-                                SatbPartConfig("Bass", audioState.isBassEnabled, audioState.bassInstrument,
-                                    onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, audioState.isAltoEnabled, audioState.isTenorEnabled, enabled) },
-                                    onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, audioState.altoInstrument, audioState.tenorInstrument, inst) }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "SATB Vocal Routing & Instruments",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            )
+                                Switch(
+                                    checked = audioState.isSatbRoutingEnabled,
+                                    onCheckedChange = { audioViewModel.setSatbRoutingEnabled(it) }
+                                )
+                            }
                             
-                            satbParts.forEach { part ->
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                            if (audioState.isSatbRoutingEnabled) {
+                                val satbParts = listOf(
+                                    SatbPartConfig("Soprano", audioState.isSopranoEnabled, audioState.sopranoInstrument,
+                                        onToggle = { enabled -> audioViewModel.setSatbRoute(enabled, audioState.isAltoEnabled, audioState.isTenorEnabled, audioState.isBassEnabled) },
+                                        onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(inst, audioState.altoInstrument, audioState.tenorInstrument, audioState.bassInstrument) }
+                                    ),
+                                    SatbPartConfig("Alto", audioState.isAltoEnabled, audioState.altoInstrument,
+                                        onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, enabled, audioState.isTenorEnabled, audioState.isBassEnabled) },
+                                        onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, inst, audioState.tenorInstrument, audioState.bassInstrument) }
+                                    ),
+                                    SatbPartConfig("Tenor", audioState.isTenorEnabled, audioState.tenorInstrument,
+                                        onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, audioState.isAltoEnabled, enabled, audioState.isBassEnabled) },
+                                        onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, audioState.altoInstrument, inst, audioState.bassInstrument) }
+                                    ),
+                                    SatbPartConfig("Bass", audioState.isBassEnabled, audioState.bassInstrument,
+                                        onToggle = { enabled -> audioViewModel.setSatbRoute(audioState.isSopranoEnabled, audioState.isAltoEnabled, audioState.isTenorEnabled, enabled) },
+                                        onInstrumentChange = { inst -> audioViewModel.setSatbInstruments(audioState.sopranoInstrument, audioState.altoInstrument, audioState.tenorInstrument, inst) }
+                                    )
+                                )
+                                
+                                satbParts.forEach { part ->
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 10.dp, vertical = 6.dp),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Checkbox(
-                                                checked = part.isEnabled,
-                                                onCheckedChange = { part.onToggle(it) }
-                                            )
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = part.name,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = if (part.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                            )
-                                        }
-                                        
-                                        var showPartMenu by remember { mutableStateOf(false) }
-                                        val currentPartInstrumentName = instruments.firstOrNull { it.second == part.currentInstrument }?.first ?: "Church Organ"
-                                        
-                                        Box {
-                                            TextButton(
-                                                onClick = { showPartMenu = true },
-                                                enabled = part.isEnabled
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
                                             ) {
-                                                Text(
-                                                    text = currentPartInstrumentName,
-                                                    fontWeight = FontWeight.SemiBold
+                                                Checkbox(
+                                                    checked = part.isEnabled,
+                                                    onCheckedChange = { part.onToggle(it) }
                                                 )
-                                                Icon(
-                                                    imageVector = Icons.Default.ArrowDropDown,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = part.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (part.isEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                                 )
                                             }
-                                            DropdownMenu(
-                                                expanded = showPartMenu,
-                                                onDismissRequest = { showPartMenu = false }
-                                            ) {
-                                                instruments.forEach { (name, id) ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(name) },
-                                                        onClick = {
-                                                            part.onInstrumentChange(id)
-                                                            showPartMenu = false
-                                                        }
+                                            
+                                            var showPartMenu by remember { mutableStateOf(false) }
+                                            val currentPartInstrumentName = instruments.firstOrNull { it.second == part.currentInstrument }?.first ?: "Drawbar Organ"
+                                            
+                                            Box {
+                                                TextButton(
+                                                    onClick = { showPartMenu = true },
+                                                    enabled = part.isEnabled
+                                                ) {
+                                                    Text(
+                                                        text = currentPartInstrumentName,
+                                                        fontWeight = FontWeight.SemiBold
                                                     )
+                                                    Icon(
+                                                        imageVector = Icons.Default.ArrowDropDown,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showPartMenu,
+                                                    onDismissRequest = { showPartMenu = false }
+                                                ) {
+                                                    instruments.forEach { (name, id) ->
+                                                        DropdownMenuItem(
+                                                            text = { Text(name) },
+                                                            onClick = {
+                                                                part.onInstrumentChange(id)
+                                                                showPartMenu = false
+                                                            }
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
