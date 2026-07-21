@@ -202,6 +202,8 @@ class HymnsRepository(context: Context) {
         emptyList()
     }
 
+    fun getCachedMidiFileNames(): List<String> = cachedMidiFileNames ?: emptyList()
+
     private fun parseGitHubContentsNames(json: String): List<String> {
         return try {
             val jsonArray = com.google.gson.JsonParser.parseString(json).asJsonArray

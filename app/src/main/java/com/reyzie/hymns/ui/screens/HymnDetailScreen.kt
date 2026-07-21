@@ -131,7 +131,13 @@ fun HymnDetailScreen(
             true
         } else {
             val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
-            remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
+            val normalized = MeterUtils.getNormalizedMeter(baseMeter)
+            val hasMatchingFiles = midiFilesList.any { filename ->
+                val nameWithoutExt = filename.substringBeforeLast(".mid")
+                val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
+                normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+            }
+            hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized)
         }
     }
 

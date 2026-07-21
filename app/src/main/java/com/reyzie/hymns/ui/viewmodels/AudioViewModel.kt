@@ -184,7 +184,12 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
                 val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(baseMeter)
-                config.parsedMidiHymns.contains(normalized)
+                val hasMatchingFiles = hymnsRepository.getCachedMidiFileNames().any { filename ->
+                    val nameWithoutExt = filename.substringBeforeLast(".mid")
+                    val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
+                    normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                }
+                hasMatchingFiles || config.parsedMidiHymns.contains(normalized)
             }
         }
 
