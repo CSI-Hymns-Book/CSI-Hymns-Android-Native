@@ -158,7 +158,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             if (isMtRef) {
                 true
             } else {
-                val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(defaultOption)
+                val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
+                val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(baseMeter)
                 config.parsedMidiHymns.contains(normalized)
             }
         }

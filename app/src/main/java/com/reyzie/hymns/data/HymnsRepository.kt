@@ -24,6 +24,8 @@ class HymnsRepository(context: Context) {
         .readTimeout(45, TimeUnit.SECONDS)
         .build()
     private val gson = Gson()
+    private val appConfigRepository = AppConfigRepository(context = appContext)
+    private var cachedMidiFileNames: List<String>? = null
 
     suspend fun loadHymns(section: AppSection = AppSection.CSI): List<Hymn> = withContext(Dispatchers.IO) {
         store.ensureSeeded()
@@ -151,6 +153,46 @@ class HymnsRepository(context: Context) {
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             return response.body?.string()?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    private fun fetchUrlWithAuth(url: String, token: String?): String? {
+        val builder = Request.Builder().url(url)
+        if (!token.isNullOrBlank()) {
+            builder.addHeader("Authorization", "Bearer $token")
+        }
+        val request = builder.build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return null
+            return response.body?.string()?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    suspend fun getMidiFileNames(): List<String> = withContext(Dispatchers.IO) {
+        cachedMidiFileNames?.let { return@withContext it }
+        try {
+            val config = appConfigRepository.getCachedRemoteConfig()
+            val token = config.githubToken
+            val response = fetchUrlWithAuth("https://api.github.com/repos/reynold29/midi-files/contents/Hymns/midi", token)
+            if (response != null) {
+                val parsed = parseGitHubContentsNames(response)
+                cachedMidiFileNames = parsed
+                return@withContext parsed
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch midi file list from GitHub", e)
+        }
+        emptyList()
+    }
+
+    private fun parseGitHubContentsNames(json: String): List<String> {
+        return try {
+            val listType = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
+            val items: List<Map<String, Any>> = gson.fromJson(json, listType)
+            items.mapNotNull { it["name"] as? String }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse GitHub contents names JSON", e)
+            emptyList()
         }
     }
 

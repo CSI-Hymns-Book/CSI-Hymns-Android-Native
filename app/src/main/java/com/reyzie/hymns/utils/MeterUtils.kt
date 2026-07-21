@@ -23,7 +23,7 @@ object MeterUtils {
     fun getMeterMidiFileName(signature: String?): String {
         if (signature.isNullOrBlank()) return "default"
         
-        // Trim, remove all spaces (so "7. 6. 7. 6." becomes "7.6.7.6.")
+        // Trim, remove all spaces
         var clean = signature.trim().replace(" ", "")
         
         // Strip any trailing dot to avoid double dots when appending ".mid"
@@ -38,5 +38,25 @@ object MeterUtils {
         } catch (e: Exception) {
             clean
         }
+    }
+
+    /**
+     * Extracts and formats the tune name from a signature/config option string.
+     * Example: "11.11.11.5_Christe_fons_jugis" -> "Christe Fons Jugis"
+     * Example: "11.11.11.5_fleming" -> "Fleming"
+     * Example: "11.11.11.5" -> "11.11.11.5"
+     */
+    fun getDisplayTuneName(option: String): String {
+        if (!option.contains("_")) {
+            return option
+        }
+        val suffix = option.substringAfter("_")
+        if (suffix.isBlank()) return option
+        
+        return suffix.split("_")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
     }
 }
