@@ -385,8 +385,38 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     mediaPlayer = mp
                 }
             } catch (e: Exception) {
+                val is404 = e is java.io.FileNotFoundException || e.message?.contains("404") == true
+                if (is404) {
+                    val config = appConfigRepository.getCachedRemoteConfig()
+                    val disableFallback = if (isKeerthane) {
+                        config.parsedMidiKeerthanes.contains(number) || (config.disableOggFallback == "keerthane" || config.disableOggFallback == "both")
+                    } else {
+                        (config.disableOggFallback == "hymns" || config.disableOggFallback == "both")
+                    }
+                    
+                    if (!disableFallback) {
+                        val fallbackUrl = if (isKeerthane) {
+                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
+                        } else {
+                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
+                        }
+                        android.util.Log.d("AudioViewModel", "MIDI 404. Falling back to ogg: $fallbackUrl")
+                        withContext(Dispatchers.Main) {
+                            isUsingMediaPlayer = false
+                            _audioState.value = _audioState.value.copy(
+                                isLoading = true,
+                                currentAudioUrl = fallbackUrl
+                            )
+                            exoPlayer.setMediaItem(MediaItem.fromUri(fallbackUrl))
+                            exoPlayer.setPlaybackSpeed(_audioState.value.playbackSpeed)
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }
+                        return@launch
+                    }
+                }
+                
                 withContext(Dispatchers.Main) {
-                    val is404 = e is java.io.FileNotFoundException || e.message?.contains("404") == true
                     val errorMsg = if (is404) {
                         "AUDIO_NOT_FOUND"
                     } else {
