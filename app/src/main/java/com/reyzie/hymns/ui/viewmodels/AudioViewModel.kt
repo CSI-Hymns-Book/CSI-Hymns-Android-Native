@@ -167,127 +167,132 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         progressJob?.cancel()
     }
     fun playSong(number: Int, title: String, isKeerthane: Boolean, signature: String? = null, customAudioUrl: String? = null) {
-        val config = appConfigRepository.getCachedRemoteConfig()
-        
-        val defaultOption = if (!isKeerthane && !signature.isNullOrBlank()) {
-            if (signature.contains("/")) signature.split("/").firstOrNull()?.trim() ?: "" else signature.trim()
-        } else ""
+        viewModelScope.launch {
+            // Load and await the MIDI files list from GitHub to ensure complete mapping
+            hymnsRepository.getMidiFileNames()
 
-        val isMidiMigrated = if (isKeerthane) {
-            config.parsedMidiKeerthanes.contains(number)
-        } else {
-            val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
-                          defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
-                          defaultOption.lowercase().startsWith("mt")
-            if (isMtRef) {
-                true
-            } else {
-                val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
-                val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(baseMeter)
-                val hasMatchingFiles = hymnsRepository.getCachedMidiFileNames().any { filename ->
-                    val nameWithoutExt = filename.substringBeforeLast(".mid")
-                    val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
-                    normalizedName == normalized || normalizedName.startsWith("${normalized}_")
-                }
-                hasMatchingFiles || config.parsedMidiHymns.contains(normalized)
-            }
-        }
+            val config = appConfigRepository.getCachedRemoteConfig()
+            
+            val defaultOption = if (!isKeerthane && !signature.isNullOrBlank()) {
+                if (signature.contains("/")) signature.split("/").firstOrNull()?.trim() ?: "" else signature.trim()
+            } else ""
 
-        val audioUrl = customAudioUrl ?: if (isKeerthane) {
-            if (isMidiMigrated) {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$number.mid"
+            val isMidiMigrated = if (isKeerthane) {
+                config.parsedMidiKeerthanes.contains(number)
             } else {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
-            }
-        } else {
-            if (isMidiMigrated) {
                 val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
                               defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
                               defaultOption.lowercase().startsWith("mt")
                 if (isMtRef) {
-                    val mtNumber = defaultOption.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
-                    "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+                    true
                 } else {
-                    val meterName = com.reyzie.hymns.utils.MeterUtils.getMeterMidiFileName(defaultOption)
-                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/${meterName}.mid"
+                    val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
+                    val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(baseMeter)
+                    val hasMatchingFiles = hymnsRepository.getCachedMidiFileNames().any { filename ->
+                        val nameWithoutExt = filename.substringBeforeLast(".mid")
+                        val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
+                        normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                    }
+                    hasMatchingFiles || config.parsedMidiHymns.contains(normalized)
+                }
+            }
+
+            val audioUrl = customAudioUrl ?: if (isKeerthane) {
+                if (isMidiMigrated) {
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$number.mid"
+                } else {
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
                 }
             } else {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
-            }
-        }
-
-        val isMidi = audioUrl.endsWith(".mid", ignoreCase = true)
-        
-        if (_audioState.value.currentAudioUrl == audioUrl) {
-            _audioState.value = _audioState.value.copy(
-                isVisible = true,
-                currentSongTitle = title,
-                error = null
-            )
-            if (isMidi) {
-                val mp = mediaPlayer
-                if (mp == null) {
-                    rawMidiCache = null
-                    playMidi(audioUrl, number, title, isKeerthane)
+                if (isMidiMigrated) {
+                    val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                                  defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                                  defaultOption.lowercase().startsWith("mt")
+                    if (isMtRef) {
+                        val mtNumber = defaultOption.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
+                        "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+                    } else {
+                        val meterName = com.reyzie.hymns.utils.MeterUtils.getMeterMidiFileName(defaultOption)
+                        "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/${meterName}.mid"
+                    }
                 } else {
-                    mp.seekTo(0)
-                    _audioState.value = _audioState.value.copy(position = 0, isPlaying = true)
-                    mp.start()
-                    startProgressUpdate()
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
                 }
+            }
+
+            val isMidi = audioUrl.endsWith(".mid", ignoreCase = true)
+            
+            if (_audioState.value.currentAudioUrl == audioUrl) {
+                _audioState.value = _audioState.value.copy(
+                    isVisible = true,
+                    currentSongTitle = title,
+                    error = null
+                )
+                if (isMidi) {
+                    val mp = mediaPlayer
+                    if (mp == null) {
+                        rawMidiCache = null
+                        playMidi(audioUrl, number, title, isKeerthane)
+                    } else {
+                        mp.seekTo(0)
+                        _audioState.value = _audioState.value.copy(position = 0, isPlaying = true)
+                        mp.start()
+                        startProgressUpdate()
+                    }
+                } else {
+                    val state = _audioState.value
+                    if (exoPlayer.mediaItemCount == 0) {
+                        _audioState.value = _audioState.value.copy(isLoading = true, error = null)
+                        exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
+                        exoPlayer.prepare()
+                    }
+                    exoPlayer.setPlaybackSpeed(state.playbackSpeed)
+                    exoPlayer.seekTo(0)
+                    _audioState.value = _audioState.value.copy(position = 0, isPlaying = false)
+                    exoPlayer.play()
+                }
+                return@launch
+            }
+
+            rawMidiCache = null
+            stopProgressUpdate()
+            isUsingMediaPlayer = isMidi
+            val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+            val defaultInstrument = prefs.getInt("midi_instrument", 16)
+            _audioState.value = _audioState.value.copy(
+                currentSongTitle = title,
+                currentSongNumber = number,
+                isKeerthane = isKeerthane,
+                isVisible = true,
+                isPlaying = false,
+                isLoading = true,
+                error = null,
+                position = 0,
+                duration = 0,
+                currentAudioUrl = audioUrl,
+                sopranoInstrument = defaultInstrument,
+                altoInstrument = defaultInstrument,
+                tenorInstrument = defaultInstrument,
+                bassInstrument = defaultInstrument
+            )
+
+            // Reset ExoPlayer
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+
+            // Reset MediaPlayer fallback
+            mediaPlayer?.release()
+            mediaPlayer = null
+
+            if (isMidi) {
+                playMidi(audioUrl, number, title, isKeerthane)
             } else {
                 val state = _audioState.value
-                if (exoPlayer.mediaItemCount == 0) {
-                    _audioState.value = _audioState.value.copy(isLoading = true, error = null)
-                    exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
-                    exoPlayer.prepare()
-                }
+                exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
                 exoPlayer.setPlaybackSpeed(state.playbackSpeed)
-                exoPlayer.seekTo(0)
-                _audioState.value = _audioState.value.copy(position = 0, isPlaying = false)
+                exoPlayer.prepare()
                 exoPlayer.play()
             }
-            return
-        }
-
-        rawMidiCache = null
-        stopProgressUpdate()
-        isUsingMediaPlayer = isMidi
-        val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
-        val defaultInstrument = prefs.getInt("midi_instrument", 16)
-        _audioState.value = _audioState.value.copy(
-            currentSongTitle = title,
-            currentSongNumber = number,
-            isKeerthane = isKeerthane,
-            isVisible = true,
-            isPlaying = false,
-            isLoading = true,
-            error = null,
-            position = 0,
-            duration = 0,
-            currentAudioUrl = audioUrl,
-            sopranoInstrument = defaultInstrument,
-            altoInstrument = defaultInstrument,
-            tenorInstrument = defaultInstrument,
-            bassInstrument = defaultInstrument
-        )
-
-        // Reset ExoPlayer
-        exoPlayer.stop()
-        exoPlayer.clearMediaItems()
-
-        // Reset MediaPlayer fallback
-        mediaPlayer?.release()
-        mediaPlayer = null
-
-        if (isMidi) {
-            playMidi(audioUrl, number, title, isKeerthane)
-        } else {
-            val state = _audioState.value
-            exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
-            exoPlayer.setPlaybackSpeed(state.playbackSpeed)
-            exoPlayer.prepare()
-            exoPlayer.play()
         }
     }
 
