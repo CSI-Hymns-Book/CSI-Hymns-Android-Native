@@ -601,19 +601,6 @@ fun HymnDetailScreen(
                                         }
                                     }
                                 }
-                                if (verifiedTuneOptions.size > 1) {
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    TuneSelectorDropdown(
-                                        tuneOptions = verifiedTuneOptions,
-                                        currentSongNum = hymn.number,
-                                        isKeerthane = isKeerthane,
-                                        isMt = isMt,
-                                        audioState = audioState,
-                                        remoteAppConfig = remoteAppConfig,
-                                        audioViewModel = audioViewModel,
-                                        context = context
-                                    )
-                                }
                             }
                         }
 
@@ -794,20 +781,6 @@ fun HymnDetailScreen(
                                 icon = Icons.Default.BugReport,
                                 label = "Report",
                                 variant = GroupButtonVariant.Accent
-                            )
-                        }
-
-                        if (verifiedTuneOptions.size > 1) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            TuneSelectorDropdown(
-                                tuneOptions = verifiedTuneOptions,
-                                currentSongNum = hymn.number,
-                                isKeerthane = isKeerthane,
-                                isMt = isMt,
-                                audioState = audioState,
-                                remoteAppConfig = remoteAppConfig,
-                                audioViewModel = audioViewModel,
-                                context = context
                             )
                         }
 
