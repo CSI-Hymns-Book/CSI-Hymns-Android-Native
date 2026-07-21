@@ -235,6 +235,7 @@ fun SettingsScreen(
                         19 -> "Church Organ (Pipe Organ)"
                         48 -> "Orchestral Strings (Lush)"
                         14 -> "Church Bells (Tubular)"
+                        52 -> "Choir"
                         else -> "Drawbar Organ (Hammond)"
                     },
                     icon = Icons.Default.MusicNote,
@@ -359,7 +360,8 @@ fun SettingsScreen(
             18 to "Rock Organ (Heavy)",
             19 to "Church Organ (Pipe Organ)",
             48 to "Orchestral Strings (Lush)",
-            14 to "Church Bells (Tubular)"
+            14 to "Church Bells (Tubular)",
+            52 to "Choir"
         )
         AlertDialog(
             onDismissRequest = { showMidiInstrumentDialog = false },

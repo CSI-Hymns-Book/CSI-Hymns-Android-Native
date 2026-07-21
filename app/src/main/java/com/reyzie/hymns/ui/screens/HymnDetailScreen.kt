@@ -1371,8 +1371,7 @@ fun ExpressiveAudioPlayer(
                             Pair("Church Organ", 19),
                             Pair("Grand Piano", 0),
                             Pair("Drawbar Organ", 16),
-                            Pair("Nylon Guitar", 24),
-                            Pair("Violin", 40),
+                            Pair("Choir", 52),
                             Pair("Flute", 73)
                         )
 
