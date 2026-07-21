@@ -235,6 +235,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         rawMidiCache = null
         stopProgressUpdate()
         isUsingMediaPlayer = isMidi
+        val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        val defaultInstrument = prefs.getInt("midi_instrument", 16)
         _audioState.value = _audioState.value.copy(
             currentSongTitle = title,
             currentSongNumber = number,
@@ -245,7 +247,11 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             error = null,
             position = 0,
             duration = 0,
-            currentAudioUrl = audioUrl
+            currentAudioUrl = audioUrl,
+            sopranoInstrument = defaultInstrument,
+            altoInstrument = defaultInstrument,
+            tenorInstrument = defaultInstrument,
+            bassInstrument = defaultInstrument
         )
 
         // Reset ExoPlayer
@@ -499,7 +505,19 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 }
                                 if (trackPtr < trackEnd && channel != 9) {
                                     var note = result[trackPtr].toInt() and 0xFF
-                                    note = (note + transposeSemitones).coerceIn(0, 127)
+                                    val instr = if (isSatbRoutingEnabled) {
+                                        when (channel) {
+                                            0 -> sopranoInstrument
+                                            1 -> altoInstrument
+                                            2 -> tenorInstrument
+                                            3 -> bassInstrument
+                                            else -> instrumentProgram
+                                        }
+                                    } else {
+                                        instrumentProgram
+                                    }
+                                    val choirOffset = if (instr == 52) 12 else 0
+                                    note = (note + transposeSemitones + choirOffset).coerceIn(0, 127)
                                     result[trackPtr] = note.toByte()
                                 }
                                 trackPtr += 2
@@ -508,7 +526,19 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 // Note Off, Key Pressure: transpose note
                                 if (trackPtr < trackEnd && channel != 9) {
                                     var note = result[trackPtr].toInt() and 0xFF
-                                    note = (note + transposeSemitones).coerceIn(0, 127)
+                                    val instr = if (isSatbRoutingEnabled) {
+                                        when (channel) {
+                                            0 -> sopranoInstrument
+                                            1 -> altoInstrument
+                                            2 -> tenorInstrument
+                                            3 -> bassInstrument
+                                            else -> instrumentProgram
+                                        }
+                                    } else {
+                                        instrumentProgram
+                                    }
+                                    val choirOffset = if (instr == 52) 12 else 0
+                                    note = (note + transposeSemitones + choirOffset).coerceIn(0, 127)
                                     result[trackPtr] = note.toByte()
                                 }
                                 trackPtr += 2
