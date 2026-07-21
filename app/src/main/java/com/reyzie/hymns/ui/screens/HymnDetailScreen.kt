@@ -97,16 +97,20 @@ fun HymnDetailScreen(
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
     var midiFilesList by remember { mutableStateOf<List<String>>(emptyList()) }
     LaunchedEffect(Unit) {
-        try {
-            val list = repository.loadHymns(AppSection.CSI)
-            csiHymnsMap = list.associateBy { it.number }
-        } catch (e: Exception) {
-            android.util.Log.e("HymnDetailScreen", "Failed to load CSI hymns for options signature lookup", e)
+        launch {
+            try {
+                val list = repository.loadHymns(AppSection.CSI)
+                csiHymnsMap = list.associateBy { it.number }
+            } catch (e: Exception) {
+                android.util.Log.e("HymnDetailScreen", "Failed to load CSI hymns for options signature lookup", e)
+            }
         }
-        try {
-            midiFilesList = repository.getMidiFileNames()
-        } catch (e: Exception) {
-            android.util.Log.e("HymnDetailScreen", "Failed to load GitHub midi files list", e)
+        launch {
+            try {
+                midiFilesList = repository.getMidiFileNames()
+            } catch (e: Exception) {
+                android.util.Log.e("HymnDetailScreen", "Failed to load GitHub midi files list", e)
+            }
         }
     }
 
@@ -144,7 +148,8 @@ fun HymnDetailScreen(
             val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
                           defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
                           defaultOption.lowercase().startsWith("mt")
-            val isOptMigrated = if (isMtRef) true else remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(defaultOption))
+            val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
+            val isOptMigrated = if (isMtRef) true else remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
             getUrlForOption(defaultOption, isOptMigrated, hymn.number)
         }
     }

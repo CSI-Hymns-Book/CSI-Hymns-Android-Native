@@ -157,15 +157,32 @@ class HymnsRepository(context: Context) {
     }
 
     private fun fetchUrlWithAuth(url: String, token: String?): String? {
-        val builder = Request.Builder().url(url)
         if (!token.isNullOrBlank()) {
-            builder.addHeader("Authorization", "Bearer $token")
+            try {
+                val builder = Request.Builder().url(url)
+                    .addHeader("Authorization", "Bearer $token")
+                val request = builder.build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        return response.body?.string()?.takeIf { it.isNotBlank() }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed fetch with token, trying fallback without token", e)
+            }
         }
-        val request = builder.build()
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
-            return response.body?.string()?.takeIf { it.isNotBlank() }
+        
+        try {
+            val request = Request.Builder().url(url).build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    return response.body?.string()?.takeIf { it.isNotBlank() }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed fallback fetch without token", e)
         }
+        return null
     }
 
     suspend fun getMidiFileNames(): List<String> = withContext(Dispatchers.IO) {
@@ -187,9 +204,17 @@ class HymnsRepository(context: Context) {
 
     private fun parseGitHubContentsNames(json: String): List<String> {
         return try {
-            val listType = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
-            val items: List<Map<String, Any>> = gson.fromJson(json, listType)
-            items.mapNotNull { it["name"] as? String }
+            val jsonArray = com.google.gson.JsonParser.parseString(json).asJsonArray
+            val names = mutableListOf<String>()
+            for (element in jsonArray) {
+                if (element.isJsonObject) {
+                    val nameObj = element.asJsonObject.get("name")
+                    if (nameObj != null && nameObj.isJsonPrimitive) {
+                        names.add(nameObj.asString)
+                    }
+                }
+            }
+            names
         } catch (e: Exception) {
             Log.e(TAG, "Failed to parse GitHub contents names JSON", e)
             emptyList()
