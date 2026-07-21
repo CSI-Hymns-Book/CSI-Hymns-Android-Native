@@ -96,6 +96,7 @@ fun HymnDetailScreen(
     val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
     var midiFilesList by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isMidiFilesLoading by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) {
         launch {
             try {
@@ -110,6 +111,8 @@ fun HymnDetailScreen(
                 midiFilesList = repository.getMidiFileNames()
             } catch (e: Exception) {
                 android.util.Log.e("HymnDetailScreen", "Failed to load GitHub midi files list", e)
+            } finally {
+                isMidiFilesLoading = false
             }
         }
     }
@@ -730,26 +733,31 @@ fun HymnDetailScreen(
                                 isSelected = isFavorite,
                                 variant = GroupButtonVariant.Filled
                             )
+                            val isLoadingMidi = isMidiMigrated && isMidiFilesLoading
                             Button(
                                 index = 1,
                                 onClick = {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    if (!audioState.isVisible || !isSameSong) {
-                                        audioViewModel.playSong(
-                                            number = hymn.number,
-                                            title = hymn.title,
-                                            isKeerthane = isKeerthane,
-                                            signature = hymn.signature,
-                                            customAudioUrl = targetAudioUrl
-                                        )
-                                    } else {
-                                        audioViewModel.toggleVisibility()
+                                    if (!isLoadingMidi) {
+                                        HapticFeedbackManager.smoothClick(context)
+                                        if (!audioState.isVisible || !isSameSong) {
+                                            audioViewModel.playSong(
+                                                number = hymn.number,
+                                                title = hymn.title,
+                                                isKeerthane = isKeerthane,
+                                                signature = hymn.signature,
+                                                customAudioUrl = targetAudioUrl
+                                            )
+                                        } else {
+                                            audioViewModel.toggleVisibility()
+                                        }
                                     }
                                 },
-                                icon = if (audioState.isVisible && isSameSong) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
-                                label = if (audioState.isVisible && isSameSong) "Hide" else "Audio",
+                                icon = if (isLoadingMidi) null else if (audioState.isVisible && isSameSong) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
+                                label = if (isLoadingMidi) "Loading..." else if (audioState.isVisible && isSameSong) "Hide" else "Audio",
                                 isSelected = audioState.isVisible && isSameSong,
-                                variant = GroupButtonVariant.Tonal
+                                variant = GroupButtonVariant.Tonal,
+                                containerColor = if (isLoadingMidi) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else null,
+                                contentColor = if (isLoadingMidi) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else null
                             )
                             if (castEnabled) {
                                 Button(

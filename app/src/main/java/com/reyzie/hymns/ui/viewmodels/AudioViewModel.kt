@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import com.reyzie.hymns.data.AppConfigRepository
+import com.reyzie.hymns.data.HymnsRepository
 
 data class AudioState(
     val isPlaying: Boolean = false,
@@ -44,6 +45,7 @@ data class AudioState(
 
 class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private val appConfigRepository = AppConfigRepository(context = application)
+    private val hymnsRepository = HymnsRepository(context = application)
     private val exoPlayer = ExoPlayer.Builder(application).build()
     private var mediaPlayer: android.media.MediaPlayer? = null
     private var isUsingMediaPlayer = false
@@ -127,6 +129,15 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             bassInstrument = defaultInstrument,
             isSatbRoutingEnabled = isSatbEnabled
         )
+        
+        // Prefetch MIDI filenames from GitHub contents API at startup
+        viewModelScope.launch {
+            try {
+                hymnsRepository.getMidiFileNames()
+            } catch (e: Exception) {
+                android.util.Log.e("AudioViewModel", "Failed to prefetch GitHub midi file names", e)
+            }
+        }
     }
 
     private fun startProgressUpdate() {
