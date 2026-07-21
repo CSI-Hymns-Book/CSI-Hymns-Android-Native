@@ -27,7 +27,7 @@ data class RemoteAppConfig(
     val isMangaloreHymnsEnabled: Boolean? = null,
     val midiHymnsRanges: String? = null,
     val midiKeerthanesRanges: String? = null,
-    val disableOggFallback: Boolean? = null
+    val disableOggFallback: String? = null
 ) {
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
@@ -142,7 +142,7 @@ class AppConfigRepository(
             isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED]),
             midiHymnsRanges = raw[AppConfigKeys.MIDI_HYMNS_RANGES]?.trim(),
             midiKeerthanesRanges = raw[AppConfigKeys.MIDI_KEERTHANES_RANGES]?.trim(),
-            disableOggFallback = appConfigService.parseBoolean(raw[AppConfigKeys.DISABLE_OGG_FALLBACK])
+            disableOggFallback = raw[AppConfigKeys.DISABLE_OGG_FALLBACK]?.trim()?.lowercase()
         )
 
         // Cache remote values locally
@@ -162,7 +162,7 @@ class AppConfigRepository(
             if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean("is_mangalore_hymns_enabled_cached", remoteConfig.isMangaloreHymnsEnabled)
             putString("midi_hymns_ranges_cached", remoteConfig.midiHymnsRanges)
             putString("midi_keerthanes_ranges_cached", remoteConfig.midiKeerthanesRanges)
-            if (remoteConfig.disableOggFallback != null) putBoolean("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
+            if (remoteConfig.disableOggFallback != null) putString("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
             
             // Legacy / flutter compatibility
             if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
@@ -195,7 +195,7 @@ class AppConfigRepository(
             isMangaloreHymnsEnabled = if (prefs?.contains("is_mangalore_hymns_enabled_cached") == true) prefs.getBoolean("is_mangalore_hymns_enabled_cached", false) else cachedMangaloreRemote(),
             midiHymnsRanges = prefs?.getString("midi_hymns_ranges_cached", null),
             midiKeerthanesRanges = prefs?.getString("midi_keerthanes_ranges_cached", null),
-            disableOggFallback = prefs?.getBoolean("disable_ogg_fallback_cached", false)
+            disableOggFallback = prefs?.getString("disable_ogg_fallback_cached", null)
         )
         return applyLocalOverrides(cached)
     }
@@ -243,9 +243,7 @@ class AppConfigRepository(
             } else config.isMangaloreHymnsEnabled,
             midiHymnsRanges = prefs?.getString("app_config_override_midi_hymns_ranges", null) ?: config.midiHymnsRanges,
             midiKeerthanesRanges = prefs?.getString("app_config_override_midi_keerthanes_ranges", null) ?: config.midiKeerthanesRanges,
-            disableOggFallback = if (prefs?.contains("app_config_override_disable_ogg_fallback") == true) {
-                prefs.getBoolean("app_config_override_disable_ogg_fallback", false)
-            } else config.disableOggFallback
+            disableOggFallback = prefs?.getString("app_config_override_disable_ogg_fallback", null) ?: config.disableOggFallback
         )
         android.util.Log.d("AppConfigRepository", "applyLocalOverrides: outputConfig=$overridden")
         return overridden

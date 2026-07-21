@@ -122,7 +122,7 @@ fun HymnDetailScreen(
     }
 
     val isMidiMigrated = if (isKeerthane) {
-        remoteAppConfig.parsedMidiKeerthanes.contains(hymn.number)
+        remoteAppConfig.parsedMidiKeerthanes.contains(hymn.number) || (remoteAppConfig.disableOggFallback == "keerthane" || remoteAppConfig.disableOggFallback == "both")
     } else {
         val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
                       defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
@@ -137,7 +137,7 @@ fun HymnDetailScreen(
                 val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                 normalizedName == normalized || normalizedName.startsWith("${normalized}_")
             }
-            hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true)
+            hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
         }
     }
 
@@ -164,7 +164,7 @@ fun HymnDetailScreen(
                 val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                 normalizedName == normalized || normalizedName.startsWith("${normalized}_")
             }
-            val isOptMigrated = if (isMtRef) true else (hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true))
+            val isOptMigrated = if (isMtRef) true else (hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both"))
             getUrlForOption(defaultOption, isOptMigrated, hymn.number)
         }
     }
@@ -1975,7 +1975,7 @@ fun TuneSelectorDropdown(
                     val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                     normalizedName == normalized || normalizedName.startsWith("${normalized}_")
                 }
-                hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true)
+                hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
             }
         }
         val optionUrl = when {
@@ -2038,7 +2038,7 @@ fun TuneSelectorDropdown(
         ) {
             tuneOptions.forEach { option ->
                 val isOptionMidiMigrated = if (isKeerthane) {
-                    remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum)
+                    remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum) || (remoteAppConfig.disableOggFallback == "keerthane" || remoteAppConfig.disableOggFallback == "both")
                 } else {
                     val isMtRef = option.contains("M.T.", ignoreCase = true) || 
                                   option.contains("Mang.T.B.", ignoreCase = true) || 
@@ -2053,7 +2053,7 @@ fun TuneSelectorDropdown(
                             val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                             normalizedName == normalized || normalizedName.startsWith("${normalized}_")
                         }
-                        hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true)
+                        hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
                     }
                 }
                 val optionUrl = when {

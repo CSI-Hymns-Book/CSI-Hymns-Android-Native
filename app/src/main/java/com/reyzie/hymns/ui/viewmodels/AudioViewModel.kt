@@ -178,7 +178,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             } else ""
 
             val isMidiMigrated = if (isKeerthane) {
-                config.parsedMidiKeerthanes.contains(number)
+                config.parsedMidiKeerthanes.contains(number) || (config.disableOggFallback == "keerthane" || config.disableOggFallback == "both")
             } else {
                 val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
                               defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
@@ -193,7 +193,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                         val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
                         normalizedName == normalized || normalizedName.startsWith("${normalized}_")
                     }
-                    hasMatchingFiles || config.parsedMidiHymns.contains(normalized) || (config.disableOggFallback == true)
+                    hasMatchingFiles || config.parsedMidiHymns.contains(normalized) || (config.disableOggFallback == "hymns" || config.disableOggFallback == "both")
                 }
             }
 
