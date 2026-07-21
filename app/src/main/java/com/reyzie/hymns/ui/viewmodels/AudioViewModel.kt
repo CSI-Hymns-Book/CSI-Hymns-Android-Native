@@ -231,11 +231,13 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     startProgressUpdate()
                 }
             } else {
+                val state = _audioState.value
                 if (exoPlayer.mediaItemCount == 0) {
                     _audioState.value = _audioState.value.copy(isLoading = true, error = null)
                     exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
                     exoPlayer.prepare()
                 }
+                exoPlayer.setPlaybackSpeed(state.playbackSpeed)
                 exoPlayer.seekTo(0)
                 _audioState.value = _audioState.value.copy(position = 0, isPlaying = false)
                 exoPlayer.play()
@@ -276,7 +278,9 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         if (isMidi) {
             playMidi(audioUrl, number, title, isKeerthane)
         } else {
+            val state = _audioState.value
             exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
+            exoPlayer.setPlaybackSpeed(state.playbackSpeed)
             exoPlayer.prepare()
             exoPlayer.play()
         }
@@ -334,7 +338,15 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 isPlaying = true,
                                 error = null
                             )
+                            try {
+                                val params = preparedMp.playbackParams
+                                params.speed = _audioState.value.playbackSpeed
+                                preparedMp.playbackParams = params
+                            } catch (e: Exception) {
+                                android.util.Log.e("AudioViewModel", "Failed to set native speed on prepare", e)
+                            }
                             preparedMp.start()
+                            mediaPlayer = preparedMp // Store the active player reference!
                             startProgressUpdate()
                         }
                         setOnErrorListener { _, _, _ ->
@@ -763,7 +775,14 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         if (isUsingMediaPlayer) {
             val mp = mediaPlayer
             if (mp != null) {
-                applyRealtimeMidiChanges()
+                try {
+                    val params = mp.playbackParams
+                    params.speed = speed
+                    mp.playbackParams = params
+                } catch (e: Exception) {
+                    android.util.Log.e("AudioViewModel", "Failed to set native MediaPlayer playback speed, falling back to patch", e)
+                    applyRealtimeMidiChanges()
+                }
             }
         } else {
             exoPlayer.setPlaybackSpeed(speed)
