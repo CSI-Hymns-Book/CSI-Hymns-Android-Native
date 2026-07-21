@@ -601,6 +601,19 @@ fun HymnDetailScreen(
                                         }
                                     }
                                 }
+                                if (verifiedTuneOptions.size > 1) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    TuneSelectorDropdown(
+                                        tuneOptions = verifiedTuneOptions,
+                                        currentSongNum = hymn.number,
+                                        isKeerthane = isKeerthane,
+                                        isMt = isMt,
+                                        audioState = audioState,
+                                        remoteAppConfig = remoteAppConfig,
+                                        audioViewModel = audioViewModel,
+                                        context = context
+                                    )
+                                }
                             }
                         }
 
@@ -781,6 +794,20 @@ fun HymnDetailScreen(
                                 icon = Icons.Default.BugReport,
                                 label = "Report",
                                 variant = GroupButtonVariant.Accent
+                            )
+                        }
+
+                        if (verifiedTuneOptions.size > 1) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            TuneSelectorDropdown(
+                                tuneOptions = verifiedTuneOptions,
+                                currentSongNum = hymn.number,
+                                isKeerthane = isKeerthane,
+                                isMt = isMt,
+                                audioState = audioState,
+                                remoteAppConfig = remoteAppConfig,
+                                audioViewModel = audioViewModel,
+                                context = context
                             )
                         }
 
@@ -1133,69 +1160,16 @@ fun ExpressiveAudioPlayer(
 
             if (tuneOptions.size > 1) {
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    tuneOptions.forEach { option ->
-                        val currentSongNum = audioState.currentSongNumber ?: 0
-                        val isOptionMidiMigrated = if (audioState.isKeerthane) {
-                            remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum)
-                        } else {
-                            val isMtRef = option.contains("M.T.", ignoreCase = true) || 
-                                          option.contains("Mang.T.B.", ignoreCase = true) || 
-                                          option.lowercase().startsWith("mt")
-                            if (isMtRef) {
-                                true
-                            } else {
-                                val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
-                                remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
-                            }
-                        }
-                        val optionUrl = when {
-                            audioState.isKeerthane -> {
-                                if (isOptionMidiMigrated) {
-                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$option.mid"
-                                } else {
-                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
-                                }
-                            }
-                            isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
-                            else -> {
-                                getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
-                            }
-                        }
-                        val isSelected = audioState.currentAudioUrl == optionUrl
-                        
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .clickable {
-                                    HapticFeedbackManager.smoothClick(context)
-                                    audioViewModel.playSong(
-                                        number = audioState.currentSongNumber ?: 0,
-                                        title = audioState.currentSongTitle.orEmpty(),
-                                        isKeerthane = audioState.isKeerthane,
-                                        signature = option,
-                                        customAudioUrl = optionUrl
-                                    )
-                                }
-                        ) {
-                            Text(
-                                text = if (audioState.isKeerthane || isMt) {
-                                    if (option == audioState.currentSongNumber?.toString()) "Default" else option
-                                } else {
-                                    MeterUtils.getDisplayTuneName(option)
-                                },
-                                style = MaterialTheme.typography.labelMedium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
-                }
+                TuneSelectorDropdown(
+                    tuneOptions = tuneOptions,
+                    currentSongNum = audioState.currentSongNumber ?: 0,
+                    isKeerthane = audioState.isKeerthane,
+                    isMt = isMt,
+                    audioState = audioState,
+                    remoteAppConfig = remoteAppConfig,
+                    audioViewModel = audioViewModel,
+                    context = context
+                )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -1976,3 +1950,152 @@ data class SatbPartConfig(
     val onToggle: (Boolean) -> Unit,
     val onInstrumentChange: (Int) -> Unit
 )
+
+@Composable
+fun TuneSelectorDropdown(
+    tuneOptions: List<String>,
+    currentSongNum: Int,
+    isKeerthane: Boolean,
+    isMt: Boolean,
+    audioState: AudioState,
+    remoteAppConfig: com.reyzie.hymns.data.RemoteAppConfig,
+    audioViewModel: AudioViewModel,
+    context: Context,
+    modifier: Modifier = Modifier
+) {
+    if (tuneOptions.size <= 1) return
+    
+    var showTuneDropdown by remember { mutableStateOf(false) }
+    
+    // Find the currently active tune option or select the first one
+    val activeOption = tuneOptions.firstOrNull { option ->
+        val isOptionMidiMigrated = if (isKeerthane) {
+            remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum)
+        } else {
+            val isMtRef = option.contains("M.T.", ignoreCase = true) || 
+                          option.contains("Mang.T.B.", ignoreCase = true) || 
+                          option.lowercase().startsWith("mt")
+            if (isMtRef) {
+                true
+            } else {
+                val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
+                remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
+            }
+        }
+        val optionUrl = when {
+            isKeerthane -> {
+                if (isOptionMidiMigrated) {
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$option.mid"
+                } else {
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                }
+            }
+            isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
+            else -> {
+                getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
+            }
+        }
+        audioState.currentAudioUrl == optionUrl
+    } ?: tuneOptions.firstOrNull() ?: ""
+
+    val activeDisplayName = if (isKeerthane || isMt) {
+        if (activeOption == currentSongNum.toString()) "Default" else activeOption
+    } else {
+        MeterUtils.getDisplayTuneName(activeOption)
+    }
+
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier
+                .clickable {
+                    HapticFeedbackManager.smoothClick(context)
+                    showTuneDropdown = true
+                }
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "Select Tune: $activeDisplayName",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = "Select Tune",
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        
+        DropdownMenu(
+            expanded = showTuneDropdown,
+            onDismissRequest = { showTuneDropdown = false }
+        ) {
+            tuneOptions.forEach { option ->
+                val isOptionMidiMigrated = if (isKeerthane) {
+                    remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum)
+                } else {
+                    val isMtRef = option.contains("M.T.", ignoreCase = true) || 
+                                  option.contains("Mang.T.B.", ignoreCase = true) || 
+                                  option.lowercase().startsWith("mt")
+                    if (isMtRef) {
+                        true
+                    } else {
+                        val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
+                        remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
+                    }
+                }
+                val optionUrl = when {
+                    isKeerthane -> {
+                        if (isOptionMidiMigrated) {
+                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$option.mid"
+                        } else {
+                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                        }
+                    }
+                    isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
+                    else -> {
+                        getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
+                    }
+                }
+                val isSelected = audioState.currentAudioUrl == optionUrl
+                
+                val displayName = if (isKeerthane || isMt) {
+                    if (option == currentSongNum.toString()) "Default" else option
+                } else {
+                    MeterUtils.getDisplayTuneName(option)
+                }
+
+                DropdownMenuItem(
+                    text = { 
+                        Text(
+                            text = displayName,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        ) 
+                    },
+                    onClick = {
+                        showTuneDropdown = false
+                        HapticFeedbackManager.smoothClick(context)
+                        audioViewModel.playSong(
+                            number = currentSongNum,
+                            title = audioState.currentSongTitle.orEmpty().ifBlank { "Audio" },
+                            isKeerthane = isKeerthane,
+                            signature = option,
+                            customAudioUrl = optionUrl
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
