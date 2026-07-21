@@ -158,7 +158,13 @@ fun HymnDetailScreen(
                           defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
                           defaultOption.lowercase().startsWith("mt")
             val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
-            val isOptMigrated = if (isMtRef) true else remoteAppConfig.parsedMidiHymns.contains(MeterUtils.getNormalizedMeter(baseMeter))
+            val normalized = MeterUtils.getNormalizedMeter(baseMeter)
+            val hasMatchingFiles = midiFilesList.any { filename ->
+                val nameWithoutExt = filename.substringBeforeLast(".mid")
+                val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
+                normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+            }
+            val isOptMigrated = if (isMtRef) true else (hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized))
             getUrlForOption(defaultOption, isOptMigrated, hymn.number)
         }
     }
