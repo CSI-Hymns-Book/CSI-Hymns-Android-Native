@@ -193,7 +193,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                         val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
                         normalizedName == normalized || normalizedName.startsWith("${normalized}_")
                     }
-                    hasMatchingFiles || config.parsedMidiHymns.contains(normalized)
+                    hasMatchingFiles || config.parsedMidiHymns.contains(normalized) || (config.disableOggFallback == true)
                 }
             }
 

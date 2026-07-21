@@ -137,7 +137,7 @@ fun HymnDetailScreen(
                 val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                 normalizedName == normalized || normalizedName.startsWith("${normalized}_")
             }
-            hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized)
+            hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true)
         }
     }
 
@@ -164,7 +164,7 @@ fun HymnDetailScreen(
                 val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                 normalizedName == normalized || normalizedName.startsWith("${normalized}_")
             }
-            val isOptMigrated = if (isMtRef) true else (hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized))
+            val isOptMigrated = if (isMtRef) true else (hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true))
             getUrlForOption(defaultOption, isOptMigrated, hymn.number)
         }
     }
@@ -1975,7 +1975,7 @@ fun TuneSelectorDropdown(
                     val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                     normalizedName == normalized || normalizedName.startsWith("${normalized}_")
                 }
-                hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized)
+                hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true)
             }
         }
         val optionUrl = when {
@@ -2053,7 +2053,7 @@ fun TuneSelectorDropdown(
                             val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
                             normalizedName == normalized || normalizedName.startsWith("${normalized}_")
                         }
-                        hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized)
+                        hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == true)
                     }
                 }
                 val optionUrl = when {

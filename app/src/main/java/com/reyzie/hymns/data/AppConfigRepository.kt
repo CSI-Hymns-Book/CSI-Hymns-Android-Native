@@ -26,7 +26,8 @@ data class RemoteAppConfig(
     val githubToken: String? = null,
     val isMangaloreHymnsEnabled: Boolean? = null,
     val midiHymnsRanges: String? = null,
-    val midiKeerthanesRanges: String? = null
+    val midiKeerthanesRanges: String? = null,
+    val disableOggFallback: Boolean? = null
 ) {
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
@@ -86,6 +87,7 @@ object AppConfigKeys {
     const val IS_MANGALORE_HYMNS_ENABLED = "is_mangalore_hymns_enabled"
     const val MIDI_HYMNS_RANGES = "midi_hymns_ranges"
     const val MIDI_KEERTHANES_RANGES = "midi_keerthanes_ranges"
+    const val DISABLE_OGG_FALLBACK = "disable_ogg_fallback"
 }
 
 class AppConfigRepository(
@@ -119,7 +121,8 @@ class AppConfigRepository(
                 AppConfigKeys.GITHUB_TOKEN,
                 AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED,
                 AppConfigKeys.MIDI_HYMNS_RANGES,
-                AppConfigKeys.MIDI_KEERTHANES_RANGES
+                AppConfigKeys.MIDI_KEERTHANES_RANGES,
+                AppConfigKeys.DISABLE_OGG_FALLBACK
             )
         )
 
@@ -138,7 +141,8 @@ class AppConfigRepository(
             githubToken = raw[AppConfigKeys.GITHUB_TOKEN]?.trim()?.takeIf { it.isNotEmpty() },
             isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED]),
             midiHymnsRanges = raw[AppConfigKeys.MIDI_HYMNS_RANGES]?.trim(),
-            midiKeerthanesRanges = raw[AppConfigKeys.MIDI_KEERTHANES_RANGES]?.trim()
+            midiKeerthanesRanges = raw[AppConfigKeys.MIDI_KEERTHANES_RANGES]?.trim(),
+            disableOggFallback = appConfigService.parseBoolean(raw[AppConfigKeys.DISABLE_OGG_FALLBACK])
         )
 
         // Cache remote values locally
@@ -158,6 +162,7 @@ class AppConfigRepository(
             if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean("is_mangalore_hymns_enabled_cached", remoteConfig.isMangaloreHymnsEnabled)
             putString("midi_hymns_ranges_cached", remoteConfig.midiHymnsRanges)
             putString("midi_keerthanes_ranges_cached", remoteConfig.midiKeerthanesRanges)
+            if (remoteConfig.disableOggFallback != null) putBoolean("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
             
             // Legacy / flutter compatibility
             if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
@@ -189,7 +194,8 @@ class AppConfigRepository(
             githubToken = prefs?.getString("github_token_cached", null),
             isMangaloreHymnsEnabled = if (prefs?.contains("is_mangalore_hymns_enabled_cached") == true) prefs.getBoolean("is_mangalore_hymns_enabled_cached", false) else cachedMangaloreRemote(),
             midiHymnsRanges = prefs?.getString("midi_hymns_ranges_cached", null),
-            midiKeerthanesRanges = prefs?.getString("midi_keerthanes_ranges_cached", null)
+            midiKeerthanesRanges = prefs?.getString("midi_keerthanes_ranges_cached", null),
+            disableOggFallback = prefs?.getBoolean("disable_ogg_fallback_cached", false)
         )
         return applyLocalOverrides(cached)
     }
@@ -236,7 +242,10 @@ class AppConfigRepository(
                 prefs.getBoolean("app_config_override_is_mangalore_hymns_enabled", false)
             } else config.isMangaloreHymnsEnabled,
             midiHymnsRanges = prefs?.getString("app_config_override_midi_hymns_ranges", null) ?: config.midiHymnsRanges,
-            midiKeerthanesRanges = prefs?.getString("app_config_override_midi_keerthanes_ranges", null) ?: config.midiKeerthanesRanges
+            midiKeerthanesRanges = prefs?.getString("app_config_override_midi_keerthanes_ranges", null) ?: config.midiKeerthanesRanges,
+            disableOggFallback = if (prefs?.contains("app_config_override_disable_ogg_fallback") == true) {
+                prefs.getBoolean("app_config_override_disable_ogg_fallback", false)
+            } else config.disableOggFallback
         )
         android.util.Log.d("AppConfigRepository", "applyLocalOverrides: outputConfig=$overridden")
         return overridden
