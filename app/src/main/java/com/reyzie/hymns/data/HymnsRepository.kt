@@ -148,19 +148,28 @@ class HymnsRepository(context: Context) {
         return emptyList()
     }
 
-    private fun fetchUrl(url: String): String? {
-        val request = Request.Builder().url(url).build()
+    private suspend fun fetchUrl(url: String): String? {
+        val sha = com.reyzie.hymns.utils.GitHubUrlResolver.getLatestCommitSha(appContext)
+        val resolvedUrl = com.reyzie.hymns.utils.GitHubUrlResolver.resolveRawUrl(url, sha)
+        val request = Request.Builder()
+            .url(resolvedUrl)
+            .addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+            .addHeader("Pragma", "no-cache")
+            .addHeader("Expires", "0")
+            .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             return response.body?.string()?.takeIf { it.isNotBlank() }
         }
     }
 
-    private fun fetchUrlWithAuth(url: String, token: String?): String? {
-        if (!token.isNullOrBlank()) {
+    private fun fetchUrlWithAuth(url: String, rawToken: String?): String? {
+        val cleanToken = rawToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+        if (!cleanToken.isNullOrBlank()) {
             try {
                 val builder = Request.Builder().url(url)
-                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("Authorization", "Bearer $cleanToken")
+                    .addHeader("User-Agent", "CSI-Hymns-App")
                 val request = builder.build()
                 client.newCall(request).execute().use { response ->
                     if (response.isSuccessful) {
@@ -168,12 +177,25 @@ class HymnsRepository(context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed fetch with token, trying fallback without token", e)
+                Log.w(TAG, "Failed fetch with Bearer token, trying token prefix: ${e.message}")
+            }
+            try {
+                val builder = Request.Builder().url(url)
+                    .addHeader("Authorization", "token $cleanToken")
+                    .addHeader("User-Agent", "CSI-Hymns-App")
+                val request = builder.build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        return response.body?.string()?.takeIf { it.isNotBlank() }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed fetch with token prefix: ${e.message}")
             }
         }
         
         try {
-            val request = Request.Builder().url(url).build()
+            val request = Request.Builder().url(url).addHeader("User-Agent", "CSI-Hymns-App").build()
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
                     return response.body?.string()?.takeIf { it.isNotBlank() }
@@ -189,8 +211,8 @@ class HymnsRepository(context: Context) {
         cachedMidiFileNames?.let { return@withContext it }
         try {
             val config = appConfigRepository.getCachedRemoteConfig()
-            val token = config.githubToken
-            val response = fetchUrlWithAuth("https://api.github.com/repos/reynold29/midi-files/contents/Hymns/midi", token)
+            val token = config.githubMidiToken
+            val response = fetchUrlWithAuth("https://api.github.com/repos/Reynold29/midi-vault/contents/Hymns", token)
             if (response != null) {
                 val parsed = parseGitHubContentsNames(response)
                 cachedMidiFileNames = parsed

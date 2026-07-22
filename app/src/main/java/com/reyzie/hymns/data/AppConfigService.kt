@@ -41,7 +41,7 @@ class AppConfigService(
 
     /** Normalize jsonb app_config values to strings for existing parsers. */
     internal fun configValueAsString(element: JsonElement?): String? {
-        if (element == null) return null
+        if (element == null || element is JsonNull) return null
         val primitive = runCatching { element.jsonPrimitive }.getOrNull() ?: return element.toString()
         if (primitive.isString) return primitive.content
         primitive.booleanOrNull?.let { return if (it) "true" else "false" }

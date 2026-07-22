@@ -125,12 +125,19 @@ class ContentSyncManager(context: Context) {
         prefs.edit().putLong(KEY_LAST_APP_OPEN, now).apply()
     }
 
-    private fun fetchUrl(url: String): String? {
+    private suspend fun fetchUrl(url: String): String? {
         return try {
-            val request = Request.Builder().url(url).build()
+            val sha = com.reyzie.hymns.utils.GitHubUrlResolver.getLatestCommitSha(appContext)
+            val resolvedUrl = com.reyzie.hymns.utils.GitHubUrlResolver.resolveRawUrl(url, sha)
+            val request = Request.Builder()
+                .url(resolvedUrl)
+                .addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+                .addHeader("Pragma", "no-cache")
+                .addHeader("Expires", "0")
+                .build()
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.w(TAG, "HTTP ${response.code} for $url")
+                    Log.w(TAG, "HTTP ${response.code} for $resolvedUrl")
                     return null
                 }
                 response.body?.string()?.takeIf { it.isNotBlank() }

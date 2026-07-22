@@ -144,14 +144,14 @@ fun HymnDetailScreen(
     val targetAudioUrl = hymn.audioUrl ?: when {
         isKeerthane -> {
             if (isMidiMigrated) {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_${hymn.number}.mid"
+                "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_${hymn.number}.mid"
             } else {
                 "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_${hymn.number}.ogg"
             }
         }
         isMt -> {
             val mtNumber = hymn.signature.split(Regex("[,/\\s]+")).firstOrNull()?.trim() ?: hymn.number.toString()
-            "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+            "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt${mtNumber}.mid"
         }
         else -> {
             val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
@@ -229,9 +229,9 @@ fun HymnDetailScreen(
                 listOf("a", "b", "c", "d").forEach { suffix ->
                     val candidate = "$cleanBase$suffix"
                     if (candidate != baseOpt) {
-                        val urlStr = "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$candidate.mid"
+                        val urlStr = "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt$candidate.mid"
                         launch {
-                            if (checkUrlExists(urlStr)) {
+                            if (checkUrlExists(urlStr, remoteAppConfig.githubMidiToken)) {
                                 if (!verifiedTuneOptions.contains(candidate)) {
                                     verifiedTuneOptions.add(candidate)
                                     val sorted = verifiedTuneOptions.toList().sortedWith(
@@ -1723,12 +1723,12 @@ fun getUrlForOption(option: String, isOptionMidiMigrated: Boolean, songNumber: I
     return when {
         isMtRef -> {
             val mtNumber = trimmed.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
-            "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+            "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt${mtNumber}.mid"
         }
         else -> {
             if (isOptionMidiMigrated) {
                 val meterName = MeterUtils.getMeterMidiFileName(trimmed)
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/${meterName}.mid"
+                "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Hymns/${meterName}.mid"
             } else {
                 "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_${songNumber}.ogg"
             }
@@ -1793,15 +1793,38 @@ fun extractTuneOptions(
     return options.distinct()
 }
 
-suspend fun checkUrlExists(urlStr: String): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+suspend fun checkUrlExists(urlStr: String, rawToken: String? = null): Boolean = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
     try {
-        val url = java.net.URL(urlStr)
+        val cleanToken = rawToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+        val isMidiVault = urlStr.contains("midi-vault", ignoreCase = true)
+        val resolvedUrlStr = if (isMidiVault && !cleanToken.isNullOrBlank()) {
+            val rawPath = if (urlStr.contains("raw.githubusercontent.com")) {
+                urlStr.substringAfter("/midi-vault/main/")
+            } else {
+                urlStr.substringAfter("/contents/")
+            }
+            val decodedPath = try { java.net.URLDecoder.decode(rawPath, "UTF-8") } catch (e: Exception) { rawPath }
+            val encodedPath = decodedPath.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+            "https://api.github.com/repos/Reynold29/midi-vault/contents/$encodedPath"
+        } else {
+            urlStr
+        }
+        val url = java.net.URL(resolvedUrlStr)
         val connection = url.openConnection() as java.net.HttpURLConnection
         connection.requestMethod = "HEAD"
-        connection.connectTimeout = 800
-        connection.readTimeout = 800
+        connection.connectTimeout = 1500
+        connection.readTimeout = 1500
+        connection.instanceFollowRedirects = false
+        connection.setRequestProperty("User-Agent", "CSI-Hymns-App")
+
+        if (resolvedUrlStr.contains("api.github.com") && !cleanToken.isNullOrBlank()) {
+            connection.setRequestProperty("Authorization", "Bearer $cleanToken")
+            connection.setRequestProperty("Accept", "application/vnd.github.v3.raw")
+        } else if (isMidiVault && !cleanToken.isNullOrBlank()) {
+            connection.setRequestProperty("Authorization", "Bearer $cleanToken")
+        }
         val responseCode = connection.responseCode
-        responseCode == java.net.HttpURLConnection.HTTP_OK
+        responseCode in 200..399
     } catch (e: Exception) {
         false
     }
@@ -1981,12 +2004,12 @@ fun TuneSelectorDropdown(
         val optionUrl = when {
             isKeerthane -> {
                 if (isOptionMidiMigrated) {
-                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$option.mid"
+                    "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_$option.mid"
                 } else {
                     "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
                 }
             }
-            isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
+            isMt -> "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt$option.mid"
             else -> {
                 getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
             }
@@ -2059,12 +2082,12 @@ fun TuneSelectorDropdown(
                 val optionUrl = when {
                     isKeerthane -> {
                         if (isOptionMidiMigrated) {
-                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$option.mid"
+                            "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_$option.mid"
                         } else {
                             "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
                         }
                     }
-                    isMt -> "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt$option.mid"
+                    isMt -> "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt$option.mid"
                     else -> {
                         getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
                     }

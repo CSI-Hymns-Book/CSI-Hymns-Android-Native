@@ -100,6 +100,22 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 if (!isUsingMediaPlayer) {
+                    val currentUrl = _audioState.value.currentAudioUrl
+                    val config = appConfigRepository.getCachedRemoteConfig()
+                    val backupBase = config.audioBackupUrl
+                    val backupUrl = getBackupUrl(currentUrl ?: "", backupBase)
+                    if (!backupUrl.isNullOrBlank() && currentUrl != backupUrl) {
+                        android.util.Log.i("AudioViewModel", "ExoPlayer failed on primary URL, retrying with backup: $backupUrl", error)
+                        viewModelScope.launch(Dispatchers.Main) {
+                            _audioState.value = _audioState.value.copy(currentAudioUrl = backupUrl)
+                            exoPlayer.setMediaItem(MediaItem.fromUri(backupUrl))
+                            exoPlayer.setPlaybackSpeed(_audioState.value.playbackSpeed)
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }
+                        return
+                    }
+
                     val is404 = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
                             || error.message?.contains("404") == true
                             || error.cause?.message?.contains("404") == true
@@ -199,7 +215,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
 
             val audioUrl = customAudioUrl ?: if (isKeerthane) {
                 if (isMidiMigrated) {
-                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$number.mid"
+                    "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_$number.mid"
                 } else {
                     "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
                 }
@@ -210,10 +226,10 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                   defaultOption.lowercase().startsWith("mt")
                     if (isMtRef) {
                         val mtNumber = defaultOption.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
-                        "https://raw.githubusercontent.com/Reynold29/midi-files/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+                        "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt${mtNumber}.mid"
                     } else {
                         val meterName = com.reyzie.hymns.utils.MeterUtils.getMeterMidiFileName(defaultOption)
-                        "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/${meterName}.mid"
+                        "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Hymns/${meterName}.mid"
                     }
                 } else {
                     "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
@@ -301,10 +317,21 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         downloadJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 // 1. Download MIDI bytes
-                val connection = java.net.URL(audioUrl).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-                val midiBytes = connection.inputStream.use { it.readBytes() }
+                val config = appConfigRepository.getCachedRemoteConfig()
+                val token = config.githubMidiToken
+                val backupBase = config.audioBackupUrl
+
+                val midiBytes = try {
+                    downloadMidiBytes(audioUrl, token)
+                } catch (e: Exception) {
+                    val backupUrl = getBackupUrl(audioUrl, backupBase)
+                    if (!backupUrl.isNullOrBlank()) {
+                        android.util.Log.i("AudioViewModel", "Primary MIDI download failed, trying backup: $backupUrl", e)
+                        downloadMidiBytes(backupUrl, rawToken = null)
+                    } else {
+                        throw e
+                    }
+                }
                 rawMidiCache = midiBytes
                 
                 // 2. Patch to chosen MIDI Instrument from preferences
@@ -385,6 +412,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     mediaPlayer = mp
                 }
             } catch (e: Exception) {
+                android.util.Log.e("AudioViewModel", "Error downloading or playing MIDI for url: $audioUrl", e)
                 val is404 = e is java.io.FileNotFoundException || e.message?.contains("404") == true
                 if (is404) {
                     val config = appConfigRepository.getCachedRemoteConfig()
@@ -862,5 +890,118 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
         mediaPlayer?.release()
         exoPlayer.release()
+    }
+
+    private fun getBackupUrl(primaryUrl: String, backupBaseUrl: String?): String? {
+        if (backupBaseUrl.isNullOrBlank() || backupBaseUrl == "null") return null
+        val base = backupBaseUrl.trim().removeSuffix("/")
+        val prefixes = listOf(
+            "https://raw.githubusercontent.com/Reynold29/midi-vault/main/",
+            "https://raw.githubusercontent.com/reynold29/midi-vault/main/",
+            "https://raw.githubusercontent.com/reynold29/midi-files/main/",
+            "https://raw.githubusercontent.com/Reynold29/midi-files/main/"
+        )
+        for (prefix in prefixes) {
+            if (primaryUrl.startsWith(prefix, ignoreCase = true)) {
+                val path = primaryUrl.substring(prefix.length)
+                return "$base/$path"
+            }
+        }
+        if (primaryUrl.contains("api.github.com/repos/Reynold29/midi-vault/contents/")) {
+            val path = primaryUrl.substringAfter("api.github.com/repos/Reynold29/midi-vault/contents/")
+            return "$base/$path"
+        }
+        return null
+    }
+
+    private suspend fun downloadMidiBytes(targetUrl: String, rawToken: String? = null): ByteArray = withContext(Dispatchers.IO) {
+        var token = rawToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+        if (token == "null") token = null
+        
+        if (token.isNullOrBlank() && targetUrl.contains("midi-vault", ignoreCase = true)) {
+            try {
+                val fetchedConfig = appConfigRepository.fetchRemoteConfig()
+                token = fetchedConfig.githubMidiToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+                if (token == "null") token = null
+            } catch (e: Exception) {
+                android.util.Log.w("AudioViewModel", "Failed on-demand remote config fetch for MIDI token", e)
+            }
+        }
+
+        val isMidiVault = targetUrl.contains("midi-vault", ignoreCase = true)
+        val useApi = isMidiVault && !token.isNullOrBlank()
+
+        var finalUrl = targetUrl
+        if (useApi) {
+            val rawPath = if (targetUrl.contains("raw.githubusercontent.com")) {
+                targetUrl.substringAfter("/midi-vault/main/")
+            } else {
+                targetUrl.substringAfter("/contents/")
+            }
+            val decodedPath = try { java.net.URLDecoder.decode(rawPath, "UTF-8") } catch (e: Exception) { rawPath }
+            val encodedPath = decodedPath.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+            finalUrl = "https://api.github.com/repos/Reynold29/midi-vault/contents/$encodedPath"
+        }
+
+        fun executeRequest(authHeaderVal: String?): ByteArray? {
+            try {
+                val url = java.net.URL(finalUrl)
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 12000
+                connection.readTimeout = 12000
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("User-Agent", "CSI-Hymns-App")
+
+                if (!authHeaderVal.isNullOrBlank()) {
+                    connection.setRequestProperty("Authorization", authHeaderVal)
+                    connection.setRequestProperty("Accept", "application/vnd.github.v3.raw")
+                }
+
+                val responseCode = connection.responseCode
+                android.util.Log.d("AudioViewModel", "MIDI download GET $finalUrl with ${authHeaderVal?.take(15)}... -> HTTP $responseCode")
+
+                if (responseCode in 300..399) {
+                    val redirectUrl = connection.getHeaderField("Location")
+                    if (!redirectUrl.isNullOrBlank()) {
+                        android.util.Log.d("AudioViewModel", "Following 302 redirect to: $redirectUrl")
+                        val redirectConn = java.net.URL(redirectUrl).openConnection() as java.net.HttpURLConnection
+                        redirectConn.connectTimeout = 12000
+                        redirectConn.readTimeout = 12000
+                        redirectConn.setRequestProperty("User-Agent", "CSI-Hymns-App")
+                        val redirectCode = redirectConn.responseCode
+                        if (redirectCode in 200..299) {
+                            return redirectConn.inputStream.use { it.readBytes() }
+                        } else {
+                            android.util.Log.e("AudioViewModel", "Redirect HTTP $redirectCode from $redirectUrl")
+                            return null
+                        }
+                    }
+                }
+
+                if (responseCode in 200..299) {
+                    return connection.inputStream.use { it.readBytes() }
+                }
+                android.util.Log.w("AudioViewModel", "Request $finalUrl failed with HTTP $responseCode")
+            } catch (e: Exception) {
+                android.util.Log.w("AudioViewModel", "Exception during executeRequest for $finalUrl", e)
+            }
+            return null
+        }
+
+        var result: ByteArray? = null
+        if (useApi) {
+            result = executeRequest("Bearer $token")
+            if (result == null) {
+                result = executeRequest("token $token")
+            }
+        } else {
+            result = executeRequest(null)
+        }
+
+        if (result != null) {
+            return@withContext result
+        }
+
+        throw java.io.IOException("Failed to download MIDI from $targetUrl (finalUrl: $finalUrl)")
     }
 }

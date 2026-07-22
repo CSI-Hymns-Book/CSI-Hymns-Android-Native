@@ -22,7 +22,8 @@ data class OrderOfServiceLoadResult(
 )
 
 class OrderOfServiceRepository(context: Context) {
-    private val store = ContentLocalStore(context.applicationContext)
+    private val appContext = context.applicationContext
+    private val store = ContentLocalStore(appContext)
     private val client = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
@@ -58,8 +59,15 @@ class OrderOfServiceRepository(context: Context) {
         }
     }
 
-    private fun fetchUrl(url: String): String? {
-        val request = Request.Builder().url(url).build()
+    private suspend fun fetchUrl(url: String): String? {
+        val sha = com.reyzie.hymns.utils.GitHubUrlResolver.getLatestCommitSha(appContext)
+        val resolvedUrl = com.reyzie.hymns.utils.GitHubUrlResolver.resolveRawUrl(url, sha)
+        val request = Request.Builder()
+            .url(resolvedUrl)
+            .addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+            .addHeader("Pragma", "no-cache")
+            .addHeader("Expires", "0")
+            .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             return response.body?.string()?.takeIf { it.isNotBlank() }

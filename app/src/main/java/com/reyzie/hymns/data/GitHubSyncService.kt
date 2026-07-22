@@ -32,7 +32,7 @@ class GitHubSyncService(context: Context) {
     }
 
     companion object {
-        private const val GITHUB_TOKEN_KEY = "github_token"
+        private const val GITHUB_TOKEN_KEY = "github_midi_token"
         private const val GITHUB_REPO_KEY = "github_repo"
         private const val GITHUB_FILE_PATH_KEY = "github_file_path"
         private const val DEFAULT_REPO = "Reynold29/csi-hymns-vault"

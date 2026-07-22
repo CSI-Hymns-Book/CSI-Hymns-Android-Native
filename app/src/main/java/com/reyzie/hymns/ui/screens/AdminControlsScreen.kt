@@ -295,7 +295,7 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
     val orderServiceRepo = remember { OrderOfServiceRepository(context) }
 
     fun syncFileToGitHub(filePath: String, content: String, message: String) {
-        val rawToken = remoteConfig.githubToken
+        val rawToken = remoteConfig.githubMidiToken
         if (rawToken.isNullOrBlank()) {
             Toast.makeText(context, "GitHub Token is missing in app_config! Cannot sync to remote.", Toast.LENGTH_LONG).show()
             return
@@ -1370,7 +1370,7 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
     var forceMessage by remember(remoteConfig.forceUpdateMessage) { mutableStateOf(remoteConfig.forceUpdateMessage ?: "") }
     var forceStoreUrl by remember(remoteConfig.forceUpdateAndroidStoreUrl) { mutableStateOf(remoteConfig.forceUpdateAndroidStoreUrl ?: "") }
     var adminEmails by remember(remoteConfig.adminEmails) { mutableStateOf(remoteConfig.adminEmails ?: "") }
-    var githubToken by remember(remoteConfig.githubToken) { mutableStateOf(remoteConfig.githubToken ?: "") }
+    var githubToken by remember(remoteConfig.githubMidiToken) { mutableStateOf(remoteConfig.githubMidiToken ?: "") }
     var midiHymnsRanges by remember(remoteConfig.midiHymnsRanges) { mutableStateOf(remoteConfig.midiHymnsRanges ?: "") }
     var midiKeerthanesRanges by remember(remoteConfig.midiKeerthanesRanges) { mutableStateOf(remoteConfig.midiKeerthanesRanges ?: "") }
 
@@ -1663,7 +1663,7 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
                     subtitle = "Personal Access Token for committing lyric changes.",
                     value = githubToken,
                     onValueChange = { githubToken = it },
-                    onSave = { saveValue(AppConfigKeys.GITHUB_TOKEN, githubToken.takeIf { it.isNotBlank() }) },
+                    onSave = { saveValue(AppConfigKeys.GITHUB_MIDI_TOKEN, githubToken.takeIf { it.isNotBlank() }) },
                     visualTransformation = if (showGithubToken) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { showGithubToken = !showGithubToken }) {
