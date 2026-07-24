@@ -207,7 +207,11 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     val hasMatchingFiles = hymnsRepository.getCachedMidiFileNames().any { filename ->
                         val nameWithoutExt = filename.substringBeforeLast(".mid")
                         val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
-                        normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                        nameWithoutExt.equals(defaultOption, ignoreCase = true) ||
+                        normalizedName == normalized ||
+                        normalizedName.startsWith("${normalized}_") ||
+                        nameWithoutExt.lowercase().startsWith("hymn_${number}") ||
+                        nameWithoutExt.lowercase().startsWith("${number}_")
                     }
                     hasMatchingFiles || config.parsedMidiHymns.contains(normalized) || (config.disableOggFallback == "hymns" || config.disableOggFallback == "both")
                 }

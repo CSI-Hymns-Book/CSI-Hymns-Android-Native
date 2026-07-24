@@ -93,6 +93,13 @@ fun HymnDetailScreen(
     val castEnabled = remoteAppConfig.castEnabled == true
     val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
     
+    val adminEmailsString = remoteAppConfig.adminEmails ?: ""
+    val adminEmails = remember(adminEmailsString) {
+        adminEmailsString.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").split(",").map { it.lowercase().trim() }
+    }
+    val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
+    val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
+    
     val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
     var midiFilesList by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -135,7 +142,11 @@ fun HymnDetailScreen(
             val hasMatchingFiles = midiFilesList.any { filename ->
                 val nameWithoutExt = filename.substringBeforeLast(".mid")
                 val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
-                normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                nameWithoutExt.equals(defaultOption, ignoreCase = true) ||
+                normalizedName == normalized ||
+                normalizedName.startsWith("${normalized}_") ||
+                nameWithoutExt.lowercase().startsWith("hymn_${hymn.number}") ||
+                nameWithoutExt.lowercase().startsWith("${hymn.number}_")
             }
             hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
         }
@@ -162,7 +173,11 @@ fun HymnDetailScreen(
             val hasMatchingFiles = midiFilesList.any { filename ->
                 val nameWithoutExt = filename.substringBeforeLast(".mid")
                 val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
-                normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                nameWithoutExt.equals(defaultOption, ignoreCase = true) ||
+                normalizedName == normalized ||
+                normalizedName.startsWith("${normalized}_") ||
+                nameWithoutExt.lowercase().startsWith("hymn_${hymn.number}") ||
+                nameWithoutExt.lowercase().startsWith("${hymn.number}_")
             }
             val isOptMigrated = if (isMtRef) true else (hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both"))
             getUrlForOption(defaultOption, isOptMigrated, hymn.number)
@@ -990,6 +1005,13 @@ fun ExpressiveAudioPlayer(
     var showAdvancedMidiBottomSheet by remember { mutableStateOf(false) }
     var showAudioContributionDialog by remember { mutableStateOf(false) }
 
+    val adminEmailsString = remoteAppConfig.adminEmails ?: ""
+    val adminEmails = remember(adminEmailsString) {
+        adminEmailsString.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").split(",").map { it.lowercase().trim() }
+    }
+    val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
+    val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
+
     LaunchedEffect(audioState.error) {
         if (audioState.error == "AUDIO_NOT_FOUND") {
             showAudioContributionDialog = true
@@ -1157,7 +1179,8 @@ fun ExpressiveAudioPlayer(
                     remoteAppConfig = remoteAppConfig,
                     audioViewModel = audioViewModel,
                     context = context,
-                    midiFilesList = midiFilesList
+                    midiFilesList = midiFilesList,
+                    isAdmin = isAdmin
                 )
             }
 
@@ -1758,6 +1781,24 @@ fun extractTuneOptions(
         }
     } else {
         // CSI Hymns
+        val songNumStr = hymnNumber.toString()
+        val songSpecificFiles = midiFilesList.filter { filename ->
+            val nameWithoutExt = filename.substringBeforeLast(".mid").lowercase()
+            nameWithoutExt == "hymn_$songNumStr" ||
+            nameWithoutExt == songNumStr ||
+            nameWithoutExt.startsWith("hymn_${songNumStr}_") ||
+            nameWithoutExt.startsWith("${songNumStr}_")
+        }.sortedWith(Comparator { a, b ->
+            val aName = a.substringBeforeLast(".mid").lowercase()
+            val bName = b.substringBeforeLast(".mid").lowercase()
+            if (aName == "hymn_$songNumStr" || aName == songNumStr) -1
+            else if (bName == "hymn_$songNumStr" || bName == songNumStr) 1
+            else aName.compareTo(bName)
+        })
+        if (songSpecificFiles.isNotEmpty()) {
+            options.addAll(songSpecificFiles.map { it.substringBeforeLast(".mid") })
+        }
+
         val signatures = if (signature.contains("/")) {
             signature.split("/").map { it.trim() }.filter { it.isNotEmpty() }
         } else {
@@ -1974,6 +2015,7 @@ fun TuneSelectorDropdown(
     audioViewModel: AudioViewModel,
     context: Context,
     midiFilesList: List<String>,
+    isAdmin: Boolean,
     modifier: Modifier = Modifier
 ) {
     if (tuneOptions.size <= 1) return
@@ -1996,7 +2038,11 @@ fun TuneSelectorDropdown(
                 val hasMatchingFiles = midiFilesList.any { filename ->
                     val nameWithoutExt = filename.substringBeforeLast(".mid")
                     val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
-                    normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                    nameWithoutExt.equals(option, ignoreCase = true) ||
+                    normalizedName == normalized ||
+                    normalizedName.startsWith("${normalized}_") ||
+                    nameWithoutExt.lowercase().startsWith("hymn_${currentSongNum}") ||
+                    nameWithoutExt.lowercase().startsWith("${currentSongNum}_")
                 }
                 hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
             }
@@ -2020,7 +2066,12 @@ fun TuneSelectorDropdown(
     val activeDisplayName = if (isKeerthane || isMt) {
         if (activeOption == currentSongNum.toString()) "Default" else activeOption
     } else {
-        MeterUtils.getDisplayTuneName(activeOption)
+        if (isAdmin) {
+            MeterUtils.getDisplayTuneName(activeOption)
+        } else {
+            val idx = tuneOptions.indexOf(activeOption)
+            if (idx >= 0) "Version ${idx + 1}" else "Version 1"
+        }
     }
 
     Box(
@@ -2059,7 +2110,7 @@ fun TuneSelectorDropdown(
             expanded = showTuneDropdown,
             onDismissRequest = { showTuneDropdown = false }
         ) {
-            tuneOptions.forEach { option ->
+            tuneOptions.forEachIndexed { index, option ->
                 val isOptionMidiMigrated = if (isKeerthane) {
                     remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum) || (remoteAppConfig.disableOggFallback == "keerthane" || remoteAppConfig.disableOggFallback == "both")
                 } else {
@@ -2074,7 +2125,11 @@ fun TuneSelectorDropdown(
                         val hasMatchingFiles = midiFilesList.any { filename ->
                             val nameWithoutExt = filename.substringBeforeLast(".mid")
                             val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
-                            normalizedName == normalized || normalizedName.startsWith("${normalized}_")
+                            nameWithoutExt.equals(option, ignoreCase = true) ||
+                            normalizedName == normalized ||
+                            normalizedName.startsWith("${normalized}_") ||
+                            nameWithoutExt.lowercase().startsWith("hymn_${currentSongNum}") ||
+                            nameWithoutExt.lowercase().startsWith("${currentSongNum}_")
                         }
                         hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
                     }
@@ -2097,7 +2152,11 @@ fun TuneSelectorDropdown(
                 val displayName = if (isKeerthane || isMt) {
                     if (option == currentSongNum.toString()) "Default" else option
                 } else {
-                    MeterUtils.getDisplayTuneName(option)
+                    if (isAdmin) {
+                        MeterUtils.getDisplayTuneName(option)
+                    } else {
+                        "Version ${index + 1}"
+                    }
                 }
 
                 DropdownMenuItem(

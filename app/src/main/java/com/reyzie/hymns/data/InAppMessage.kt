@@ -11,6 +11,7 @@ data class InAppMessage(
     @SerialName("action_text") val actionText: String? = null,
     @SerialName("action_url") val actionUrl: String? = null,
     @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("target_version") val targetVersion: String? = null,
     @SerialName("created_at") val createdAt: String
 )
 

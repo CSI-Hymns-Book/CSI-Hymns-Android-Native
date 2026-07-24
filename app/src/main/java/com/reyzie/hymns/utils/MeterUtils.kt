@@ -47,13 +47,37 @@ object MeterUtils {
      * Example: "11.11.11.5" -> "11.11.11.5"
      */
     fun getDisplayTuneName(option: String): String {
-        if (!option.contains("_")) {
-            return option
+        var cleanOption = option.trim()
+        if (cleanOption.lowercase().startsWith("hymn_")) {
+            val suffix = cleanOption.substringAfter("_")
+            if (!suffix.contains("_")) {
+                return "Hymn $suffix"
+            }
+            cleanOption = suffix
         }
-        val suffix = option.substringAfter("_")
-        if (suffix.isBlank()) return option
+        if (cleanOption.firstOrNull()?.isDigit() == true && cleanOption.contains("_")) {
+            cleanOption = cleanOption.substringAfter("_")
+        }
+        val targetText = if (cleanOption.contains("_") && option.contains("_")) {
+            if (option.lowercase().startsWith("hymn_") || option.firstOrNull()?.isDigit() == true) {
+                cleanOption
+            } else {
+                option.substringAfter("_")
+            }
+        } else {
+            cleanOption
+        }
         
-        return suffix.split("_")
+        if (targetText.lowercase().matches(Regex("^v\\d+$"))) {
+            val vNum = targetText.drop(1)
+            return "Version $vNum"
+        }
+
+        if (!targetText.contains("_")) {
+            return targetText.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        }
+        
+        return targetText.split("_")
             .filter { it.isNotBlank() }
             .joinToString(" ") { word ->
                 word.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }

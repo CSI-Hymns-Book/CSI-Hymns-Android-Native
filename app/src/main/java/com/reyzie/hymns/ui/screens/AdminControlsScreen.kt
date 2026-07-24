@@ -1115,9 +1115,10 @@ private fun AnnouncementsManagerPanel(onBackClick: () -> Unit) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (broadcast.isActive) "Active & Displaying" else "Inactive",
+                                        text = "Created ${broadcast.createdAt.substringBefore("T")} • ${if (broadcast.isActive) "Active" else "Inactive"}" +
+                                                (if (broadcast.targetVersion.isNullOrBlank()) "" else " • Target: v${broadcast.targetVersion}"),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (broadcast.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
 
                                     var isRetriggering by remember { mutableStateOf(false) }
@@ -1173,6 +1174,7 @@ private fun AnnouncementEditorDialog(
     var message by remember { mutableStateOf(announcement?.displayMessage ?: "") }
     var actionText by remember { mutableStateOf(announcement?.actionText ?: "") }
     var actionUrl by remember { mutableStateOf(announcement?.actionUrl ?: "") }
+    var targetVersion by remember { mutableStateOf(announcement?.targetVersion ?: "") }
     var isActive by remember { mutableStateOf(announcement?.isActive ?: true) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -1237,6 +1239,7 @@ private fun AnnouncementEditorDialog(
                                     message = if (imageUrl.isNotBlank()) "$message ||image_url=$imageUrl" else message,
                                     actionText = actionText.takeIf { it.isNotBlank() },
                                     actionUrl = actionUrl.takeIf { it.isNotBlank() },
+                                    targetVersion = targetVersion.takeIf { it.isNotBlank() },
                                     isActive = isActive,
                                     createdAt = announcement?.createdAt ?: java.time.Instant.now().toString()
                                 )
@@ -1336,6 +1339,15 @@ private fun AnnouncementEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
+                )
+
+                OutlinedTextField(
+                    value = targetVersion,
+                    onValueChange = { targetVersion = it },
+                    label = { Text("Target App Version (Optional)") },
+                    placeholder = { Text("e.g. 5.0.0") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
                 )
 
                 Row(
