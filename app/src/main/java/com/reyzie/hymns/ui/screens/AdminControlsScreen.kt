@@ -1503,6 +1503,24 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
 
             item {
                 ConfigSwitchRow(
+                    label = "Donations / Support Section Enabled",
+                    subtitle = "Show or hide the 'Support the Project' section in Settings globally.",
+                    checked = remoteConfig.paymentsEnabled == true,
+                    onCheckedChange = { saveValue(com.reyzie.hymns.data.AppConfigKeys.PAYMENTS_ENABLED, it) }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Adyen Payment Gateway Enabled",
+                    subtitle = "Enable Adyen Donations in app (Local testing mode overrides on this device only).",
+                    checked = remoteConfig.isAdyenEnabled == true,
+                    onCheckedChange = { saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_ADYEN_ENABLED, it) }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
                     label = "Christmas Time Active",
                     subtitle = "Enable Christmas theme, styling and carols globally.",
                     checked = remoteConfig.isChristmasTime == true,

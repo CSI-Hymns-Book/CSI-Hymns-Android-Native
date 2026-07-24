@@ -167,7 +167,8 @@ private val ChangelogEntrySaver = Saver<com.reyzie.hymns.data.ChangelogEntryData
 fun MainScreen(
     navController: NavHostController = rememberNavController(),
     audioViewModel: AudioViewModel = viewModel(),
-    settingsViewModel: SettingsViewModel = viewModel()
+    settingsViewModel: SettingsViewModel = viewModel(),
+    dropInLauncher: androidx.activity.result.ActivityResultLauncher<*>? = null
 ) {
     val favoritesViewModel: FavoritesViewModel = viewModel()
     val authViewModel: com.reyzie.hymns.ui.viewmodels.AuthViewModel = viewModel()
@@ -193,7 +194,6 @@ fun MainScreen(
     }
     val currentUserEmail = (sessionStatus as? io.github.jan.supabase.auth.status.SessionStatus.Authenticated)
         ?.session?.user?.email
-    val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
     val audioState by audioViewModel.audioState.collectAsState()
     val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
 
@@ -231,6 +231,7 @@ fun MainScreen(
     var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
     var showChangelog by rememberSaveable { mutableStateOf(false) }
     var showAboutApp by rememberSaveable { mutableStateOf(false) }
+    var showDonationOverlay by rememberSaveable { mutableStateOf(false) }
     var showProfileEdit by rememberSaveable { mutableStateOf(false) }
     var showMenuShowcase by rememberSaveable { mutableStateOf(false) }
     var showAuthOverlay by rememberSaveable { mutableStateOf(false) }
@@ -248,6 +249,11 @@ fun MainScreen(
     var initialChatTicketKey by remember { mutableStateOf<String?>(null) }
     var newReplyNotificationMsg by remember { mutableStateOf<com.reyzie.hymns.data.TicketMessage?>(null) }
     var showAdminControls by rememberSaveable { mutableStateOf(false) }
+
+    val isSudoAdminMode = remember(showAboutApp, showAdminControls, showSettings) {
+        com.reyzie.hymns.data.AdminPrefs.isSudoAdminEnabled(context)
+    }
+    val isAdmin = isSudoAdminMode || (currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails)
     var activeBroadcastMsg by remember { mutableStateOf<com.reyzie.hymns.data.InAppMessage?>(null) }
     val broadcastService = remember { com.reyzie.hymns.data.BroadcastMessageService(context) }
     val changelogService = remember { ChangelogService(context) }
@@ -761,7 +767,20 @@ fun MainScreen(
                     onSignInClick = {
                         showSettings = false
                         showAuthOverlay = true
+                    },
+                    onDonateClick = {
+                        showDonationOverlay = true
                     }
+                )
+            }
+
+            ExpressiveOverlayScreen(
+                visible = showDonationOverlay,
+                onDismiss = { showDonationOverlay = false }
+            ) {
+                DonationScreen(
+                    onBackClick = { showDonationOverlay = false },
+                    dropInLauncher = dropInLauncher
                 )
             }
 

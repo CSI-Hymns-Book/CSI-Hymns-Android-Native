@@ -48,6 +48,14 @@ private data class CustomCategorySongRow(
     @SerialName("created_at") val createdAt: String? = null
 )
 
+@Serializable
+data class PaymentGatewayRow(
+    val id: String = "",
+    val name: String = "",
+    @SerialName("display_name") val displayName: String = "",
+    @SerialName("is_enabled") val isEnabled: Boolean = false
+)
+
 class SupabaseService private constructor() {
     companion object {
         @Volatile
@@ -398,6 +406,22 @@ class SupabaseService private constructor() {
             }
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error updating ticket status for $ticketKey", e)
+        }
+    }
+
+    suspend fun getEnabledPaymentGateways(): List<PaymentGatewayRow> = withContext(Dispatchers.IO) {
+        try {
+            if (!isInitialized) return@withContext emptyList()
+            client.from("payment_gateways")
+                .select {
+                    filter {
+                        eq("is_enabled", true)
+                    }
+                }
+                .decodeList<PaymentGatewayRow>()
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error fetching payment gateways", e)
+            emptyList()
         }
     }
 }

@@ -45,7 +45,8 @@ fun SettingsScreen(
     onPrivacyPolicyClick: () -> Unit = {},
     onChangelogClick: () -> Unit = {},
     onAboutAppClick: () -> Unit = {},
-    onSignInClick: () -> Unit = {}
+    onSignInClick: () -> Unit = {},
+    onDonateClick: () -> Unit = {}
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
     val isAmoledBlack by viewModel.isAmoledBlack.collectAsState()
@@ -68,6 +69,13 @@ fun SettingsScreen(
         0xFF8BC34A, 0xFFCDDC39, 0xFFFFEB3B, 0xFFFFC107, 0xFFFF9800, 0xFFFF5722,
         0xFF795548, 0xFF9E9E9E, 0xFF607D8B
     )
+
+    var isPaymentEnabled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val gateways = com.reyzie.hymns.data.SupabaseService.getInstance().getEnabledPaymentGateways()
+        isPaymentEnabled = gateways.any { it.isEnabled }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -281,6 +289,21 @@ fun SettingsScreen(
                         subtitle = "Cloud sync for favorites",
                         icon = Icons.Default.Login,
                         onClick = onSignInClick
+                    )
+                }
+            }
+
+            val remoteConfig by viewModel.remoteAppConfig.collectAsState()
+            val isSupportActive = remoteConfig.paymentsEnabled == true
+
+            if (isSupportActive) {
+                SettingsSectionHeader(title = "Support", icon = Icons.Default.VolunteerActivism)
+                SettingsExpressiveCard {
+                    SettingsActionTile(
+                        title = "Support the Project",
+                        subtitle = "Help cover server costs & keep CSI Hymns ad-free",
+                        icon = Icons.Default.Favorite,
+                        onClick = onDonateClick
                     )
                 }
             }
