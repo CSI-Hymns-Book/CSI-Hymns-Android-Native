@@ -64,20 +64,12 @@ class AppConfigService(
 
     suspend fun update(key: String, jsonValue: JsonElement): Unit = withContext(Dispatchers.IO) {
         try {
-            val response = supabaseService.client.from(TABLE).update(
-                buildJsonObject {
-                    put("value", jsonValue)
-                }
+            supabaseService.client.from(TABLE).upsert(
+                AppConfigEntry(key = key, value = jsonValue)
             ) {
-                filter {
-                    eq("key", key)
-                }
-                select()
+                onConflict = "key"
             }
-            val rows = response.decodeList<AppConfigEntry>()
-            if (rows.isEmpty()) {
-                throw Exception("RLS policy restriction or invalid key. 0 rows updated.")
-            }
+            Log.i("AppConfigService", "Successfully updated/upserted key=$key in app_config")
         } catch (e: Exception) {
             Log.e("AppConfigService", "Failed to update app_config key $key", e)
             throw e

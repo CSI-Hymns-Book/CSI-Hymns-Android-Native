@@ -2,6 +2,8 @@
 
 package com.reyzie.hymns.ui.screens
 
+import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +61,7 @@ fun Sidebar(
     ) {
         val scrollState = rememberScrollState()
         val context = LocalContext.current
+        var exitTapCount by remember { mutableIntStateOf(0) }
 
         Column(
             modifier = Modifier
@@ -69,7 +72,18 @@ fun Sidebar(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable {
+                        if (com.reyzie.hymns.data.AdminPrefs.isSudoAdminEnabled(context)) {
+                            exitTapCount++
+                            if (exitTapCount >= 3) {
+                                exitTapCount = 0
+                                com.reyzie.hymns.data.AdminPrefs.setSudoAdminEnabled(context, false)
+                                Toast.makeText(context, "🔒 Sudo Admin Mode Exited", Toast.LENGTH_LONG).show()
+                                onCloseDrawer()
+                            }
+                        }
+                    },
                 shape = MaterialTheme.shapes.extraLarge,
                 color = MaterialTheme.colorScheme.primaryContainer,
                 tonalElevation = 2.dp

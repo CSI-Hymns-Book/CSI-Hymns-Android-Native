@@ -21,8 +21,11 @@ playServicesCast = "22.3.1"
 playAppUpdate = "2.1.0"
 onesignal = "5.9.6"
 coil = "2.6.0"
+adyen = "5.19.0"
 
 [libraries]
+adyen-dropin = { group = "com.adyen.checkout", name = "drop-in", version.ref = "adyen" }
+androidx-browser = { group = "androidx.browser", name = "browser", version = "1.8.0" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }

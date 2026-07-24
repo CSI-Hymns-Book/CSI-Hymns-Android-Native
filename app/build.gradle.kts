@@ -42,6 +42,9 @@ android {
         buildConfigField("String", "JIRA_EMAIL", "\"${properties.getProperty("JIRA_EMAIL", "")}\"")
         buildConfigField("String", "JIRA_API_TOKEN", "\"${properties.getProperty("JIRA_API_TOKEN", "")}\"")
         buildConfigField("String", "JIRA_PROJECT_KEY", "\"${properties.getProperty("JIRA_PROJECT_KEY", "")}\"")
+        
+        buildConfigField("String", "ADYEN_CLIENT_KEY", "\"${properties.getProperty("ADYEN_CLIENT_KEY", "test_CLIENTKEY_EXAMPLE")}\"")
+        buildConfigField("String", "ADYEN_ENVIRONMENT", "\"${properties.getProperty("ADYEN_ENVIRONMENT", "TEST")}\"")
     }
 
     signingConfigs {
@@ -114,6 +117,8 @@ dependencies {
     implementation(libs.play.app.update)
     implementation(libs.play.app.update.ktx)
     implementation(libs.onesignal)
+    implementation(libs.adyen.dropin)
+    implementation(libs.androidx.browser)
     implementation("androidx.mediarouter:mediarouter:1.8.1")
     implementation(libs.ktor.client.android)
     implementation(libs.ktor.client.core)

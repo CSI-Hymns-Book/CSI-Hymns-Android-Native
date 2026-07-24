@@ -28,7 +28,9 @@ data class RemoteAppConfig(
     val midiHymnsRanges: String? = null,
     val midiKeerthanesRanges: String? = null,
     val disableOggFallback: String? = null,
-    val audioBackupUrl: String? = null
+    val audioBackupUrl: String? = null,
+    val isAdyenEnabled: Boolean? = null,
+    val paymentsEnabled: Boolean? = null
 ) {
     val githubToken: String? get() = githubMidiToken
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
@@ -92,6 +94,8 @@ object AppConfigKeys {
     const val MIDI_KEERTHANES_RANGES = "midi_keerthanes_ranges"
     const val DISABLE_OGG_FALLBACK = "disable_ogg_fallback"
     const val AUDIO_BACKUP_URL = "audio_backup_url"
+    const val IS_ADYEN_ENABLED = "is_adyen_enabled"
+    const val PAYMENTS_ENABLED = "payments_enabled"
 }
 
 class AppConfigRepository(
@@ -128,7 +132,9 @@ class AppConfigRepository(
                 AppConfigKeys.MIDI_HYMNS_RANGES,
                 AppConfigKeys.MIDI_KEERTHANES_RANGES,
                 AppConfigKeys.DISABLE_OGG_FALLBACK,
-                AppConfigKeys.AUDIO_BACKUP_URL
+                AppConfigKeys.AUDIO_BACKUP_URL,
+                AppConfigKeys.IS_ADYEN_ENABLED,
+                AppConfigKeys.PAYMENTS_ENABLED
             )
         )
 
@@ -149,7 +155,9 @@ class AppConfigRepository(
             midiHymnsRanges = raw[AppConfigKeys.MIDI_HYMNS_RANGES]?.trim(),
             midiKeerthanesRanges = raw[AppConfigKeys.MIDI_KEERTHANES_RANGES]?.trim(),
             disableOggFallback = raw[AppConfigKeys.DISABLE_OGG_FALLBACK]?.trim()?.lowercase(),
-            audioBackupUrl = raw[AppConfigKeys.AUDIO_BACKUP_URL]?.trim()?.takeIf { it.isNotEmpty() }
+            audioBackupUrl = raw[AppConfigKeys.AUDIO_BACKUP_URL]?.trim()?.takeIf { it.isNotEmpty() },
+            isAdyenEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_ADYEN_ENABLED]),
+            paymentsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PAYMENTS_ENABLED])
         )
 
         // Cache remote values locally
@@ -172,6 +180,8 @@ class AppConfigRepository(
             putString("midi_keerthanes_ranges_cached", remoteConfig.midiKeerthanesRanges)
             if (remoteConfig.disableOggFallback != null) putString("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
             if (remoteConfig.audioBackupUrl != null) putString("audio_backup_url_cached", remoteConfig.audioBackupUrl)
+            if (remoteConfig.isAdyenEnabled != null) putBoolean("is_adyen_enabled_cached", remoteConfig.isAdyenEnabled)
+            if (remoteConfig.paymentsEnabled != null) putBoolean("payments_enabled_cached", remoteConfig.paymentsEnabled)
             
             // Legacy / flutter compatibility
             if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
@@ -205,7 +215,9 @@ class AppConfigRepository(
             midiHymnsRanges = prefs?.getString("midi_hymns_ranges_cached", null),
             midiKeerthanesRanges = prefs?.getString("midi_keerthanes_ranges_cached", null),
             disableOggFallback = prefs?.getString("disable_ogg_fallback_cached", null),
-            audioBackupUrl = prefs?.getString("audio_backup_url_cached", null)
+            audioBackupUrl = prefs?.getString("audio_backup_url_cached", null),
+            isAdyenEnabled = if (prefs?.contains("is_adyen_enabled_cached") == true) prefs.getBoolean("is_adyen_enabled_cached", false) else null,
+            paymentsEnabled = if (prefs?.contains("payments_enabled_cached") == true) prefs.getBoolean("payments_enabled_cached", false) else null
         )
         return applyLocalOverrides(cached)
     }
@@ -254,7 +266,13 @@ class AppConfigRepository(
             midiHymnsRanges = prefs?.getString("app_config_override_midi_hymns_ranges", null) ?: config.midiHymnsRanges,
             midiKeerthanesRanges = prefs?.getString("app_config_override_midi_keerthanes_ranges", null) ?: config.midiKeerthanesRanges,
             disableOggFallback = prefs?.getString("app_config_override_disable_ogg_fallback", null) ?: config.disableOggFallback,
-            audioBackupUrl = prefs?.getString("app_config_override_audio_backup_url", null) ?: config.audioBackupUrl
+            audioBackupUrl = prefs?.getString("app_config_override_audio_backup_url", null) ?: config.audioBackupUrl,
+            isAdyenEnabled = if (prefs?.contains("app_config_override_is_adyen_enabled") == true) {
+                prefs.getBoolean("app_config_override_is_adyen_enabled", false)
+            } else config.isAdyenEnabled,
+            paymentsEnabled = if (prefs?.contains("app_config_override_payments_enabled") == true) {
+                prefs.getBoolean("app_config_override_payments_enabled", false)
+            } else config.paymentsEnabled
         )
         android.util.Log.d("AppConfigRepository", "applyLocalOverrides: outputConfig=$overridden")
         return overridden
