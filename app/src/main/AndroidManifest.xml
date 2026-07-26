@@ -69,6 +69,21 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="io.supabase.flutter" android:host="callback" />
             </intent-filter>
+
+            <!-- Donation Result Deep Links (Custom Scheme & Web URL) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="csihymns" android:host="donation_result" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="csihymns.app" android:pathPrefix="/donation_result" />
+            </intent-filter>
         </activity>
 
         <meta-data

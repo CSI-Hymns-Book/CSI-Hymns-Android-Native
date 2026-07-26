@@ -116,14 +116,23 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                         return
                     }
 
+                    val isOnline = isNetworkConnected()
+                    val msgLower = error.message?.lowercase().orEmpty()
+                    val causeLower = error.cause?.message?.lowercase().orEmpty()
                     val is404 = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-                            || error.message?.contains("404") == true
-                            || error.cause?.message?.contains("404") == true
-                    val errorMsg = if (is404) {
-                        "AUDIO_NOT_FOUND"
-                    } else {
-                        com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE
+                            || msgLower.contains("404") || causeLower.contains("404")
+                    val is403 = msgLower.contains("403") || causeLower.contains("403")
+                    val isTimeout = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+                            || msgLower.contains("timeout")
+
+                    val errorMsg = when {
+                        !isOnline -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NETWORK_OFFLINE
+                        is404 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NOT_FOUND
+                        is403 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_SERVER_ERROR
+                        isTimeout -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_TIMEOUT
+                        else -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_DECODE_ERROR
                     }
+
                     _audioState.value = _audioState.value.copy(
                         error = errorMsg,
                         isLoading = false,
@@ -417,7 +426,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: Exception) {
                 android.util.Log.e("AudioViewModel", "Error downloading or playing MIDI for url: $audioUrl", e)
-                val is404 = e is java.io.FileNotFoundException || e.message?.contains("404") == true
+                val msgLower = e.message?.lowercase().orEmpty()
+                val is404 = e is java.io.FileNotFoundException || msgLower.contains("404")
                 if (is404) {
                     val config = appConfigRepository.getCachedRemoteConfig()
                     val disableFallback = if (isKeerthane) {
@@ -449,10 +459,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 withContext(Dispatchers.Main) {
-                    val errorMsg = if (is404) {
-                        "AUDIO_NOT_FOUND"
-                    } else {
-                        com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE
+                    val isOnline = isNetworkConnected()
+                    val is403 = msgLower.contains("403") || msgLower.contains("rate limit")
+                    val isTimeout = e is java.net.SocketTimeoutException || msgLower.contains("timeout")
+
+                    val errorMsg = when {
+                        !isOnline -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NETWORK_OFFLINE
+                        is404 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NOT_FOUND
+                        is403 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_SERVER_ERROR
+                        isTimeout -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_TIMEOUT
+                        else -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_DECODE_ERROR
                     }
                     _audioState.value = _audioState.value.copy(
                         error = errorMsg,
@@ -462,6 +478,17 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     stopProgressUpdate()
                 }
             }
+        }
+    }
+
+    private fun isNetworkConnected(): Boolean {
+        return try {
+            val cm = getApplication<Application>().getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val net = cm?.activeNetwork
+            val caps = cm?.getNetworkCapabilities(net)
+            caps != null && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (e: Exception) {
+            true
         }
     }
 

@@ -66,6 +66,13 @@ fun AdminControlsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val remoteConfig = com.reyzie.hymns.data.AppConfigRepository(context = context).getCachedRemoteConfig()
+    val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
+
+    val hasLyrics = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.LYRICS)
+    val hasAnnouncements = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.PR_MANAGER)
+    val hasAppConfig = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.APP_CONFIG)
+
     var currentTab by remember { mutableStateOf(AdminTab.Main) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -90,189 +97,208 @@ fun AdminControlsScreen(
                     .padding(padding)
             ) {
                 AdminMenuSelection(
+                    hasLyrics = hasLyrics,
+                    hasAnnouncements = hasAnnouncements,
+                    hasAppConfig = hasAppConfig,
                     onSelectTab = { currentTab = it }
                 )
             }
         }
 
-        ExpressiveOverlayScreen(
-            visible = currentTab == AdminTab.Lyrics,
-            onDismiss = { currentTab = AdminTab.Main }
-        ) {
-            LyricCorrectionPanel(onBackClick = { currentTab = AdminTab.Main })
+        if (hasLyrics) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.Lyrics,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                LyricCorrectionPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
         }
 
-        ExpressiveOverlayScreen(
-            visible = currentTab == AdminTab.Announcements,
-            onDismiss = { currentTab = AdminTab.Main }
-        ) {
-            AnnouncementsManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+        if (hasAnnouncements) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.Announcements,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                AnnouncementsManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
         }
 
-        ExpressiveOverlayScreen(
-            visible = currentTab == AdminTab.AppConfig,
-            onDismiss = { currentTab = AdminTab.Main }
-        ) {
-            AppConfigManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+        if (hasAppConfig) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.AppConfig,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                AppConfigManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
         }
     }
 }
 
 @Composable
 private fun AdminMenuSelection(
+    hasLyrics: Boolean,
+    hasAnnouncements: Boolean,
+    hasAppConfig: Boolean,
     onSelectTab: (AdminTab) -> Unit
 ) {
     val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clickable {
-                    HapticFeedbackManager.smoothClick(context)
-                    onSelectTab(AdminTab.Lyrics)
-                },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Row(
+        if (hasLyrics) {
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.Lyrics)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.EditNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(32.dp)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.EditNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Lyric Correction",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Directly modify stanzas & bilingual texts for Hymns, Keerthanes & Order of Service.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Lyric Correction",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Directly modify stanzas & bilingual texts for Hymns, Keerthanes & Order of Service.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
                 }
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clickable {
-                    HapticFeedbackManager.smoothClick(context)
-                    onSelectTab(AdminTab.Announcements)
-                },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-        ) {
-            Row(
+        if (hasAnnouncements) {
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.Announcements)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Campaign,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier.size(32.dp)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Campaign,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Announcements Manager",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Trigger, modify, or archive dynamic in-app announcements & popup warnings.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Announcements Manager",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Trigger, modify, or archive dynamic in-app announcements & popup warnings.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                    )
                 }
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clickable {
-                    HapticFeedbackManager.smoothClick(context)
-                    onSelectTab(AdminTab.AppConfig)
-                },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-        ) {
-            Row(
+        if (hasAppConfig) {
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.AppConfig)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.SettingsSuggest,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.size(32.dp)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.SettingsSuggest,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "App Configuration",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Toggle dynamic feature switches, API parameters & remote app configuration.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "App Configuration",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Manage remote feature flags via app_config keys.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                    )
                 }
             }
         }
@@ -1385,6 +1411,7 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
     var githubToken by remember(remoteConfig.githubMidiToken) { mutableStateOf(remoteConfig.githubMidiToken ?: "") }
     var midiHymnsRanges by remember(remoteConfig.midiHymnsRanges) { mutableStateOf(remoteConfig.midiHymnsRanges ?: "") }
     var midiKeerthanesRanges by remember(remoteConfig.midiKeerthanesRanges) { mutableStateOf(remoteConfig.midiKeerthanesRanges ?: "") }
+    var masterRootPasscode by remember(remoteConfig.masterRootPasscode) { mutableStateOf(remoteConfig.masterRootPasscode ?: "2026") }
 
     var showGithubToken by remember { mutableStateOf(false) }
 
@@ -1512,10 +1539,39 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
 
             item {
                 ConfigSwitchRow(
+                    label = "Razorpay Payment Gateway Enabled",
+                    subtitle = "Enable Razorpay (UPI, GPay, PhonePe, Cards) on Donation screen.",
+                    checked = remoteConfig.isRazorpayEnabled != false,
+                    onCheckedChange = { enabled ->
+                        saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_RAZORPAY_ENABLED, enabled)
+                        scope.launch {
+                            com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("razorpay", enabled)
+                        }
+                    }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
                     label = "Adyen Payment Gateway Enabled",
-                    subtitle = "Enable Adyen Donations in app (Local testing mode overrides on this device only).",
+                    subtitle = "Enable Adyen Global Payments on Donation screen.",
                     checked = remoteConfig.isAdyenEnabled == true,
-                    onCheckedChange = { saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_ADYEN_ENABLED, it) }
+                    onCheckedChange = { enabled ->
+                        saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_ADYEN_ENABLED, enabled)
+                        scope.launch {
+                            com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("adyen", enabled)
+                        }
+                    }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Master Root Access Passcode",
+                    subtitle = "Passcode required to unlock Sudo Root Admin Mode (stored in Supabase app_config).",
+                    value = masterRootPasscode,
+                    onValueChange = { masterRootPasscode = it },
+                    onSave = { saveValue(com.reyzie.hymns.data.AppConfigKeys.MASTER_ROOT_PASSCODE, masterRootPasscode.trim()) }
                 )
             }
 

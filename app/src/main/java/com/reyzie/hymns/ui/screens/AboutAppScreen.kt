@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.reyzie.hymns.R
 import com.reyzie.hymns.ui.widgets.ExpressiveActionButton
 
@@ -41,6 +42,7 @@ fun AboutAppScreen(
     var showPasscodeDialog by remember { mutableStateOf(false) }
     var passcodeText by remember { mutableStateOf("") }
     var passcodeError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -238,17 +240,20 @@ fun AboutAppScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        if (com.reyzie.hymns.data.AdminPrefs.verifyPasscode(passcodeText)) {
-                            com.reyzie.hymns.data.AdminPrefs.setSudoAdminEnabled(context, true)
-                            android.widget.Toast.makeText(
-                                context,
-                                "⚡ Sudo Root Admin Mode Activated!",
-                                android.widget.Toast.LENGTH_LONG
-                            ).show()
-                            showPasscodeDialog = false
-                            onBackClick()
-                        } else {
-                            passcodeError = true
+                        scope.launch {
+                            val isCorrect = com.reyzie.hymns.data.AdminPrefs.verifyPasscode(context, passcodeText)
+                            if (isCorrect) {
+                                com.reyzie.hymns.data.AdminPrefs.setSudoAdminEnabled(context, true)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "⚡ Sudo Root Admin Mode Activated!",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                                showPasscodeDialog = false
+                                onBackClick()
+                            } else {
+                                passcodeError = true
+                            }
                         }
                     }
                 ) {

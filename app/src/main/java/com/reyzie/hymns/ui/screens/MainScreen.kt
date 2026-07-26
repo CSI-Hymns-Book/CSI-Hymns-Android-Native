@@ -250,10 +250,7 @@ fun MainScreen(
     var newReplyNotificationMsg by remember { mutableStateOf<com.reyzie.hymns.data.TicketMessage?>(null) }
     var showAdminControls by rememberSaveable { mutableStateOf(false) }
 
-    val isSudoAdminMode = remember(showAboutApp, showAdminControls, showSettings) {
-        com.reyzie.hymns.data.AdminPrefs.isSudoAdminEnabled(context)
-    }
-    val isAdmin = isSudoAdminMode || (currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails)
+    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasAnyAdminRole(context, currentUserEmail, remoteConfig.adminEmails)
     var activeBroadcastMsg by remember { mutableStateOf<com.reyzie.hymns.data.InAppMessage?>(null) }
     val broadcastService = remember { com.reyzie.hymns.data.BroadcastMessageService(context) }
     val changelogService = remember { ChangelogService(context) }

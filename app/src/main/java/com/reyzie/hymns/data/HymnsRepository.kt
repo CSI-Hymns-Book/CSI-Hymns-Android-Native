@@ -208,20 +208,54 @@ class HymnsRepository(context: Context) {
     }
 
     suspend fun getMidiFileNames(): List<String> = withContext(Dispatchers.IO) {
-        cachedMidiFileNames?.let { return@withContext it }
+        cachedMidiFileNames?.let { if (it.isNotEmpty()) return@withContext it }
+        
+        val prefs = appContext.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val cachedJson = prefs.getString("cached_midi_files_json", null)
+        if (!cachedJson.isNullOrBlank()) {
+            val listFromPrefs = parseGitHubContentsNames(cachedJson)
+            if (listFromPrefs.isNotEmpty()) {
+                cachedMidiFileNames = listFromPrefs
+            }
+        }
+
         try {
             val config = appConfigRepository.getCachedRemoteConfig()
             val token = config.githubMidiToken
             val response = fetchUrlWithAuth("https://api.github.com/repos/Reynold29/midi-vault/contents/Hymns", token)
             if (response != null) {
                 val parsed = parseGitHubContentsNames(response)
-                cachedMidiFileNames = parsed
-                return@withContext parsed
+                if (parsed.isNotEmpty()) {
+                    cachedMidiFileNames = parsed
+                    prefs.edit().putString("cached_midi_files_json", response).apply()
+                    return@withContext parsed
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch midi file list from GitHub", e)
         }
-        emptyList()
+
+        val existingCache = cachedMidiFileNames
+        if (!existingCache.isNullOrEmpty()) {
+            return@withContext existingCache
+        }
+
+        // Fallback default list if offline / rate limited / fresh install without network
+        val fallbackList = listOf(
+            "c.m.refrain_wondrous_love.mid",
+            "5.5.8.8.5.5_fleming.mid",
+            "7.7.7.7.refrain.mid",
+            "11.10.11.10.mid",
+            "s.m.mid",
+            "c.m.mid",
+            "l.m.mid",
+            "d.c.m.mid",
+            "6.5.6.5.mid",
+            "8.7.8.7.mid",
+            "7.6.7.6.d.mid"
+        )
+        cachedMidiFileNames = fallbackList
+        fallbackList
     }
 
     fun getCachedMidiFileNames(): List<String> = cachedMidiFileNames ?: emptyList()

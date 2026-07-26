@@ -3,6 +3,7 @@ package com.reyzie.hymns.ui.screens
 import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,12 +17,27 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalConfiguration
+import android.content.res.Configuration
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -78,6 +94,7 @@ fun HymnDetailScreen(
     val prefs = remember { context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE) }
     var fontSize by remember { mutableStateOf(prefs.getInt("global_songs_font_size", 18).sp) }
     var isControlsExpanded by remember { mutableStateOf(prefs.getBoolean("detail_controls_expanded", true)) }
+    var userManuallyToggledControls by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     val scope = rememberCoroutineScope()
     val rightColumnScrollState = rememberScrollState()
@@ -93,12 +110,8 @@ fun HymnDetailScreen(
     val castEnabled = remoteAppConfig.castEnabled == true
     val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
     
-    val adminEmailsString = remoteAppConfig.adminEmails ?: ""
-    val adminEmails = remember(adminEmailsString) {
-        adminEmailsString.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").split(",").map { it.lowercase().trim() }
-    }
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
-    val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
+    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.LYRICS)
     
     val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
@@ -206,6 +219,7 @@ fun HymnDetailScreen(
     }
     
     LaunchedEffect(hymn.number) {
+        userManuallyToggledControls = false
         val progress = readingProgressService.getProgress(if (isKeerthane) "keerthane" else "hymn", hymn.number.toString()).first()
         fontSize = prefs.getInt("global_songs_font_size", 18).sp
         progress.language?.let { selectedLanguage = it }
@@ -268,6 +282,16 @@ fun HymnDetailScreen(
         audioState.currentSongNumber == hymn.number &&
         audioState.isKeerthane == isKeerthane
 
+    LaunchedEffect(showAudioPlayer, audioState.isPlaying) {
+        if (!userManuallyToggledControls) {
+            if (showAudioPlayer && audioState.isPlaying) {
+                isControlsExpanded = false
+            } else if (!showAudioPlayer && !audioState.isPlaying) {
+                isControlsExpanded = prefs.getBoolean("detail_controls_expanded", true)
+            }
+        }
+    }
+
     Scaffold { innerPadding ->
         val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val isDarkTheme = isSystemInDarkTheme()
@@ -309,6 +333,7 @@ fun HymnDetailScreen(
                             Button(
                                 onClick = {
                                     HapticFeedbackManager.smoothClick(context)
+                                    userManuallyToggledControls = true
                                     isControlsExpanded = true
                                     prefs.edit().putBoolean("detail_controls_expanded", true).apply()
                                 },
@@ -406,6 +431,7 @@ fun HymnDetailScreen(
                                 Button(
                                     onClick = {
                                         HapticFeedbackManager.smoothClick(context)
+                                        userManuallyToggledControls = true
                                         isControlsExpanded = false
                                         prefs.edit().putBoolean("detail_controls_expanded", false).apply()
                                     },
@@ -652,8 +678,8 @@ fun HymnDetailScreen(
     } else {
                 AnimatedVisibility(
                     visible = isControlsExpanded,
-                    enter = expandVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(300)),
-                    exit = shrinkVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(300))
+                    enter = expandVertically(expandFrom = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeIn(animationSpec = tween(250)),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeOut(animationSpec = tween(200))
                 ) {
                     Surface(
                         modifier = Modifier
@@ -816,6 +842,7 @@ fun HymnDetailScreen(
                         Button(
                             onClick = {
                                 HapticFeedbackManager.smoothClick(context)
+                                userManuallyToggledControls = true
                                 isControlsExpanded = false
                                 prefs.edit().putBoolean("detail_controls_expanded", false).apply()
                             },
@@ -844,15 +871,20 @@ fun HymnDetailScreen(
                         hymn.kannadaLyrics!!
                     }
 
-                    Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy))
+                    ) {
                         AnimatedVisibility(
                             visible = !isControlsExpanded,
-                            enter = expandVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(300)),
-                            exit = shrinkVertically(animationSpec = tween(300, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(300))
+                            enter = expandVertically(expandFrom = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeIn(animationSpec = tween(250)),
+                            exit = shrinkVertically(shrinkTowards = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeOut(animationSpec = tween(200))
                         ) {
                             Button(
                                 onClick = {
                                     HapticFeedbackManager.smoothClick(context)
+                                    userManuallyToggledControls = true
                                     isControlsExpanded = true
                                     prefs.edit().putBoolean("detail_controls_expanded", true).apply()
                                 },
@@ -871,7 +903,7 @@ fun HymnDetailScreen(
                             }
                         }
 
-                        Box(modifier = Modifier.weight(1f)) {
+                        Box(modifier = Modifier.weight(1f).clipToBounds()) {
                             if (isPageFlipEnabled && isPageFlipOptionVisible) {
                                 PageFlipLyrics(
                                     lyrics = lyricsText,
@@ -1005,12 +1037,8 @@ fun ExpressiveAudioPlayer(
     var showAdvancedMidiBottomSheet by remember { mutableStateOf(false) }
     var showAudioContributionDialog by remember { mutableStateOf(false) }
 
-    val adminEmailsString = remoteAppConfig.adminEmails ?: ""
-    val adminEmails = remember(adminEmailsString) {
-        adminEmailsString.replace("[", "").replace("]", "").replace("\"", "").replace("'", "").split(",").map { it.lowercase().trim() }
-    }
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
-    val isAdmin = currentUserEmail != null && currentUserEmail.lowercase().trim() in adminEmails
+    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.LYRICS)
 
     LaunchedEffect(audioState.error) {
         if (audioState.error == "AUDIO_NOT_FOUND") {
@@ -1103,14 +1131,53 @@ fun ExpressiveAudioPlayer(
             }
 
             audioState.error?.let { errorText ->
+                val displayMsg = if (errorText == "AUDIO_NOT_FOUND") {
+                    com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NOT_FOUND
+                } else {
+                    errorText
+                }
+                val isMissing = displayMsg == com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NOT_FOUND
+
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = errorText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f),
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     modifier = Modifier.fillMaxWidth()
-                )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = if (isMissing) Icons.Default.MusicOff else Icons.Default.Warning,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = displayMsg,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                        if (isMissing) {
+                            TextButton(
+                                onClick = { showAudioContributionDialog = true },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            ) {
+                                Text("Contribute", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -2079,10 +2146,12 @@ fun TuneSelectorDropdown(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            tonalElevation = 2.dp,
             modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
                 .clickable {
                     HapticFeedbackManager.smoothClick(context)
                     showTuneDropdown = true
@@ -2090,95 +2159,236 @@ fun TuneSelectorDropdown(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
                 Text(
-                    text = "Select Tune: $activeDisplayName",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold
+                    text = "Tune: $activeDisplayName",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
                 )
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
                     contentDescription = "Select Tune",
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
-        
-        DropdownMenu(
-            expanded = showTuneDropdown,
-            onDismissRequest = { showTuneDropdown = false }
+    }
+
+    if (showTuneDropdown) {
+        ModalBottomSheet(
+            onDismissRequest = { showTuneDropdown = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
         ) {
-            tuneOptions.forEachIndexed { index, option ->
-                val isOptionMidiMigrated = if (isKeerthane) {
-                    remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum) || (remoteAppConfig.disableOggFallback == "keerthane" || remoteAppConfig.disableOggFallback == "both")
-                } else {
-                    val isMtRef = option.contains("M.T.", ignoreCase = true) || 
-                                  option.contains("Mang.T.B.", ignoreCase = true) || 
-                                  option.lowercase().startsWith("mt")
-                    if (isMtRef) {
-                        true
-                    } else {
-                        val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
-                        val normalized = MeterUtils.getNormalizedMeter(baseMeter)
-                        val hasMatchingFiles = midiFilesList.any { filename ->
-                            val nameWithoutExt = filename.substringBeforeLast(".mid")
-                            val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
-                            nameWithoutExt.equals(option, ignoreCase = true) ||
-                            normalizedName == normalized ||
-                            normalizedName.startsWith("${normalized}_") ||
-                            nameWithoutExt.lowercase().startsWith("hymn_${currentSongNum}") ||
-                            nameWithoutExt.lowercase().startsWith("${currentSongNum}_")
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+            ) {
+                // Sheet Header
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.MusicNote,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
                         }
-                        hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
-                    }
-                }
-                val optionUrl = when {
-                    isKeerthane -> {
-                        if (isOptionMidiMigrated) {
-                            "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_$option.mid"
-                        } else {
-                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                        Column {
+                            Text(
+                                text = "Select Audio Version",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${tuneOptions.size} audio versions available",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
-                    isMt -> "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt$option.mid"
-                    else -> {
-                        getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
-                    }
-                }
-                val isSelected = audioState.currentAudioUrl == optionUrl
-                
-                val displayName = if (isKeerthane || isMt) {
-                    if (option == currentSongNum.toString()) "Default" else option
-                } else {
-                    if (isAdmin) {
-                        MeterUtils.getDisplayTuneName(option)
-                    } else {
-                        "Version ${index + 1}"
+                    IconButton(onClick = { showTuneDropdown = false }) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
 
-                DropdownMenuItem(
-                    text = { 
-                        Text(
-                            text = displayName,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        ) 
-                    },
-                    onClick = {
-                        showTuneDropdown = false
-                        HapticFeedbackManager.smoothClick(context)
-                        audioViewModel.playSong(
-                            number = currentSongNum,
-                            title = audioState.currentSongTitle.orEmpty().ifBlank { "Audio" },
-                            isKeerthane = isKeerthane,
-                            signature = option,
-                            customAudioUrl = optionUrl
-                        )
+                HorizontalDivider(modifier = Modifier.padding(bottom = 16.dp))
+
+                val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                val gridColumns = if (isLandscape) 3 else 2
+
+                val gridNestedScrollConnection = remember {
+                    object : NestedScrollConnection {
+                        override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                            // Consume downward overscroll so ModalBottomSheet does not drag-dismiss when scrolling inside grid
+                            return if (available.y > 0) {
+                                Offset(0f, available.y)
+                            } else {
+                                Offset.Zero
+                            }
+                        }
                     }
-                )
+                }
+
+                // 2 Cards per row in Portrait, 3 Cards per row in Landscape
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(gridColumns),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = if (isLandscape) 200.dp else 260.dp)
+                        .nestedScroll(gridNestedScrollConnection)
+                        .padding(bottom = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    gridItemsIndexed(tuneOptions) { index, option ->
+                        val isOptionMidiMigrated = if (isKeerthane) {
+                            remoteAppConfig.parsedMidiKeerthanes.contains(currentSongNum) || (remoteAppConfig.disableOggFallback == "keerthane" || remoteAppConfig.disableOggFallback == "both")
+                        } else {
+                            val isMtRef = option.contains("M.T.", ignoreCase = true) || 
+                                          option.contains("Mang.T.B.", ignoreCase = true) || 
+                                          option.lowercase().startsWith("mt")
+                            if (isMtRef) {
+                                true
+                            } else {
+                                val baseMeter = if (option.contains("_")) option.substringBefore("_") else option
+                                val normalized = MeterUtils.getNormalizedMeter(baseMeter)
+                                val hasMatchingFiles = midiFilesList.any { filename ->
+                                    val nameWithoutExt = filename.substringBeforeLast(".mid")
+                                    val normalizedName = MeterUtils.getNormalizedMeter(nameWithoutExt)
+                                    nameWithoutExt.equals(option, ignoreCase = true) ||
+                                    normalizedName == normalized ||
+                                    normalizedName.startsWith("${normalized}_") ||
+                                    nameWithoutExt.lowercase().startsWith("hymn_${currentSongNum}") ||
+                                    nameWithoutExt.lowercase().startsWith("${currentSongNum}_")
+                                }
+                                hasMatchingFiles || remoteAppConfig.parsedMidiHymns.contains(normalized) || (remoteAppConfig.disableOggFallback == "hymns" || remoteAppConfig.disableOggFallback == "both")
+                            }
+                        }
+                        val optionUrl = when {
+                            isKeerthane -> {
+                                if (isOptionMidiMigrated) {
+                                    "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_$option.mid"
+                                } else {
+                                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$option.ogg"
+                                }
+                            }
+                            isMt -> "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt$option.mid"
+                            else -> {
+                                getUrlForOption(option, isOptionMidiMigrated, currentSongNum)
+                            }
+                        }
+                        val isSelected = audioState.currentAudioUrl == optionUrl
+                        
+                        val displayName = if (isKeerthane || isMt) {
+                            if (option == currentSongNum.toString()) "Default Tune" else option
+                        } else {
+                            if (isAdmin) {
+                                MeterUtils.getDisplayTuneName(option)
+                            } else {
+                                "Version ${index + 1}"
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable {
+                                    showTuneDropdown = false
+                                    HapticFeedbackManager.smoothClick(context)
+                                    audioViewModel.playSong(
+                                        number = currentSongNum,
+                                        title = audioState.currentSongTitle.orEmpty().ifBlank { "Audio" },
+                                        isKeerthane = isKeerthane,
+                                        signature = option,
+                                        customAudioUrl = optionUrl
+                                    )
+                                },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(28.dp),
+                                        shape = CircleShape,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.MusicNote,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(14.dp),
+                                                tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = displayName,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        modifier = Modifier.basicMarquee(),
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Selected",
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
             }
         }
     }

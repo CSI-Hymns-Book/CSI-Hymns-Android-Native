@@ -67,17 +67,20 @@ fun DonationScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val paymentService = remember { AdyenPaymentService() }
+    val serverDrivenPaymentService = remember { com.reyzie.hymns.data.ServerDrivenPaymentService(context) }
 
     var selectedCurrency by remember { mutableStateOf(CurrencyType.INR) }
-    var selectedTierIndex by remember { mutableIntStateOf(1) } // Default to middle tier
+    var selectedTierIndex by remember { mutableIntStateOf(0) } // Default to 1st tier (₹50)
     var customAmountText by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var paymentStatusMessage by remember { mutableStateOf<String?>(null) }
     var isPaymentSuccess by remember { mutableStateOf<Boolean?>(null) }
 
-    val inrTiers = listOf(20L, 50L, 100L)
-    val usdTiers = listOf(1L, 5L, 10L)
+    var availableGateways by remember { mutableStateOf<List<com.reyzie.hymns.data.PaymentGatewayRow>>(emptyList()) }
+    var selectedGateway by remember { mutableStateOf<com.reyzie.hymns.data.PaymentGatewayRow?>(null) }
+
+    val inrTiers = listOf(50L, 100L, 250L, 500L)
+    val usdTiers = listOf(2L, 5L, 10L, 25L)
     val currentTiers = if (selectedCurrency == CurrencyType.INR) inrTiers else usdTiers
 
     val selectedAmountNumber: Long = remember(selectedCurrency, selectedTierIndex, customAmountText) {
@@ -87,21 +90,75 @@ fun DonationScreen(
         } else if (selectedTierIndex in currentTiers.indices) {
             currentTiers[selectedTierIndex]
         } else {
-            currentTiers[1]
+            currentTiers[0]
         }
     }
 
-    val minorUnitsAmount = selectedAmountNumber * 100
+    LaunchedEffect(Unit) {
+        val remoteConfig = com.reyzie.hymns.data.AppConfigRepository(context = context).fetchRemoteConfig()
+        val list = com.reyzie.hymns.data.SupabaseService.getInstance().getEnabledPaymentGateways()
+        val rawList = if (list.isNotEmpty()) {
+            list
+        } else {
+            listOf(
+                com.reyzie.hymns.data.PaymentGatewayRow(
+                    id = "razorpay",
+                    name = "razorpay",
+                    displayName = "Razorpay (UPI, GPay, PhonePe, Cards)",
+                    description = "UPI, QR Code, Netbanking & International Cards/PayPal",
+                    edgeFunctionUrl = "https://vvlyyysdfpsikayymeyv.supabase.co/functions/v1/razorpay-checkout",
+                    isEnabled = true,
+                    iconType = "upi"
+                ),
+                com.reyzie.hymns.data.PaymentGatewayRow(
+                    id = "adyen",
+                    name = "adyen",
+                    displayName = "Adyen Global Payments",
+                    description = "International Credit & Debit Cards",
+                    edgeFunctionUrl = "https://vvlyyysdfpsikayymeyv.supabase.co/functions/v1/adyen-checkout",
+                    isEnabled = true,
+                    iconType = "card"
+                )
+            )
+        }
+
+        // Filter gateways based on remote app_config toggles
+        val filteredList = rawList.filter { gateway ->
+            when (gateway.name.lowercase()) {
+                "adyen" -> remoteConfig.isAdyenEnabled == true
+                "razorpay" -> remoteConfig.isRazorpayEnabled != false
+                else -> gateway.isEnabled
+            }
+        }
+
+        availableGateways = filteredList
+        selectedGateway = filteredList.firstOrNull { it.name.lowercase() == "razorpay" } ?: filteredList.firstOrNull()
+    }
+
+    // Auto-select best gateway when currency changes
+    LaunchedEffect(selectedCurrency, availableGateways) {
+        if (availableGateways.isNotEmpty()) {
+            if (selectedCurrency == CurrencyType.INR) {
+                selectedGateway = availableGateways.firstOrNull { it.name.lowercase() == "razorpay" } ?: availableGateways.first()
+            } else {
+                selectedGateway = availableGateways.firstOrNull { it.name.lowercase() == "razorpay" }
+                    ?: availableGateways.firstOrNull { it.name.lowercase() == "adyen" }
+                    ?: availableGateways.first()
+            }
+        }
+    }
+
+    var lastClickTime by remember { mutableLongStateOf(0L) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            LargeTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
-                        "Support Project",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.ExtraBold
+                        "Support CSI Hymns",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
@@ -112,7 +169,7 @@ fun DonationScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
@@ -124,24 +181,24 @@ fun DonationScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Hero Banner Card
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                tonalElevation = 2.dp
+                    .padding(bottom = 20.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                tonalElevation = 0.dp
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Surface(
-                        modifier = Modifier.size(56.dp),
+                        modifier = Modifier.size(52.dp),
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primary
                     ) {
@@ -150,30 +207,30 @@ fun DonationScreen(
                                 imageVector = Icons.Outlined.Favorite,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = "Keep CSI Hymns Free & Ad-Free",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Your voluntary contribution helps pay for database hosting, domain maintenance, audio servers, and ongoing app improvements for the community.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "Your voluntary contribution helps fund database servers, domain renewal, audio hosting, and continuous app improvements for the community.",
+                        style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                        lineHeight = 20.sp
+                        lineHeight = 18.sp
                     )
                 }
             }
 
-            // Currency Selector Header
+            // Currency Switcher Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -183,63 +240,87 @@ fun DonationScreen(
             ) {
                 Text(
                     text = "SELECT AMOUNT",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.1.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
 
-                // Currency Toggle
-                StandardButtonGroup(
-                    buttonCount = 2,
-                    modifier = Modifier.width(140.dp)
+                // Minimal Currency Segmented Switch
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest
                 ) {
-                    Button(
-                        index = 0,
-                        label = "₹ INR",
-                        isSelected = selectedCurrency == CurrencyType.INR,
-                        onClick = {
-                            selectedCurrency = CurrencyType.INR
-                            selectedTierIndex = 1
-                            customAmountText = ""
+                    Row(modifier = Modifier.padding(3.dp)) {
+                        Surface(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    selectedCurrency = CurrencyType.INR
+                                    selectedTierIndex = 0
+                                    customAmountText = ""
+                                },
+                            shape = CircleShape,
+                            color = if (selectedCurrency == CurrencyType.INR) MaterialTheme.colorScheme.primary else Color.Transparent
+                        ) {
+                            Text(
+                                text = "₹ INR",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedCurrency == CurrencyType.INR) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
                         }
-                    )
-                    Button(
-                        index = 1,
-                        label = "$ USD",
-                        isSelected = selectedCurrency == CurrencyType.USD,
-                        onClick = {
-                            selectedCurrency = CurrencyType.USD
-                            selectedTierIndex = 1
-                            customAmountText = ""
-                        },
-                        variant = GroupButtonVariant.Tonal
-                    )
+                        Surface(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    selectedCurrency = CurrencyType.USD
+                                    selectedTierIndex = 0
+                                    customAmountText = ""
+                                },
+                            shape = CircleShape,
+                            color = if (selectedCurrency == CurrencyType.USD) MaterialTheme.colorScheme.primary else Color.Transparent
+                        ) {
+                            Text(
+                                text = "$ USD",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (selectedCurrency == CurrencyType.USD) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
             }
 
-            // Donation Tiers Row
+            // Preset Amount Grid
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .padding(bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 currentTiers.forEachIndexed { index, amount ->
                     val isSelected = selectedTierIndex == index && customAmountText.isEmpty()
                     Surface(
                         modifier = Modifier
                             .weight(1f)
-                            .height(64.dp)
-                            .clip(MaterialTheme.shapes.large)
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
                             .clickable {
                                 HapticFeedbackManager.smoothClick(context)
                                 selectedTierIndex = index
                                 customAmountText = ""
                             },
-                        shape = MaterialTheme.shapes.large,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        border = if (isSelected) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerLow,
+                        border = BorderStroke(
+                            width = if (isSelected) 0.dp else 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
@@ -253,8 +334,7 @@ fun DonationScreen(
                 }
             }
 
-            // Custom Amount Card
-            val isCustomSelected = customAmountText.isNotEmpty() || selectedTierIndex == -1
+            // Custom Amount TextField
             OutlinedTextField(
                 value = customAmountText,
                 onValueChange = { input ->
@@ -269,7 +349,7 @@ fun DonationScreen(
                     .fillMaxWidth()
                     .padding(bottom = 20.dp),
                 label = { Text("Custom Amount (${selectedCurrency.symbol})") },
-                placeholder = { Text("Enter custom amount in ${selectedCurrency.code}") },
+                placeholder = { Text("Enter amount in ${selectedCurrency.code}") },
                 leadingIcon = {
                     Text(
                         selectedCurrency.symbol,
@@ -280,22 +360,106 @@ fun DonationScreen(
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                shape = MaterialTheme.shapes.large
+                shape = RoundedCornerShape(16.dp)
             )
 
+            // Payment Gateway Selector Header (if multiple gateways exist)
+            if (availableGateways.size > 1) {
+                Text(
+                    text = "PAYMENT METHOD",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.1.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                )
 
-            // Payment Status / Message Display
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    availableGateways.forEach { gateway ->
+                        val isSelected = selectedGateway?.id == gateway.id || selectedGateway?.name == gateway.name
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    selectedGateway = gateway
+                                },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(
+                                width = if (isSelected) 1.5.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(38.dp),
+                                    shape = CircleShape,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = when (gateway.iconType?.lowercase() ?: gateway.name.lowercase()) {
+                                                "upi", "razorpay" -> Icons.Default.FlashOn
+                                                "card", "adyen" -> Icons.Default.CreditCard
+                                                else -> Icons.Default.AccountBalanceWallet
+                                            },
+                                            contentDescription = null,
+                                            tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = gateway.displayName,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (!gateway.description.isNullOrBlank()) {
+                                        Text(
+                                            text = gateway.description,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Payment Status Alert Banner
             paymentStatusMessage?.let { msg ->
                 val isSuccess = isPaymentSuccess == true
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp),
-                    shape = MaterialTheme.shapes.large,
+                    shape = RoundedCornerShape(14.dp),
                     color = if (isSuccess) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.errorContainer
                 ) {
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -314,12 +478,24 @@ fun DonationScreen(
                 }
             }
 
-            // Donate Action Button
+            // Main Donate CTA Button
             Button(
                 onClick = {
+                    val now = System.currentTimeMillis()
+                    if (now - lastClickTime < 2000L) {
+                        return@Button
+                    }
+                    lastClickTime = now
+
                     HapticFeedbackManager.smoothClick(context)
                     if (selectedAmountNumber <= 0) {
                         Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+
+                    val targetGateway = selectedGateway ?: availableGateways.firstOrNull()
+                    if (targetGateway == null) {
+                        Toast.makeText(context, "No active payment gateway available", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
 
@@ -328,75 +504,19 @@ fun DonationScreen(
                     isPaymentSuccess = null
 
                     scope.launch {
-                        val sessionResult = paymentService.createPaymentSession(
-                            amount = minorUnitsAmount,
+                        val result = serverDrivenPaymentService.startCheckout(
+                            gateway = targetGateway,
+                            amount = selectedAmountNumber.toDouble(),
                             currency = selectedCurrency.code
                         )
 
                         isLoading = false
-                        sessionResult.fold(
-                            onSuccess = { session ->
-                                scope.launch {
-                                    try {
-                                        if (!session.url.isNullOrBlank()) {
-                                            android.util.Log.i("DonationScreen", "Launching Adyen Hosted Payment Page URL: ${session.url}")
-                                            try {
-                                                val customTabsIntent = androidx.browser.customtabs.CustomTabsIntent.Builder()
-                                                    .setShowTitle(true)
-                                                    .build()
-                                                customTabsIntent.launchUrl(context, Uri.parse(session.url))
-                                            } catch (e: Exception) {
-                                                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(session.url))
-                                                context.startActivity(browserIntent)
-                                            }
-                                        } else {
-                                            val sessionModel = SessionModel(
-                                                id = session.id,
-                                                sessionData = session.sessionData
-                                            )
-                                            val env = if (session.environment.equals("LIVE", ignoreCase = true)) Environment.EUROPE else Environment.TEST
-                                            val clientKey = session.clientKey.ifBlank { "test_CLIENTKEY_EXAMPLE" }
-
-                                            val checkoutConfig = CheckoutConfiguration(
-                                                environment = env,
-                                                clientKey = clientKey
-                                            )
-
-                                            android.util.Log.i("DonationScreen", "Creating CheckoutSession with id=${session.id}, clientKey=$clientKey, env=$env")
-                                            when (val createResult = CheckoutSessionProvider.createSession(sessionModel, checkoutConfig)) {
-                                                is CheckoutSessionResult.Success -> {
-                                                    android.util.Log.i("DonationScreen", "CheckoutSession created successfully! Launching DropIn UI...")
-                                                    val activity = context as? ComponentActivity
-                                                    if (activity != null && dropInLauncher != null) {
-                                                        @Suppress("UNCHECKED_CAST")
-                                                        val launcher = dropInLauncher as androidx.activity.result.ActivityResultLauncher<com.adyen.checkout.dropin.internal.ui.model.SessionDropInResultContractParams>
-                                                        DropIn.startPayment(
-                                                            context = activity,
-                                                            dropInLauncher = launcher,
-                                                            checkoutSession = createResult.checkoutSession,
-                                                            checkoutConfiguration = checkoutConfig,
-                                                            serviceClass = AppDropInService::class.java
-                                                        )
-                                                    } else {
-                                                        paymentStatusMessage = "Activity launcher not ready"
-                                                        isPaymentSuccess = false
-                                                    }
-                                                }
-                                                is CheckoutSessionResult.Error -> {
-                                                    android.util.Log.e("DonationScreen", "CheckoutSession creation error", createResult.exception)
-                                                    paymentStatusMessage = "Session creation failed: ${createResult.exception.localizedMessage}. Verify Adyen Client Key."
-                                                    isPaymentSuccess = false
-                                                }
-                                            }
-                                        }
-                                    } catch (e: Exception) {
-                                        paymentStatusMessage = "Failed to launch Adyen payment: ${e.localizedMessage}"
-                                        isPaymentSuccess = false
-                                    }
-                                }
+                        result.fold(
+                            onSuccess = {
+                                android.util.Log.i("DonationScreen", "Checkout launched successfully for ${targetGateway.displayName}")
                             },
                             onFailure = { error ->
-                                paymentStatusMessage = "Error connecting to payment service: ${error.localizedMessage}"
+                                paymentStatusMessage = "Payment launch error: ${error.localizedMessage}"
                                 isPaymentSuccess = false
                             }
                         )
@@ -405,7 +525,7 @@ fun DonationScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                shape = MaterialTheme.shapes.large,
+                shape = RoundedCornerShape(18.dp),
                 enabled = !isLoading && selectedAmountNumber > 0
             ) {
                 if (isLoading) {
@@ -422,16 +542,16 @@ fun DonationScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Donate ${selectedCurrency.symbol}$selectedAmountNumber via Adyen",
+                        text = "Donate ${selectedCurrency.symbol}$selectedAmountNumber via ${selectedGateway?.displayName?.substringBefore(" ") ?: "Server Gateway"}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // Adyen Security Note
+            // Security & Encryption Note
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
@@ -444,112 +564,112 @@ fun DonationScreen(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Secured & Processed by Adyen Payments",
+                    text = "Encrypted & Processed via Serverless Payment Gateways",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-    }
 
-    if (isPaymentSuccess != null) {
-        AlertDialog(
-            onDismissRequest = {
-                isPaymentSuccess = null
-                paymentStatusMessage = null
-            },
-            icon = {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isPaymentSuccess == true) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.errorContainer
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isPaymentSuccess == true) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
-                        contentDescription = null,
-                        modifier = Modifier.size(36.dp),
-                        tint = if (isPaymentSuccess == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = if (isPaymentSuccess == true) "Donation Received!" else "Payment Incomplete",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center
-                )
-            },
-            text = {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (isPaymentSuccess == true) {
-                        Text(
-                            text = "Amount: ${selectedCurrency.symbol}${selectedAmountNumber}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = paymentStatusMessage ?: "Thank you so much for your generous support! Your contribution keeps our servers running and supports continuous development.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "May God bless you richly! 🙏",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    } else {
-                        Text(
-                            text = paymentStatusMessage ?: "The payment process was cancelled or not completed.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            textAlign = TextAlign.Center,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val wasSuccess = isPaymentSuccess == true
+            if (isPaymentSuccess != null) {
+                AlertDialog(
+                    onDismissRequest = {
                         isPaymentSuccess = null
                         paymentStatusMessage = null
-                        if (wasSuccess) {
-                            onBackClick()
+                    },
+                    icon = {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (isPaymentSuccess == true) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.errorContainer
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isPaymentSuccess == true) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(36.dp),
+                                tint = if (isPaymentSuccess == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
                         }
                     },
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Text(if (isPaymentSuccess == true) "Done" else "Try Again")
-                }
-            },
-            dismissButton = {
-                if (isPaymentSuccess == false) {
-                    TextButton(
-                        onClick = {
-                            isPaymentSuccess = null
-                            paymentStatusMessage = null
+                    title = {
+                        Text(
+                            text = if (isPaymentSuccess == true) "Donation Received!" else "Payment Incomplete",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                    },
+                    text = {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            if (isPaymentSuccess == true) {
+                                Text(
+                                    text = "Amount: ${selectedCurrency.symbol}${selectedAmountNumber}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = paymentStatusMessage ?: "Thank you so much for your generous support! Your contribution keeps our servers running and supports continuous development.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "May God bless you richly! 🙏",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            } else {
+                                Text(
+                                    text = paymentStatusMessage ?: "The payment process was cancelled or not completed.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    ) {
-                        Text("Close")
-                    }
-                }
-            },
-            shape = MaterialTheme.shapes.extraLarge,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                val wasSuccess = isPaymentSuccess == true
+                                isPaymentSuccess = null
+                                paymentStatusMessage = null
+                                if (wasSuccess) {
+                                    onBackClick()
+                                }
+                            },
+                            shape = MaterialTheme.shapes.large
+                        ) {
+                            Text(if (isPaymentSuccess == true) "Done" else "Try Again")
+                        }
+                    },
+                    dismissButton = {
+                        if (isPaymentSuccess == false) {
+                            TextButton(
+                                onClick = {
+                                    isPaymentSuccess = null
+                                    paymentStatusMessage = null
+                                }
+                            ) {
+                                Text("Close")
+                            }
+                        }
+                    },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+            }
+        }
     }
 }

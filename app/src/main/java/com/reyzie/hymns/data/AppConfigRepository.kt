@@ -30,7 +30,9 @@ data class RemoteAppConfig(
     val disableOggFallback: String? = null,
     val audioBackupUrl: String? = null,
     val isAdyenEnabled: Boolean? = null,
-    val paymentsEnabled: Boolean? = null
+    val isRazorpayEnabled: Boolean? = null,
+    val paymentsEnabled: Boolean? = null,
+    val masterRootPasscode: String? = null
 ) {
     val githubToken: String? get() = githubMidiToken
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
@@ -95,7 +97,9 @@ object AppConfigKeys {
     const val DISABLE_OGG_FALLBACK = "disable_ogg_fallback"
     const val AUDIO_BACKUP_URL = "audio_backup_url"
     const val IS_ADYEN_ENABLED = "is_adyen_enabled"
+    const val IS_RAZORPAY_ENABLED = "is_razorpay_enabled"
     const val PAYMENTS_ENABLED = "payments_enabled"
+    const val MASTER_ROOT_PASSCODE = "master_root_passcode"
 }
 
 class AppConfigRepository(
@@ -134,7 +138,9 @@ class AppConfigRepository(
                 AppConfigKeys.DISABLE_OGG_FALLBACK,
                 AppConfigKeys.AUDIO_BACKUP_URL,
                 AppConfigKeys.IS_ADYEN_ENABLED,
-                AppConfigKeys.PAYMENTS_ENABLED
+                AppConfigKeys.IS_RAZORPAY_ENABLED,
+                AppConfigKeys.PAYMENTS_ENABLED,
+                AppConfigKeys.MASTER_ROOT_PASSCODE
             )
         )
 
@@ -157,8 +163,14 @@ class AppConfigRepository(
             disableOggFallback = raw[AppConfigKeys.DISABLE_OGG_FALLBACK]?.trim()?.lowercase(),
             audioBackupUrl = raw[AppConfigKeys.AUDIO_BACKUP_URL]?.trim()?.takeIf { it.isNotEmpty() },
             isAdyenEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_ADYEN_ENABLED]),
-            paymentsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PAYMENTS_ENABLED])
+            isRazorpayEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_RAZORPAY_ENABLED]),
+            paymentsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PAYMENTS_ENABLED]),
+            masterRootPasscode = raw[AppConfigKeys.MASTER_ROOT_PASSCODE]?.trim()?.takeIf { it.isNotEmpty() }
         )
+
+        if (!remoteConfig.masterRootPasscode.isNullOrEmpty()) {
+            prefs?.edit()?.putString("cached_master_root_passcode", remoteConfig.masterRootPasscode)?.apply()
+        }
 
         // Cache remote values locally
         prefs?.edit()?.apply {

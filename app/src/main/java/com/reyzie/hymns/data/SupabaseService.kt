@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -53,7 +54,11 @@ data class PaymentGatewayRow(
     val id: String = "",
     val name: String = "",
     @SerialName("display_name") val displayName: String = "",
-    @SerialName("is_enabled") val isEnabled: Boolean = false
+    val description: String? = null,
+    @SerialName("edge_function_url") val edgeFunctionUrl: String? = null,
+    @SerialName("is_enabled") val isEnabled: Boolean = false,
+    @SerialName("icon_type") val iconType: String? = null,
+    val config: JsonElement? = null
 )
 
 class SupabaseService private constructor() {
@@ -75,8 +80,12 @@ class SupabaseService private constructor() {
     val isInitialized: Boolean
         get() = _client != null
 
+    var anonKey: String = ""
+        private set
+
     fun init(url: String, anonKey: String) {
         if (url.isBlank() || anonKey.isBlank()) return
+        this.anonKey = anonKey
         
         _client = createSupabaseClient(
             supabaseUrl = url,
@@ -422,6 +431,21 @@ class SupabaseService private constructor() {
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error fetching payment gateways", e)
             emptyList()
+        }
+    }
+
+    suspend fun updatePaymentGatewayEnabled(gatewayName: String, isEnabled: Boolean): Unit = withContext(Dispatchers.IO) {
+        try {
+            if (!isInitialized) return@withContext
+            val update = buildJsonObject {
+                put("is_enabled", isEnabled)
+            }
+            client.from("payment_gateways").update(update) {
+                filter { eq("name", gatewayName) }
+            }
+            Log.i("SupabaseService", "Successfully updated payment_gateways name=$gatewayName to is_enabled=$isEnabled")
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error updating payment_gateways name=$gatewayName", e)
         }
     }
 }
