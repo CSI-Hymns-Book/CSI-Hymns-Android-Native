@@ -111,7 +111,7 @@ fun HymnDetailScreen(
     val isPageFlipOptionVisible = remoteAppConfig.pageFlipVisible == true
     
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
-    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.LYRICS)
+    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.TUNE_METER_VIEW)
     
     val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
@@ -282,13 +282,15 @@ fun HymnDetailScreen(
         audioState.currentSongNumber == hymn.number &&
         audioState.isKeerthane == isKeerthane
 
-    LaunchedEffect(showAudioPlayer, audioState.isPlaying) {
+    val effectiveIsControlsExpanded = remember(showAudioPlayer, audioState.isPlaying, userManuallyToggledControls, isControlsExpanded) {
         if (!userManuallyToggledControls) {
             if (showAudioPlayer && audioState.isPlaying) {
-                isControlsExpanded = false
-            } else if (!showAudioPlayer && !audioState.isPlaying) {
-                isControlsExpanded = prefs.getBoolean("detail_controls_expanded", true)
+                false
+            } else {
+                prefs.getBoolean("detail_controls_expanded", true)
             }
+        } else {
+            isControlsExpanded
         }
     }
 
@@ -326,7 +328,7 @@ fun HymnDetailScreen(
                 actionContent = if (isLandscape) {
                     {
                         AnimatedVisibility(
-                            visible = !isControlsExpanded,
+                            visible = !effectiveIsControlsExpanded,
                             enter = fadeIn(animationSpec = tween(300, easing = FastOutSlowInEasing)) + expandHorizontally(),
                             exit = fadeOut(animationSpec = tween(300, easing = FastOutSlowInEasing)) + shrinkHorizontally()
                         ) {
@@ -403,7 +405,7 @@ fun HymnDetailScreen(
                     }
 
                     AnimatedVisibility(
-                        visible = isControlsExpanded,
+                        visible = effectiveIsControlsExpanded,
                         enter = slideInHorizontally(
                             initialOffsetX = { it },
                             animationSpec = tween(300, easing = FastOutSlowInEasing)
@@ -677,7 +679,7 @@ fun HymnDetailScreen(
         }
     } else {
                 AnimatedVisibility(
-                    visible = isControlsExpanded,
+                    visible = effectiveIsControlsExpanded,
                     enter = expandVertically(expandFrom = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeIn(animationSpec = tween(250)),
                     exit = shrinkVertically(shrinkTowards = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeOut(animationSpec = tween(200))
                 ) {
@@ -872,12 +874,10 @@ fun HymnDetailScreen(
                     }
 
                     Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .animateContentSize(animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy))
+                        modifier = Modifier.fillMaxSize()
                     ) {
                         AnimatedVisibility(
-                            visible = !isControlsExpanded,
+                            visible = !effectiveIsControlsExpanded,
                             enter = expandVertically(expandFrom = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeIn(animationSpec = tween(250)),
                             exit = shrinkVertically(shrinkTowards = Alignment.Top, clip = true, animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)) + fadeOut(animationSpec = tween(200))
                         ) {
@@ -1038,7 +1038,7 @@ fun ExpressiveAudioPlayer(
     var showAudioContributionDialog by remember { mutableStateOf(false) }
 
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
-    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.LYRICS)
+    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.TUNE_METER_VIEW)
 
     LaunchedEffect(audioState.error) {
         if (audioState.error == "AUDIO_NOT_FOUND") {

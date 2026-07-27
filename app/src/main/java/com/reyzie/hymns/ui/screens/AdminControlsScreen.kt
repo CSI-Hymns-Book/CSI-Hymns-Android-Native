@@ -17,7 +17,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -1798,6 +1801,21 @@ private fun ConfigTextField(
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
+    var showExpandedDialog by remember { mutableStateOf(false) }
+
+    if (showExpandedDialog) {
+        ExpandedJsonEditorDialog(
+            title = label,
+            subtitle = subtitle,
+            initialValue = value,
+            onDismiss = { showExpandedDialog = false },
+            onSave = { newValue ->
+                onValueChange(newValue)
+                onSave()
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1809,9 +1827,16 @@ private fun ConfigTextField(
             singleLine = true,
             visualTransformation = visualTransformation,
             trailingIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                     if (trailingIcon != null) {
                         trailingIcon()
+                    }
+                    IconButton(onClick = { showExpandedDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInFull,
+                            contentDescription = "Expand Editor",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     IconButton(onClick = onSave) {
                         Icon(
@@ -1823,5 +1848,192 @@ private fun ConfigTextField(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ExpandedJsonEditorDialog(
+    title: String,
+    subtitle: String,
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(initialValue) }
+
+    val jsonStatus = remember(text) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return@remember null
+        try {
+            if (trimmed.startsWith("{")) {
+                org.json.JSONObject(trimmed)
+                "Valid JSON Object ✓"
+            } else if (trimmed.startsWith("[")) {
+                org.json.JSONArray(trimmed)
+                "Valid JSON Array ✓"
+            } else null
+        } catch (e: Exception) {
+            "Invalid JSON: ${e.localizedMessage}"
+        }
+    }
+
+    val isValidJson = jsonStatus?.startsWith("Valid JSON") == true
+    val isInvalidJson = jsonStatus?.startsWith("Invalid JSON") == true
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Toolbar / Quick Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val trimmed = text.trim()
+                            try {
+                                if (trimmed.startsWith("{")) {
+                                    text = org.json.JSONObject(trimmed).toString(2)
+                                } else if (trimmed.startsWith("[")) {
+                                    text = org.json.JSONArray(trimmed).toString(2)
+                                }
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoFixHigh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Prettify / Format JSON", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    jsonStatus?.let { status ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isValidJson) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.errorContainer
+                            },
+                            contentColor = if (isValidJson) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            }
+                        ) {
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Monospace Multiline Editor Area
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isInvalidJson) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
+                    )
+                ) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(4.dp),
+                        textStyle = TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            onSave(text)
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Save & Apply")
+                    }
+                }
+            }
+        }
     }
 }

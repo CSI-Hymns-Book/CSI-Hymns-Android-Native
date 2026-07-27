@@ -13,10 +13,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -114,7 +117,13 @@ fun expressiveBackExit(): ExitTransition =
 
 /** Bottom audio panel — slide up + fade + subtle scale. */
 fun expressiveAudioPlayerEnter(): EnterTransition =
-    slideInVertically(
+    expandVertically(
+        expandFrom = Alignment.Bottom,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    ) + slideInVertically(
         initialOffsetY = { (it * 0.4f).toInt() },
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
@@ -131,7 +140,13 @@ fun expressiveAudioPlayerEnter(): EnterTransition =
     )
 
 fun expressiveAudioPlayerExit(): ExitTransition =
-    slideOutVertically(
+    shrinkVertically(
+        shrinkTowards = Alignment.Bottom,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    ) + slideOutVertically(
         targetOffsetY = { (it * 0.3f).toInt() },
         animationSpec = tween(MotionSpecs.DurationMedium, easing = MotionSpecs.Emphasized)
     ) + fadeOut(tween(MotionSpecs.DurationShort, easing = MotionSpecs.Emphasized)) +

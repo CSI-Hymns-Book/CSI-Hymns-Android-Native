@@ -44,7 +44,8 @@ object AdminPrefs {
         ADMIN("admin", "Super Admin"),
         LYRICS("lyrics", "Lyric Corrections"),
         PR_MANAGER("pr_manager", "Announcements Manager"),
-        APP_CONFIG("app_config", "App Config Manager");
+        APP_CONFIG("app_config", "App Config Manager"),
+        TUNE_METER_VIEW("tune_meter_view", "Tune Meters View");
 
         companion object {
             fun fromKey(key: String): AdminRole? {
