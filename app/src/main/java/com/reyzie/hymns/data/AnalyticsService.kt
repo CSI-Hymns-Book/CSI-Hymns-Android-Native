@@ -2,7 +2,9 @@ package com.reyzie.hymns.data
 
 import android.app.Application
 import android.content.pm.PackageManager
+import android.os.Bundle
 import android.util.Log
+import com.google.firebase.analytics.FirebaseAnalytics
 import com.posthog.android.PostHogAndroid
 import com.posthog.android.PostHogAndroidConfig
 import com.posthog.PostHog
@@ -11,19 +13,21 @@ import com.reyzie.hymns.BuildConfig
 object AnalyticsService {
     private const val TAG = "Analytics"
     private var isInitialized = false
+    private var firebaseAnalytics: FirebaseAnalytics? = null
     private var lastIdentifiedUserId: String? = null
 
     private var appVersion: String = "Unknown"
     private var buildNumber: String = "Unknown"
 
     fun init(application: Application) {
+        try {
+            firebaseAnalytics = FirebaseAnalytics.getInstance(application)
+        } catch (e: Exception) {
+            Log.w(TAG, "Firebase Analytics unavailable (google-services.json may not be added yet)")
+        }
+
         val apiKey = BuildConfig.POSTHOG_API_KEY
         val host = BuildConfig.POSTHOG_HOST
-
-        if (apiKey.isEmpty() || apiKey == "YOUR_POSTHOG_API_KEY") {
-            Log.w(TAG, "PostHog API Key is missing or default. Tracking disabled.")
-            return
-        }
 
         try {
             val pInfo = application.packageManager.getPackageInfo(application.packageName, 0)
@@ -37,29 +41,39 @@ object AnalyticsService {
             e.printStackTrace()
         }
 
-        val config = PostHogAndroidConfig(
-            apiKey = apiKey,
-            host = host
-        ).apply {
-            captureApplicationLifecycleEvents = true
-            captureScreenViews = true
-            preloadFeatureFlags = false
-            sendFeatureFlagEvent = false
-        }
+        if (apiKey.isNotEmpty() && apiKey != "YOUR_POSTHOG_API_KEY") {
+            try {
+                val config = PostHogAndroidConfig(
+                    apiKey = apiKey,
+                    host = host
+                ).apply {
+                    captureApplicationLifecycleEvents = true
+                    captureScreenViews = true
+                    preloadFeatureFlags = false
+                    sendFeatureFlagEvent = false
+                }
 
-        PostHogAndroid.setup(application, config)
-        isInitialized = true
-        Log.i(TAG, "PostHog ready ($host, v$appVersion+$buildNumber)")
+                PostHogAndroid.setup(application, config)
+                isInitialized = true
+                Log.i(TAG, "PostHog ready ($host, v$appVersion+$buildNumber)")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error setting up PostHog", e)
+            }
+        } else {
+            Log.w(TAG, "PostHog API Key is missing or default. PostHog tracking disabled.")
+        }
     }
 
     fun syncAuthIdentity(userId: String?, authProvider: String? = null) {
-        if (!isInitialized) return
         try {
+            firebaseAnalytics?.setUserId(userId)
+
+            if (!isInitialized) return
             if (userId.isNullOrEmpty()) {
                 if (lastIdentifiedUserId != null) {
                     lastIdentifiedUserId = null
                     PostHog.reset()
-                    Log.d(TAG, "PostHog reset (signed out)")
+                    Log.d(TAG, "Analytics reset (signed out)")
                 }
                 return
             }
@@ -72,45 +86,88 @@ object AnalyticsService {
             }
 
             PostHog.identify(userId, userProperties = if (userProps.isNotEmpty()) userProps else null)
-            Log.d(TAG, "PostHog identify: \$userId")
+            Log.d(TAG, "Analytics identify: $userId")
         } catch (e: Exception) {
             Log.e(TAG, "syncAuthIdentity failed", e)
         }
     }
 
     fun capture(eventName: String, properties: Map<String, Any>? = null) {
-        if (!isInitialized) return
-        try {
-            val finalProps = mutableMapOf<String, Any>(
-                "app_name" to "csi_hymns",
-                "app_version" to appVersion,
-                "app_build" to buildNumber
-            )
-            properties?.let { finalProps.putAll(it) }
+        val finalProps = mutableMapOf<String, Any>(
+            "app_name" to "csi_hymns",
+            "app_version" to appVersion,
+            "app_build" to buildNumber
+        )
+        properties?.let { finalProps.putAll(it) }
 
-            PostHog.capture(eventName, properties = finalProps)
-            Log.d(TAG, "capture: \$eventName")
+        // 1. Log to Firebase Analytics
+        try {
+            firebaseAnalytics?.let { fa ->
+                val safeEventName = eventName.replace(" ", "_").replace("-", "_").lowercase().take(40)
+                val bundle = Bundle().apply {
+                    finalProps.forEach { (key, value) ->
+                        val safeKey = key.replace(" ", "_").replace("-", "_").lowercase().take(40)
+                        when (value) {
+                            is String -> putString(safeKey, value)
+                            is Int -> putInt(safeKey, value)
+                            is Long -> putLong(safeKey, value)
+                            is Double -> putDouble(safeKey, value)
+                            is Boolean -> putBoolean(safeKey, value)
+                            else -> putString(safeKey, value.toString())
+                        }
+                    }
+                }
+                fa.logEvent(safeEventName, bundle)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error capturing event: \$eventName", e)
+            Log.e(TAG, "Error logging to Firebase Analytics: $eventName", e)
+        }
+
+        // 2. Log to PostHog
+        if (isInitialized) {
+            try {
+                PostHog.capture(eventName, properties = finalProps)
+                Log.d(TAG, "capture: $eventName")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error capturing event in PostHog: $eventName", e)
+            }
         }
     }
 
     fun screen(screenName: String, properties: Map<String, Any>? = null) {
-        if (!isInitialized) return
+        // 1. Log to Firebase Analytics
         try {
-            PostHog.screen(screenName, properties = properties)
-            Log.d(TAG, "screen: \$screenName")
+            firebaseAnalytics?.let { fa ->
+                val bundle = Bundle().apply {
+                    putString(FirebaseAnalytics.Param.SCREEN_NAME, screenName)
+                    putString(FirebaseAnalytics.Param.SCREEN_CLASS, screenName)
+                    properties?.forEach { (key, value) ->
+                        putString(key.lowercase(), value.toString())
+                    }
+                }
+                fa.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW, bundle)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Error tracking screen: \$screenName", e)
+            Log.e(TAG, "Error logging screen view to Firebase Analytics", e)
+        }
+
+        // 2. Log to PostHog
+        if (isInitialized) {
+            try {
+                PostHog.screen(screenName, properties = properties)
+                Log.d(TAG, "screen: $screenName")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error tracking screen in PostHog: $screenName", e)
+            }
         }
     }
 
-    // High-frequency slider seeks — coalesce to reduce volume and cost
+    // High-frequency slider seeks — coalesce to reduce volume
     private val seekThrottle = mutableMapOf<String, Long>()
     private const val SEEK_THROTTLE_WINDOW_MS = 900L
 
     fun captureAudioSeeked(itemType: String, itemNumber: Int, positionMs: Int) {
-        val throttleKey = "\${itemType}_\$itemNumber"
+        val throttleKey = "${itemType}_$itemNumber"
         val now = System.currentTimeMillis()
         val last = seekThrottle[throttleKey]
         

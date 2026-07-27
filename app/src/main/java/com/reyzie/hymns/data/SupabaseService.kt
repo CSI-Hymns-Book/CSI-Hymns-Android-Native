@@ -196,6 +196,21 @@ class SupabaseService private constructor() {
         }
     }
 
+    suspend fun updateProfileFcmToken(token: String) = withContext(Dispatchers.IO) {
+        val user = currentUser ?: return@withContext
+        if (token.isBlank()) return@withContext
+        try {
+            client.from("users").upsert(
+                buildJsonObject {
+                    put("auth_uid", user.id)
+                    put("fcm_token", token)
+                }
+            )
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error updating FCM token in profile", e)
+        }
+    }
+
     // --- Favorites ---
     
     suspend fun fetchFavorites(): List<Map<String, Any>> = withContext(Dispatchers.IO) {

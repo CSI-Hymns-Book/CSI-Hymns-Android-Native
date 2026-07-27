@@ -35,7 +35,11 @@ import io.github.jan.supabase.auth.handleDeeplinks
 class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* OneSignal handles opt-in after permission */ }
+    ) { isGranted ->
+        if (isGranted) {
+            com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics()
+        }
+    }
 
     val dropInLauncher = DropIn.registerForDropInResult(
         this,
