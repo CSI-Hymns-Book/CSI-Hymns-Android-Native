@@ -57,7 +57,27 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private var progressJob: Job? = null
     private var downloadJob: Job? = null
 
+    private val screenOffReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == android.content.Intent.ACTION_SCREEN_OFF) {
+                android.util.Log.d("AudioViewModel", "Screen turned off — pausing audio playback")
+                pausePlayback()
+            }
+        }
+    }
+
     init {
+        try {
+            val filter = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                getApplication<Application>().registerReceiver(screenOffReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                getApplication<Application>().registerReceiver(screenOffReceiver, filter)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AudioViewModel", "Error registering screenOffReceiver", e)
+        }
+
         exoPlayer.repeatMode = Player.REPEAT_MODE_OFF
         exoPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -917,8 +937,26 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         _audioState.value = AudioState()
     }
 
+    fun pausePlayback() {
+        if (isUsingMediaPlayer) {
+            val mp = mediaPlayer
+            if (mp != null && mp.isPlaying) {
+                mp.pause()
+                _audioState.value = _audioState.value.copy(isPlaying = false)
+                stopProgressUpdate()
+            }
+        } else {
+            if (exoPlayer.isPlaying) {
+                exoPlayer.pause()
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
+        try {
+            getApplication<Application>().unregisterReceiver(screenOffReceiver)
+        } catch (_: Exception) {}
         mediaPlayer?.release()
         exoPlayer.release()
     }

@@ -282,9 +282,9 @@ fun HymnDetailScreen(
         audioState.currentSongNumber == hymn.number &&
         audioState.isKeerthane == isKeerthane
 
-    val effectiveIsControlsExpanded = remember(showAudioPlayer, audioState.isPlaying, userManuallyToggledControls, isControlsExpanded) {
+    val effectiveIsControlsExpanded = remember(showAudioPlayer, userManuallyToggledControls, isControlsExpanded) {
         if (!userManuallyToggledControls) {
-            if (showAudioPlayer && audioState.isPlaying) {
+            if (showAudioPlayer) {
                 false
             } else {
                 prefs.getBoolean("detail_controls_expanded", true)
@@ -548,6 +548,7 @@ fun HymnDetailScreen(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(bottom = 4.dp)
                                 )
+                                val isLoadingMidi = isMidiMigrated && isMidiFilesLoading
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     StandardButtonGroup(
                                         buttonCount = 2,
@@ -570,21 +571,25 @@ fun HymnDetailScreen(
                                         Button(
                                             index = 1,
                                             onClick = {
-                                                HapticFeedbackManager.smoothClick(context)
-                                                if (!audioState.isVisible || !isSameSong) {
-                                                    audioViewModel.playSong(
-                                                        number = hymn.number,
-                                                        title = hymn.title,
-                                                        isKeerthane = isKeerthane,
-                                                        signature = hymn.signature,
-                                                        customAudioUrl = targetAudioUrl
-                                                    )
-                                                } else {
-                                                    audioViewModel.toggleVisibility()
-                                                }
-                                                scope.launch {
-                                                    delay(100)
-                                                    rightColumnScrollState.animateScrollTo(rightColumnScrollState.maxValue)
+                                                if (!isLoadingMidi) {
+                                                    HapticFeedbackManager.smoothClick(context)
+                                                    if (!audioState.isVisible || !isSameSong) {
+                                                        userManuallyToggledControls = false
+                                                        isControlsExpanded = false
+                                                        audioViewModel.playSong(
+                                                            number = hymn.number,
+                                                            title = hymn.title,
+                                                            isKeerthane = isKeerthane,
+                                                            signature = hymn.signature,
+                                                            customAudioUrl = targetAudioUrl
+                                                        )
+                                                    } else {
+                                                        audioViewModel.toggleVisibility()
+                                                    }
+                                                    scope.launch {
+                                                        delay(100)
+                                                        rightColumnScrollState.animateScrollTo(rightColumnScrollState.maxValue)
+                                                    }
                                                 }
                                             },
                                             icon = if (audioState.isVisible && isSameSong) Icons.Default.KeyboardArrowDown else Icons.Default.MusicNote,
@@ -796,6 +801,8 @@ fun HymnDetailScreen(
                                     if (!isLoadingMidi) {
                                         HapticFeedbackManager.smoothClick(context)
                                         if (!audioState.isVisible || !isSameSong) {
+                                            userManuallyToggledControls = false
+                                            isControlsExpanded = false
                                             audioViewModel.playSong(
                                                 number = hymn.number,
                                                 title = hymn.title,
