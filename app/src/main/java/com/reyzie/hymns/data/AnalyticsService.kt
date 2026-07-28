@@ -51,6 +51,11 @@ object AnalyticsService {
                     captureScreenViews = true
                     preloadFeatureFlags = false
                     sendFeatureFlagEvent = false
+                    sessionReplay = true
+                    sessionReplayConfig.maskAllTextInputs = false
+                    sessionReplayConfig.maskAllImages = false
+                    sessionReplayConfig.screenshot = true
+                    sessionReplayConfig.sampleRate = 1.0
                 }
 
                 PostHogAndroid.setup(application, config)
