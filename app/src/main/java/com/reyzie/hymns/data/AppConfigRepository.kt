@@ -38,6 +38,10 @@ data class RemoteAppConfig(
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
 
+    override fun toString(): String {
+        return "RemoteAppConfig(isChristmasTime=$isChristmasTime, forceUpdateEnabled=$forceUpdateEnabled, castEnabled=$castEnabled, pageFlipVisible=$pageFlipVisible, isMangaloreHymnsEnabled=$isMangaloreHymnsEnabled, hasAdminEmails=${!adminEmails.isNullOrBlank()}, hasGithubToken=${!githubMidiToken.isNullOrBlank()}, hasMasterPasscode=${!masterRootPasscode.isNullOrBlank()})"
+    }
+
     companion object {
         fun parseMeters(metersStr: String?): Set<String> {
             if (metersStr.isNullOrBlank()) return emptySet()
@@ -203,7 +207,7 @@ class AppConfigRepository(
 
         Log.d(
             "AppConfigRepository",
-            "Loaded app_config: christmas=${remoteConfig.isChristmasTime}, mangalore=${remoteConfig.isMangaloreHymnsEnabled}, cast=${remoteConfig.castEnabled}, pageFlipVisible=${remoteConfig.pageFlipVisible}, adminEmails=${remoteConfig.adminEmails}, githubToken=${remoteConfig.githubToken != null}, midiHymns=${remoteConfig.midiHymnsRanges}, midiKeerthanes=${remoteConfig.midiKeerthanesRanges}"
+            "Loaded app_config: christmas=${remoteConfig.isChristmasTime}, mangalore=${remoteConfig.isMangaloreHymnsEnabled}, cast=${remoteConfig.castEnabled}, pageFlipVisible=${remoteConfig.pageFlipVisible}, hasAdminEmails=${!remoteConfig.adminEmails.isNullOrBlank()}, hasGithubToken=${remoteConfig.githubToken != null}"
         )
 
         return applyLocalOverrides(remoteConfig)
@@ -236,18 +240,15 @@ class AppConfigRepository(
 
     fun isLocalOverridesEnabled(): Boolean {
         val enabled = prefs?.getBoolean("app_config_use_local_overrides", false) == true
-        android.util.Log.d("AppConfigRepository", "isLocalOverridesEnabled: $enabled")
         return enabled
     }
 
     fun setLocalOverridesEnabled(enabled: Boolean) {
-        android.util.Log.d("AppConfigRepository", "setLocalOverridesEnabled: $enabled")
         prefs?.edit()?.putBoolean("app_config_use_local_overrides", enabled)?.commit()
     }
 
     fun applyLocalOverrides(config: RemoteAppConfig): RemoteAppConfig {
         val enabled = isLocalOverridesEnabled()
-        android.util.Log.d("AppConfigRepository", "applyLocalOverrides: enabled=$enabled, inputConfig=$config")
         if (!enabled) return config
         val overridden = RemoteAppConfig(
             isChristmasTime = if (prefs?.contains("app_config_override_is_christmas_time") == true) {
@@ -286,13 +287,14 @@ class AppConfigRepository(
                 prefs.getBoolean("app_config_override_payments_enabled", false)
             } else config.paymentsEnabled
         )
-        android.util.Log.d("AppConfigRepository", "applyLocalOverrides: outputConfig=$overridden")
         return overridden
     }
 
     suspend fun saveConfigValue(key: String, value: Any?) = withContext(Dispatchers.IO) {
         val useLocal = isLocalOverridesEnabled()
-        android.util.Log.d("AppConfigRepository", "saveConfigValue key=$key, value=$value, useLocal=$useLocal")
+        val isSensitiveKey = key.contains("token", true) || key.contains("email", true) || key.contains("passcode", true)
+        val safeLogVal = if (isSensitiveKey) "[REDACTED]" else value
+        android.util.Log.d("AppConfigRepository", "saveConfigValue key=$key, value=$safeLogVal, useLocal=$useLocal")
         if (useLocal) {
             prefs?.edit()?.run {
                 val prefKey = "app_config_override_$key"
@@ -303,8 +305,7 @@ class AppConfigRepository(
                     is Int -> putLong(prefKey, value.toLong())
                     else -> putString(prefKey, value.toString())
                 }
-                val success = commit()
-                android.util.Log.d("AppConfigRepository", "saveConfigValue (local): key=$prefKey, success=$success")
+                commit()
             }
         } else {
             val jsonValue = when (value) {
@@ -313,7 +314,6 @@ class AppConfigRepository(
                 is Number -> JsonPrimitive(value)
                 else -> JsonPrimitive(value.toString())
             }
-            android.util.Log.d("AppConfigRepository", "saveConfigValue (remote): key=$key, jsonValue=$jsonValue")
             appConfigService.update(key, jsonValue)
         }
     }

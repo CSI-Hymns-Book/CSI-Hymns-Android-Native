@@ -60,7 +60,6 @@ class AdyenPaymentService {
                 client.newCall(httpRequest).execute().use { response ->
                     Log.i("AdyenPaymentService", "Received response from Edge Function, status=${response.code}")
                     val bodyString = response.body.string()
-                    Log.i("AdyenPaymentService", "Raw Response body: $bodyString")
 
                     if (response.isSuccessful) {
                         val json = JSONObject(bodyString)

@@ -36,10 +36,7 @@ class HymnsFirebaseMessagingService : FirebaseMessagingService() {
                 FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         val token = task.result
-                        Log.i(TAG, "==================================================")
-                        Log.i(TAG, "DEVICE FCM REGISTRATION TOKEN:")
-                        Log.i(TAG, token)
-                        Log.i(TAG, "==================================================")
+                        Log.d(TAG, "DEVICE FCM TOKEN REGISTERED: ${token.take(8)}***")
 
                         context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
                             .edit()
@@ -86,7 +83,7 @@ class HymnsFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        Log.i(TAG, "New FCM Token generated: $token")
+        Log.d(TAG, "New FCM Token generated: ${token.take(8)}***")
         
         getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
             .edit()
