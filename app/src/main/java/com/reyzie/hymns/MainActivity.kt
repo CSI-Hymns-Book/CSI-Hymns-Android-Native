@@ -36,9 +36,7 @@ class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { isGranted ->
-        if (isGranted) {
-            com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics()
-        }
+        com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
     }
 
     val dropInLauncher = DropIn.registerForDropInResult(
@@ -67,6 +65,17 @@ class MainActivity : ComponentActivity() {
         AnalyticsService.init(application)
         if (savedInstanceState == null && OnboardingPrefs.isWelcomeCompleted(this)) {
             OnboardingPrefs.incrementLaunchCount(this)
+        }
+
+        // Request notification permission & sync FCM token
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
+            }
+        } else {
+            com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
         }
         
         // Initialize Supabase
@@ -126,6 +135,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         // Handle incoming deep links for OAuth redirects on existing activity
         SupabaseService.getInstance().client.handleDeeplinks(intent)
     }
