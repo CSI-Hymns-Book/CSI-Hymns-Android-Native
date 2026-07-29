@@ -12,7 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.reyzie.hymns.R
 import com.reyzie.hymns.ui.widgets.ExpressiveActionButton
 
@@ -36,6 +37,12 @@ fun AboutAppScreen(
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         context.startActivity(intent)
     }
+
+    var tapCount by remember { mutableIntStateOf(0) }
+    var showPasscodeDialog by remember { mutableStateOf(false) }
+    var passcodeText by remember { mutableStateOf("") }
+    var passcodeError by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -82,7 +89,16 @@ fun AboutAppScreen(
                 Text(
                     text = "CSI Hymns Book",
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable {
+                        tapCount++
+                        if (tapCount >= 8) {
+                            tapCount = 0
+                            passcodeText = ""
+                            passcodeError = false
+                            showPasscodeDialog = true
+                        }
+                    }
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -188,5 +204,67 @@ fun AboutAppScreen(
                 }
             }
         }
+    }
+
+    if (showPasscodeDialog) {
+        AlertDialog(
+            onDismissRequest = { showPasscodeDialog = false },
+            title = { Text("Root Admin Authentication", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        "Enter the Sudo Master Passcode to unlock Root Admin rights on this device.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = passcodeText,
+                        onValueChange = {
+                            passcodeText = it
+                            passcodeError = false
+                        },
+                        label = { Text("Passcode") },
+                        isError = passcodeError,
+                        supportingText = if (passcodeError) {
+                            @Composable { Text("Invalid Passcode!", color = MaterialTheme.colorScheme.error) }
+                        } else null,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            val isCorrect = com.reyzie.hymns.data.AdminPrefs.verifyPasscode(context, passcodeText)
+                            if (isCorrect) {
+                                com.reyzie.hymns.data.AdminPrefs.setSudoAdminEnabled(context, true)
+                                android.widget.Toast.makeText(
+                                    context,
+                                    "⚡ Sudo Root Admin Mode Activated!",
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                                showPasscodeDialog = false
+                                onBackClick()
+                            } else {
+                                passcodeError = true
+                            }
+                        }
+                    }
+                ) {
+                    Text("Authorize", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPasscodeDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }

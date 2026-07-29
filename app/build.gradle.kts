@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 val properties = Properties()
@@ -28,8 +29,8 @@ android {
         applicationId = "com.reyzie.hymns"
         minSdk = 26
         targetSdk = 36
-        versionCode = 31
-        versionName = "5.1.0"
+        versionCode = 34
+        versionName = "5.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
@@ -42,16 +43,22 @@ android {
         buildConfigField("String", "JIRA_EMAIL", "\"${properties.getProperty("JIRA_EMAIL", "")}\"")
         buildConfigField("String", "JIRA_API_TOKEN", "\"${properties.getProperty("JIRA_API_TOKEN", "")}\"")
         buildConfigField("String", "JIRA_PROJECT_KEY", "\"${properties.getProperty("JIRA_PROJECT_KEY", "")}\"")
+        
+        buildConfigField("String", "ADYEN_CLIENT_KEY", "\"${properties.getProperty("ADYEN_CLIENT_KEY", "test_CLIENTKEY_EXAMPLE")}\"")
+        buildConfigField("String", "ADYEN_ENVIRONMENT", "\"${properties.getProperty("ADYEN_ENVIRONMENT", "TEST")}\"")
     }
 
     signingConfigs {
         create("release") {
             val storePath = keystoreProperties.getProperty("storeFile")
-            if (storePath != null) {
-                storeFile = file(storePath)
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+            if (!storePath.isNullOrBlank()) {
+                val f = file(storePath)
+                if (f.exists()) {
+                    storeFile = f
+                    storePassword = keystoreProperties.getProperty("storePassword")
+                    keyAlias = keystoreProperties.getProperty("keyAlias")
+                    keyPassword = keystoreProperties.getProperty("keyPassword")
+                }
             }
         }
     }
@@ -63,7 +70,9 @@ android {
         }
         release {
             isDebuggable = false
-            if (keystorePropertiesFile.exists()) {
+            val storePath = keystoreProperties.getProperty("storeFile")
+            val hasValidKeystore = !storePath.isNullOrBlank() && file(storePath).exists()
+            if (hasValidKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
             isMinifyEnabled = true
@@ -113,7 +122,12 @@ dependencies {
     implementation(libs.play.services.cast.framework)
     implementation(libs.play.app.update)
     implementation(libs.play.app.update.ktx)
-    implementation(libs.onesignal)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
+    implementation(libs.firebase.analytics)
+    implementation(libs.adyen.dropin)
+    implementation(libs.androidx.browser)
+    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
     implementation("androidx.mediarouter:mediarouter:1.8.1")
     implementation(libs.ktor.client.android)
     implementation(libs.ktor.client.core)

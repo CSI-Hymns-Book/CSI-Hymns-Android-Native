@@ -19,10 +19,14 @@ kotlinxSerialization = "1.11.0"
 datastore = "1.2.1"
 playServicesCast = "22.3.1"
 playAppUpdate = "2.1.0"
-onesignal = "5.9.6"
+firebaseBom = "33.9.0"
+googleServices = "4.4.2"
 coil = "2.6.0"
+adyen = "5.19.0"
 
 [libraries]
+adyen-dropin = { group = "com.adyen.checkout", name = "drop-in", version.ref = "adyen" }
+androidx-browser = { group = "androidx.browser", name = "browser", version = "1.8.0" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -56,9 +60,13 @@ supabase-storage = { group = "io.github.jan-tennert.supabase", name = "storage-k
 play-services-cast-framework = { group = "com.google.android.gms", name = "play-services-cast-framework", version.ref = "playServicesCast" }
 play-app-update = { group = "com.google.android.play", name = "app-update", version.ref = "playAppUpdate" }
 play-app-update-ktx = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "playAppUpdate" }
-onesignal = { group = "com.onesignal", name = "OneSignal", version.ref = "onesignal" }
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
+
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 

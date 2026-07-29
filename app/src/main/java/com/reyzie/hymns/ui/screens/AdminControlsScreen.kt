@@ -17,7 +17,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -66,6 +69,13 @@ fun AdminControlsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val remoteConfig = com.reyzie.hymns.data.AppConfigRepository(context = context).getCachedRemoteConfig()
+    val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
+
+    val hasLyrics = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.LYRICS)
+    val hasAnnouncements = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.PR_MANAGER)
+    val hasAppConfig = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.APP_CONFIG)
+
     var currentTab by remember { mutableStateOf(AdminTab.Main) }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -90,189 +100,208 @@ fun AdminControlsScreen(
                     .padding(padding)
             ) {
                 AdminMenuSelection(
+                    hasLyrics = hasLyrics,
+                    hasAnnouncements = hasAnnouncements,
+                    hasAppConfig = hasAppConfig,
                     onSelectTab = { currentTab = it }
                 )
             }
         }
 
-        ExpressiveOverlayScreen(
-            visible = currentTab == AdminTab.Lyrics,
-            onDismiss = { currentTab = AdminTab.Main }
-        ) {
-            LyricCorrectionPanel(onBackClick = { currentTab = AdminTab.Main })
+        if (hasLyrics) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.Lyrics,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                LyricCorrectionPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
         }
 
-        ExpressiveOverlayScreen(
-            visible = currentTab == AdminTab.Announcements,
-            onDismiss = { currentTab = AdminTab.Main }
-        ) {
-            AnnouncementsManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+        if (hasAnnouncements) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.Announcements,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                AnnouncementsManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
         }
 
-        ExpressiveOverlayScreen(
-            visible = currentTab == AdminTab.AppConfig,
-            onDismiss = { currentTab = AdminTab.Main }
-        ) {
-            AppConfigManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+        if (hasAppConfig) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.AppConfig,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                AppConfigManagerPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
         }
     }
 }
 
 @Composable
 private fun AdminMenuSelection(
+    hasLyrics: Boolean,
+    hasAnnouncements: Boolean,
+    hasAppConfig: Boolean,
     onSelectTab: (AdminTab) -> Unit
 ) {
     val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(24.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clickable {
-                    HapticFeedbackManager.smoothClick(context)
-                    onSelectTab(AdminTab.Lyrics)
-                },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-        ) {
-            Row(
+        if (hasLyrics) {
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.Lyrics)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.EditNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(32.dp)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.EditNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Lyric Correction",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Directly modify stanzas & bilingual texts for Hymns, Keerthanes & Order of Service.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Lyric Correction",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Directly modify stanzas & bilingual texts for Hymns, Keerthanes & Order of Service.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                    )
                 }
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clickable {
-                    HapticFeedbackManager.smoothClick(context)
-                    onSelectTab(AdminTab.Announcements)
-                },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-        ) {
-            Row(
+        if (hasAnnouncements) {
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.Announcements)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.Campaign,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier.size(32.dp)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Campaign,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "Announcements Manager",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Trigger, modify, or archive dynamic in-app announcements & popup warnings.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "Announcements Manager",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Trigger, modify, or archive dynamic in-app announcements & popup warnings.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
-                    )
                 }
             }
         }
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .clickable {
-                    HapticFeedbackManager.smoothClick(context)
-                    onSelectTab(AdminTab.AppConfig)
-                },
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-        ) {
-            Row(
+        if (hasAppConfig) {
+            Card(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.AppConfig)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(60.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.SettingsSuggest,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiary,
-                            modifier = Modifier.size(32.dp)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.SettingsSuggest,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onTertiary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "App Configuration",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Toggle dynamic feature switches, API parameters & remote app configuration.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                         )
                     }
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Column {
-                    Text(
-                        text = "App Configuration",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Manage remote feature flags, force update requirements, Christmas mode, and metadata keys.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                    )
                 }
             }
         }
@@ -295,7 +324,7 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
     val orderServiceRepo = remember { OrderOfServiceRepository(context) }
 
     fun syncFileToGitHub(filePath: String, content: String, message: String) {
-        val rawToken = remoteConfig.githubToken
+        val rawToken = remoteConfig.githubMidiToken
         if (rawToken.isNullOrBlank()) {
             Toast.makeText(context, "GitHub Token is missing in app_config! Cannot sync to remote.", Toast.LENGTH_LONG).show()
             return
@@ -1115,9 +1144,10 @@ private fun AnnouncementsManagerPanel(onBackClick: () -> Unit) {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (broadcast.isActive) "Active & Displaying" else "Inactive",
+                                        text = "Created ${broadcast.createdAt.substringBefore("T")} • ${if (broadcast.isActive) "Active" else "Inactive"}" +
+                                                (if (broadcast.targetVersion.isNullOrBlank()) "" else " • Target: v${broadcast.targetVersion}"),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = if (broadcast.isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
 
                                     var isRetriggering by remember { mutableStateOf(false) }
@@ -1173,6 +1203,7 @@ private fun AnnouncementEditorDialog(
     var message by remember { mutableStateOf(announcement?.displayMessage ?: "") }
     var actionText by remember { mutableStateOf(announcement?.actionText ?: "") }
     var actionUrl by remember { mutableStateOf(announcement?.actionUrl ?: "") }
+    var targetVersion by remember { mutableStateOf(announcement?.targetVersion ?: "") }
     var isActive by remember { mutableStateOf(announcement?.isActive ?: true) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -1237,6 +1268,7 @@ private fun AnnouncementEditorDialog(
                                     message = if (imageUrl.isNotBlank()) "$message ||image_url=$imageUrl" else message,
                                     actionText = actionText.takeIf { it.isNotBlank() },
                                     actionUrl = actionUrl.takeIf { it.isNotBlank() },
+                                    targetVersion = targetVersion.takeIf { it.isNotBlank() },
                                     isActive = isActive,
                                     createdAt = announcement?.createdAt ?: java.time.Instant.now().toString()
                                 )
@@ -1338,6 +1370,15 @@ private fun AnnouncementEditorDialog(
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
                 )
 
+                OutlinedTextField(
+                    value = targetVersion,
+                    onValueChange = { targetVersion = it },
+                    label = { Text("Target App Version (Optional)") },
+                    placeholder = { Text("e.g. 5.0.0") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1370,9 +1411,10 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
     var forceMessage by remember(remoteConfig.forceUpdateMessage) { mutableStateOf(remoteConfig.forceUpdateMessage ?: "") }
     var forceStoreUrl by remember(remoteConfig.forceUpdateAndroidStoreUrl) { mutableStateOf(remoteConfig.forceUpdateAndroidStoreUrl ?: "") }
     var adminEmails by remember(remoteConfig.adminEmails) { mutableStateOf(remoteConfig.adminEmails ?: "") }
-    var githubToken by remember(remoteConfig.githubToken) { mutableStateOf(remoteConfig.githubToken ?: "") }
+    var githubToken by remember(remoteConfig.githubMidiToken) { mutableStateOf(remoteConfig.githubMidiToken ?: "") }
     var midiHymnsRanges by remember(remoteConfig.midiHymnsRanges) { mutableStateOf(remoteConfig.midiHymnsRanges ?: "") }
     var midiKeerthanesRanges by remember(remoteConfig.midiKeerthanesRanges) { mutableStateOf(remoteConfig.midiKeerthanesRanges ?: "") }
+    var masterRootPasscode by remember(remoteConfig.masterRootPasscode) { mutableStateOf(remoteConfig.masterRootPasscode ?: "2026") }
 
     var showGithubToken by remember { mutableStateOf(false) }
 
@@ -1487,6 +1529,53 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Donations / Support Section Enabled",
+                    subtitle = "Show or hide the 'Support the Project' section in Settings globally.",
+                    checked = remoteConfig.paymentsEnabled == true,
+                    onCheckedChange = { saveValue(com.reyzie.hymns.data.AppConfigKeys.PAYMENTS_ENABLED, it) }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Razorpay Payment Gateway Enabled",
+                    subtitle = "Enable Razorpay (UPI, GPay, PhonePe, Cards) on Donation screen.",
+                    checked = remoteConfig.isRazorpayEnabled != false,
+                    onCheckedChange = { enabled ->
+                        saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_RAZORPAY_ENABLED, enabled)
+                        scope.launch {
+                            com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("razorpay", enabled)
+                        }
+                    }
+                )
+            }
+
+            item {
+                ConfigSwitchRow(
+                    label = "Adyen Payment Gateway Enabled",
+                    subtitle = "Enable Adyen Global Payments on Donation screen.",
+                    checked = remoteConfig.isAdyenEnabled == true,
+                    onCheckedChange = { enabled ->
+                        saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_ADYEN_ENABLED, enabled)
+                        scope.launch {
+                            com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("adyen", enabled)
+                        }
+                    }
+                )
+            }
+
+            item {
+                ConfigTextField(
+                    label = "Master Root Access Passcode",
+                    subtitle = "Passcode required to unlock Sudo Root Admin Mode (stored in Supabase app_config).",
+                    value = masterRootPasscode,
+                    onValueChange = { masterRootPasscode = it },
+                    onSave = { saveValue(com.reyzie.hymns.data.AppConfigKeys.MASTER_ROOT_PASSCODE, masterRootPasscode.trim()) }
+                )
             }
 
             item {
@@ -1663,7 +1752,7 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
                     subtitle = "Personal Access Token for committing lyric changes.",
                     value = githubToken,
                     onValueChange = { githubToken = it },
-                    onSave = { saveValue(AppConfigKeys.GITHUB_TOKEN, githubToken.takeIf { it.isNotBlank() }) },
+                    onSave = { saveValue(AppConfigKeys.GITHUB_MIDI_TOKEN, githubToken.takeIf { it.isNotBlank() }) },
                     visualTransformation = if (showGithubToken) androidx.compose.ui.text.input.VisualTransformation.None else androidx.compose.ui.text.input.PasswordVisualTransformation(),
                     trailingIcon = {
                         IconButton(onClick = { showGithubToken = !showGithubToken }) {
@@ -1712,6 +1801,21 @@ private fun ConfigTextField(
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
+    var showExpandedDialog by remember { mutableStateOf(false) }
+
+    if (showExpandedDialog) {
+        ExpandedJsonEditorDialog(
+            title = label,
+            subtitle = subtitle,
+            initialValue = value,
+            onDismiss = { showExpandedDialog = false },
+            onSave = { newValue ->
+                onValueChange(newValue)
+                onSave()
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1723,9 +1827,16 @@ private fun ConfigTextField(
             singleLine = true,
             visualTransformation = visualTransformation,
             trailingIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
                     if (trailingIcon != null) {
                         trailingIcon()
+                    }
+                    IconButton(onClick = { showExpandedDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.OpenInFull,
+                            contentDescription = "Expand Editor",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     IconButton(onClick = onSave) {
                         Icon(
@@ -1737,5 +1848,192 @@ private fun ConfigTextField(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun ExpandedJsonEditorDialog(
+    title: String,
+    subtitle: String,
+    initialValue: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(initialValue) }
+
+    val jsonStatus = remember(text) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return@remember null
+        try {
+            if (trimmed.startsWith("{")) {
+                org.json.JSONObject(trimmed)
+                "Valid JSON Object ✓"
+            } else if (trimmed.startsWith("[")) {
+                org.json.JSONArray(trimmed)
+                "Valid JSON Array ✓"
+            } else null
+        } catch (e: Exception) {
+            "Invalid JSON: ${e.localizedMessage}"
+        }
+    }
+
+    val isValidJson = jsonStatus?.startsWith("Valid JSON") == true
+    val isInvalidJson = jsonStatus?.startsWith("Invalid JSON") == true
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.94f)
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Toolbar / Quick Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            val trimmed = text.trim()
+                            try {
+                                if (trimmed.startsWith("{")) {
+                                    text = org.json.JSONObject(trimmed).toString(2)
+                                } else if (trimmed.startsWith("[")) {
+                                    text = org.json.JSONArray(trimmed).toString(2)
+                                }
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AutoFixHigh,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Prettify / Format JSON", style = MaterialTheme.typography.labelMedium)
+                    }
+
+                    jsonStatus?.let { status ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isValidJson) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.errorContainer
+                            },
+                            contentColor = if (isValidJson) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            }
+                        ) {
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Monospace Multiline Editor Area
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.4f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isInvalidJson) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
+                    )
+                ) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(4.dp),
+                        textStyle = TextStyle(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Actions
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            onSave(text)
+                            onDismiss()
+                        },
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Save & Apply")
+                    }
+                }
+            }
+        }
     }
 }

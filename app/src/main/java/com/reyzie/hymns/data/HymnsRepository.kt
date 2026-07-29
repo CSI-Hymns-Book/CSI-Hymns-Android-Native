@@ -24,6 +24,8 @@ class HymnsRepository(context: Context) {
         .readTimeout(45, TimeUnit.SECONDS)
         .build()
     private val gson = Gson()
+    private val appConfigRepository = AppConfigRepository(context = appContext)
+    private var cachedMidiFileNames: List<String>? = null
 
     suspend fun loadHymns(section: AppSection = AppSection.CSI): List<Hymn> = withContext(Dispatchers.IO) {
         store.ensureSeeded()
@@ -146,11 +148,134 @@ class HymnsRepository(context: Context) {
         return emptyList()
     }
 
-    private fun fetchUrl(url: String): String? {
-        val request = Request.Builder().url(url).build()
+    private suspend fun fetchUrl(url: String): String? {
+        val sha = com.reyzie.hymns.utils.GitHubUrlResolver.getLatestCommitSha(appContext)
+        val resolvedUrl = com.reyzie.hymns.utils.GitHubUrlResolver.resolveRawUrl(url, sha)
+        val request = Request.Builder()
+            .url(resolvedUrl)
+            .addHeader("Cache-Control", "no-cache, no-store, must-revalidate")
+            .addHeader("Pragma", "no-cache")
+            .addHeader("Expires", "0")
+            .build()
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) return null
             return response.body?.string()?.takeIf { it.isNotBlank() }
+        }
+    }
+
+    private fun fetchUrlWithAuth(url: String, rawToken: String?): String? {
+        val cleanToken = rawToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+        if (!cleanToken.isNullOrBlank()) {
+            try {
+                val builder = Request.Builder().url(url)
+                    .addHeader("Authorization", "Bearer $cleanToken")
+                    .addHeader("User-Agent", "CSI-Hymns-App")
+                val request = builder.build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        return response.body?.string()?.takeIf { it.isNotBlank() }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed fetch with Bearer token, trying token prefix: ${e.message}")
+            }
+            try {
+                val builder = Request.Builder().url(url)
+                    .addHeader("Authorization", "token $cleanToken")
+                    .addHeader("User-Agent", "CSI-Hymns-App")
+                val request = builder.build()
+                client.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        return response.body?.string()?.takeIf { it.isNotBlank() }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed fetch with token prefix: ${e.message}")
+            }
+        }
+        
+        try {
+            val request = Request.Builder().url(url).addHeader("User-Agent", "CSI-Hymns-App").build()
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) {
+                    return response.body?.string()?.takeIf { it.isNotBlank() }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed fallback fetch without token", e)
+        }
+        return null
+    }
+
+    suspend fun getMidiFileNames(): List<String> = withContext(Dispatchers.IO) {
+        cachedMidiFileNames?.let { if (it.isNotEmpty()) return@withContext it }
+        
+        val prefs = appContext.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+        val cachedJson = prefs.getString("cached_midi_files_json", null)
+        if (!cachedJson.isNullOrBlank()) {
+            val listFromPrefs = parseGitHubContentsNames(cachedJson)
+            if (listFromPrefs.isNotEmpty()) {
+                cachedMidiFileNames = listFromPrefs
+            }
+        }
+
+        try {
+            val config = appConfigRepository.getCachedRemoteConfig()
+            val token = config.githubMidiToken
+            val response = fetchUrlWithAuth("https://api.github.com/repos/Reynold29/midi-vault/contents/Hymns", token)
+            if (response != null) {
+                val parsed = parseGitHubContentsNames(response)
+                if (parsed.isNotEmpty()) {
+                    cachedMidiFileNames = parsed
+                    prefs.edit().putString("cached_midi_files_json", response).apply()
+                    return@withContext parsed
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch midi file list from GitHub", e)
+        }
+
+        val existingCache = cachedMidiFileNames
+        if (!existingCache.isNullOrEmpty()) {
+            return@withContext existingCache
+        }
+
+        // Fallback default list if offline / rate limited / fresh install without network
+        val fallbackList = listOf(
+            "c.m.refrain_wondrous_love.mid",
+            "5.5.8.8.5.5_fleming.mid",
+            "7.7.7.7.refrain.mid",
+            "11.10.11.10.mid",
+            "s.m.mid",
+            "c.m.mid",
+            "l.m.mid",
+            "d.c.m.mid",
+            "6.5.6.5.mid",
+            "8.7.8.7.mid",
+            "7.6.7.6.d.mid"
+        )
+        cachedMidiFileNames = fallbackList
+        fallbackList
+    }
+
+    fun getCachedMidiFileNames(): List<String> = cachedMidiFileNames ?: emptyList()
+
+    private fun parseGitHubContentsNames(json: String): List<String> {
+        return try {
+            val jsonArray = com.google.gson.JsonParser.parseString(json).asJsonArray
+            val names = mutableListOf<String>()
+            for (element in jsonArray) {
+                if (element.isJsonObject) {
+                    val nameObj = element.asJsonObject.get("name")
+                    if (nameObj != null && nameObj.isJsonPrimitive) {
+                        names.add(nameObj.asString)
+                    }
+                }
+            }
+            names
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to parse GitHub contents names JSON", e)
+            emptyList()
         }
     }
 

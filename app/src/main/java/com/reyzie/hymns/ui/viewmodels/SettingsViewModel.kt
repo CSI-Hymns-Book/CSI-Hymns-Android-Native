@@ -179,7 +179,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         refreshAppConfig()
     }
 
-    private val _midiInstrument = MutableStateFlow(prefs.getInt("midi_instrument", 19))
+    private val _midiInstrument = MutableStateFlow(prefs.getInt("midi_instrument", 16))
     val midiInstrument: StateFlow<Int> = _midiInstrument.asStateFlow()
 
     fun onMidiInstrumentChanged(instrument: Int) {

@@ -23,15 +23,34 @@ data class RemoteAppConfig(
     /** When true (1), the Page Flip option is shown in Settings and available in hymn detail. */
     val pageFlipVisible: Boolean? = null,
     val adminEmails: String? = null,
-    val githubToken: String? = null,
+    val githubMidiToken: String? = null,
     val isMangaloreHymnsEnabled: Boolean? = null,
     val midiHymnsRanges: String? = null,
-    val midiKeerthanesRanges: String? = null
+    val midiKeerthanesRanges: String? = null,
+    val disableOggFallback: String? = null,
+    val audioBackupUrl: String? = null,
+    val isAdyenEnabled: Boolean? = null,
+    val isRazorpayEnabled: Boolean? = null,
+    val paymentsEnabled: Boolean? = null,
+    val masterRootPasscode: String? = null
 ) {
-    val parsedMidiHymns: Set<Int> by lazy { parseRanges(midiHymnsRanges) }
+    val githubToken: String? get() = githubMidiToken
+    val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
 
+    override fun toString(): String {
+        return "RemoteAppConfig(isChristmasTime=$isChristmasTime, forceUpdateEnabled=$forceUpdateEnabled, castEnabled=$castEnabled, pageFlipVisible=$pageFlipVisible, isMangaloreHymnsEnabled=$isMangaloreHymnsEnabled, hasAdminEmails=${!adminEmails.isNullOrBlank()}, hasGithubToken=${!githubMidiToken.isNullOrBlank()}, hasMasterPasscode=${!masterRootPasscode.isNullOrBlank()})"
+    }
+
     companion object {
+        fun parseMeters(metersStr: String?): Set<String> {
+            if (metersStr.isNullOrBlank()) return emptySet()
+            return metersStr.split(",")
+                .map { com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(it) }
+                .filter { it.isNotEmpty() && it != "default" }
+                .toSet()
+        }
+
         fun parseRanges(rangeStr: String?): Set<Int> {
             if (rangeStr.isNullOrBlank()) return emptySet()
             val numbers = mutableSetOf<Int>()
@@ -74,10 +93,17 @@ object AppConfigKeys {
     const val CAST_RECEIVER_URL = "cast_receiver_url"
     const val PAGE_FLIP_VISIBLE = "page_flip_visible"
     const val ADMIN_EMAILS = "admin_emails"
+    const val GITHUB_MIDI_TOKEN = "github_midi_token"
     const val GITHUB_TOKEN = "github_token"
     const val IS_MANGALORE_HYMNS_ENABLED = "is_mangalore_hymns_enabled"
     const val MIDI_HYMNS_RANGES = "midi_hymns_ranges"
     const val MIDI_KEERTHANES_RANGES = "midi_keerthanes_ranges"
+    const val DISABLE_OGG_FALLBACK = "disable_ogg_fallback"
+    const val AUDIO_BACKUP_URL = "audio_backup_url"
+    const val IS_ADYEN_ENABLED = "is_adyen_enabled"
+    const val IS_RAZORPAY_ENABLED = "is_razorpay_enabled"
+    const val PAYMENTS_ENABLED = "payments_enabled"
+    const val MASTER_ROOT_PASSCODE = "master_root_passcode"
 }
 
 class AppConfigRepository(
@@ -108,10 +134,17 @@ class AppConfigRepository(
                 AppConfigKeys.CAST_RECEIVER_URL,
                 AppConfigKeys.PAGE_FLIP_VISIBLE,
                 AppConfigKeys.ADMIN_EMAILS,
+                AppConfigKeys.GITHUB_MIDI_TOKEN,
                 AppConfigKeys.GITHUB_TOKEN,
                 AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED,
                 AppConfigKeys.MIDI_HYMNS_RANGES,
-                AppConfigKeys.MIDI_KEERTHANES_RANGES
+                AppConfigKeys.MIDI_KEERTHANES_RANGES,
+                AppConfigKeys.DISABLE_OGG_FALLBACK,
+                AppConfigKeys.AUDIO_BACKUP_URL,
+                AppConfigKeys.IS_ADYEN_ENABLED,
+                AppConfigKeys.IS_RAZORPAY_ENABLED,
+                AppConfigKeys.PAYMENTS_ENABLED,
+                AppConfigKeys.MASTER_ROOT_PASSCODE
             )
         )
 
@@ -127,11 +160,21 @@ class AppConfigRepository(
             castReceiverUrl = raw[AppConfigKeys.CAST_RECEIVER_URL]?.trim()?.takeIf { it.isNotEmpty() },
             pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE]),
             adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]?.trim()?.takeIf { it.isNotEmpty() },
-            githubToken = raw[AppConfigKeys.GITHUB_TOKEN]?.trim()?.takeIf { it.isNotEmpty() },
+            githubMidiToken = (raw[AppConfigKeys.GITHUB_MIDI_TOKEN] ?: raw[AppConfigKeys.GITHUB_TOKEN])?.trim()?.takeIf { it.isNotEmpty() },
             isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED]),
             midiHymnsRanges = raw[AppConfigKeys.MIDI_HYMNS_RANGES]?.trim(),
-            midiKeerthanesRanges = raw[AppConfigKeys.MIDI_KEERTHANES_RANGES]?.trim()
+            midiKeerthanesRanges = raw[AppConfigKeys.MIDI_KEERTHANES_RANGES]?.trim(),
+            disableOggFallback = raw[AppConfigKeys.DISABLE_OGG_FALLBACK]?.trim()?.lowercase(),
+            audioBackupUrl = raw[AppConfigKeys.AUDIO_BACKUP_URL]?.trim()?.takeIf { it.isNotEmpty() },
+            isAdyenEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_ADYEN_ENABLED]),
+            isRazorpayEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_RAZORPAY_ENABLED]),
+            paymentsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PAYMENTS_ENABLED]),
+            masterRootPasscode = raw[AppConfigKeys.MASTER_ROOT_PASSCODE]?.trim()?.takeIf { it.isNotEmpty() }
         )
+
+        if (!remoteConfig.masterRootPasscode.isNullOrEmpty()) {
+            prefs?.edit()?.putString("cached_master_root_passcode", remoteConfig.masterRootPasscode)?.apply()
+        }
 
         // Cache remote values locally
         prefs?.edit()?.apply {
@@ -146,10 +189,15 @@ class AppConfigRepository(
             putString("cast_receiver_url_cached", remoteConfig.castReceiverUrl)
             if (remoteConfig.pageFlipVisible != null) putBoolean("page_flip_visible_cached", remoteConfig.pageFlipVisible)
             putString("admin_emails_cached", remoteConfig.adminEmails)
-            putString("github_token_cached", remoteConfig.githubToken)
+            putString("github_midi_token_cached", remoteConfig.githubMidiToken)
+            putString("github_token_cached", remoteConfig.githubMidiToken)
             if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean("is_mangalore_hymns_enabled_cached", remoteConfig.isMangaloreHymnsEnabled)
             putString("midi_hymns_ranges_cached", remoteConfig.midiHymnsRanges)
             putString("midi_keerthanes_ranges_cached", remoteConfig.midiKeerthanesRanges)
+            if (remoteConfig.disableOggFallback != null) putString("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
+            if (remoteConfig.audioBackupUrl != null) putString("audio_backup_url_cached", remoteConfig.audioBackupUrl)
+            if (remoteConfig.isAdyenEnabled != null) putBoolean("is_adyen_enabled_cached", remoteConfig.isAdyenEnabled)
+            if (remoteConfig.paymentsEnabled != null) putBoolean("payments_enabled_cached", remoteConfig.paymentsEnabled)
             
             // Legacy / flutter compatibility
             if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
@@ -159,7 +207,7 @@ class AppConfigRepository(
 
         Log.d(
             "AppConfigRepository",
-            "Loaded app_config: christmas=${remoteConfig.isChristmasTime}, mangalore=${remoteConfig.isMangaloreHymnsEnabled}, cast=${remoteConfig.castEnabled}, pageFlipVisible=${remoteConfig.pageFlipVisible}, adminEmails=${remoteConfig.adminEmails}, githubToken=${remoteConfig.githubToken != null}, midiHymns=${remoteConfig.midiHymnsRanges}, midiKeerthanes=${remoteConfig.midiKeerthanesRanges}"
+            "Loaded app_config: christmas=${remoteConfig.isChristmasTime}, mangalore=${remoteConfig.isMangaloreHymnsEnabled}, cast=${remoteConfig.castEnabled}, pageFlipVisible=${remoteConfig.pageFlipVisible}, hasAdminEmails=${!remoteConfig.adminEmails.isNullOrBlank()}, hasGithubToken=${remoteConfig.githubToken != null}"
         )
 
         return applyLocalOverrides(remoteConfig)
@@ -178,28 +226,29 @@ class AppConfigRepository(
             castReceiverUrl = prefs?.getString("cast_receiver_url_cached", null),
             pageFlipVisible = prefs?.getBoolean("page_flip_visible_cached", false),
             adminEmails = prefs?.getString("admin_emails_cached", null),
-            githubToken = prefs?.getString("github_token_cached", null),
+            githubMidiToken = prefs?.getString("github_midi_token_cached", null) ?: prefs?.getString("github_token_cached", null),
             isMangaloreHymnsEnabled = if (prefs?.contains("is_mangalore_hymns_enabled_cached") == true) prefs.getBoolean("is_mangalore_hymns_enabled_cached", false) else cachedMangaloreRemote(),
             midiHymnsRanges = prefs?.getString("midi_hymns_ranges_cached", null),
-            midiKeerthanesRanges = prefs?.getString("midi_keerthanes_ranges_cached", null)
+            midiKeerthanesRanges = prefs?.getString("midi_keerthanes_ranges_cached", null),
+            disableOggFallback = prefs?.getString("disable_ogg_fallback_cached", null),
+            audioBackupUrl = prefs?.getString("audio_backup_url_cached", null),
+            isAdyenEnabled = if (prefs?.contains("is_adyen_enabled_cached") == true) prefs.getBoolean("is_adyen_enabled_cached", false) else null,
+            paymentsEnabled = if (prefs?.contains("payments_enabled_cached") == true) prefs.getBoolean("payments_enabled_cached", false) else null
         )
         return applyLocalOverrides(cached)
     }
 
     fun isLocalOverridesEnabled(): Boolean {
         val enabled = prefs?.getBoolean("app_config_use_local_overrides", false) == true
-        android.util.Log.d("AppConfigRepository", "isLocalOverridesEnabled: $enabled")
         return enabled
     }
 
     fun setLocalOverridesEnabled(enabled: Boolean) {
-        android.util.Log.d("AppConfigRepository", "setLocalOverridesEnabled: $enabled")
         prefs?.edit()?.putBoolean("app_config_use_local_overrides", enabled)?.commit()
     }
 
     fun applyLocalOverrides(config: RemoteAppConfig): RemoteAppConfig {
         val enabled = isLocalOverridesEnabled()
-        android.util.Log.d("AppConfigRepository", "applyLocalOverrides: enabled=$enabled, inputConfig=$config")
         if (!enabled) return config
         val overridden = RemoteAppConfig(
             isChristmasTime = if (prefs?.contains("app_config_override_is_christmas_time") == true) {
@@ -223,20 +272,29 @@ class AppConfigRepository(
                 prefs.getBoolean("app_config_override_page_flip_visible", false)
             } else config.pageFlipVisible,
             adminEmails = prefs?.getString("app_config_override_admin_emails", null) ?: config.adminEmails,
-            githubToken = prefs?.getString("app_config_override_github_token", null) ?: config.githubToken,
+            githubMidiToken = prefs?.getString("app_config_override_github_midi_token", null) ?: prefs?.getString("app_config_override_github_token", null) ?: config.githubMidiToken,
             isMangaloreHymnsEnabled = if (prefs?.contains("app_config_override_is_mangalore_hymns_enabled") == true) {
                 prefs.getBoolean("app_config_override_is_mangalore_hymns_enabled", false)
             } else config.isMangaloreHymnsEnabled,
             midiHymnsRanges = prefs?.getString("app_config_override_midi_hymns_ranges", null) ?: config.midiHymnsRanges,
-            midiKeerthanesRanges = prefs?.getString("app_config_override_midi_keerthanes_ranges", null) ?: config.midiKeerthanesRanges
+            midiKeerthanesRanges = prefs?.getString("app_config_override_midi_keerthanes_ranges", null) ?: config.midiKeerthanesRanges,
+            disableOggFallback = prefs?.getString("app_config_override_disable_ogg_fallback", null) ?: config.disableOggFallback,
+            audioBackupUrl = prefs?.getString("app_config_override_audio_backup_url", null) ?: config.audioBackupUrl,
+            isAdyenEnabled = if (prefs?.contains("app_config_override_is_adyen_enabled") == true) {
+                prefs.getBoolean("app_config_override_is_adyen_enabled", false)
+            } else config.isAdyenEnabled,
+            paymentsEnabled = if (prefs?.contains("app_config_override_payments_enabled") == true) {
+                prefs.getBoolean("app_config_override_payments_enabled", false)
+            } else config.paymentsEnabled
         )
-        android.util.Log.d("AppConfigRepository", "applyLocalOverrides: outputConfig=$overridden")
         return overridden
     }
 
     suspend fun saveConfigValue(key: String, value: Any?) = withContext(Dispatchers.IO) {
         val useLocal = isLocalOverridesEnabled()
-        android.util.Log.d("AppConfigRepository", "saveConfigValue key=$key, value=$value, useLocal=$useLocal")
+        val isSensitiveKey = key.contains("token", true) || key.contains("email", true) || key.contains("passcode", true)
+        val safeLogVal = if (isSensitiveKey) "[REDACTED]" else value
+        android.util.Log.d("AppConfigRepository", "saveConfigValue key=$key, value=$safeLogVal, useLocal=$useLocal")
         if (useLocal) {
             prefs?.edit()?.run {
                 val prefKey = "app_config_override_$key"
@@ -247,8 +305,7 @@ class AppConfigRepository(
                     is Int -> putLong(prefKey, value.toLong())
                     else -> putString(prefKey, value.toString())
                 }
-                val success = commit()
-                android.util.Log.d("AppConfigRepository", "saveConfigValue (local): key=$prefKey, success=$success")
+                commit()
             }
         } else {
             val jsonValue = when (value) {
@@ -257,7 +314,6 @@ class AppConfigRepository(
                 is Number -> JsonPrimitive(value)
                 else -> JsonPrimitive(value.toString())
             }
-            android.util.Log.d("AppConfigRepository", "saveConfigValue (remote): key=$key, jsonValue=$jsonValue")
             appConfigService.update(key, jsonValue)
         }
     }

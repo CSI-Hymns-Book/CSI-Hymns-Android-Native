@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import com.reyzie.hymns.data.AppConfigRepository
+import com.reyzie.hymns.data.HymnsRepository
 
 data class AudioState(
     val isPlaying: Boolean = false,
@@ -35,14 +36,16 @@ data class AudioState(
     val isAltoEnabled: Boolean = true,
     val isTenorEnabled: Boolean = true,
     val isBassEnabled: Boolean = true,
-    val sopranoInstrument: Int = 19,
-    val altoInstrument: Int = 19,
-    val tenorInstrument: Int = 19,
-    val bassInstrument: Int = 19
+    val sopranoInstrument: Int = 16,
+    val altoInstrument: Int = 16,
+    val tenorInstrument: Int = 16,
+    val bassInstrument: Int = 16,
+    val isSatbRoutingEnabled: Boolean = false
 )
 
 class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private val appConfigRepository = AppConfigRepository(context = application)
+    private val hymnsRepository = HymnsRepository(context = application)
     private val exoPlayer = ExoPlayer.Builder(application).build()
     private var mediaPlayer: android.media.MediaPlayer? = null
     private var isUsingMediaPlayer = false
@@ -54,7 +57,27 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private var progressJob: Job? = null
     private var downloadJob: Job? = null
 
+    private val screenOffReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            if (intent?.action == android.content.Intent.ACTION_SCREEN_OFF) {
+                android.util.Log.d("AudioViewModel", "Screen turned off — pausing audio playback")
+                pausePlayback()
+            }
+        }
+    }
+
     init {
+        try {
+            val filter = android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                getApplication<Application>().registerReceiver(screenOffReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                getApplication<Application>().registerReceiver(screenOffReceiver, filter)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("AudioViewModel", "Error registering screenOffReceiver", e)
+        }
+
         exoPlayer.repeatMode = Player.REPEAT_MODE_OFF
         exoPlayer.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -97,14 +120,39 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
 
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 if (!isUsingMediaPlayer) {
-                    val is404 = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-                            || error.message?.contains("404") == true
-                            || error.cause?.message?.contains("404") == true
-                    val errorMsg = if (is404) {
-                        "AUDIO_NOT_FOUND"
-                    } else {
-                        com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE
+                    val currentUrl = _audioState.value.currentAudioUrl
+                    val config = appConfigRepository.getCachedRemoteConfig()
+                    val backupBase = config.audioBackupUrl
+                    val backupUrl = getBackupUrl(currentUrl ?: "", backupBase)
+                    if (!backupUrl.isNullOrBlank() && currentUrl != backupUrl) {
+                        android.util.Log.i("AudioViewModel", "ExoPlayer failed on primary URL, retrying with backup: $backupUrl", error)
+                        viewModelScope.launch(Dispatchers.Main) {
+                            _audioState.value = _audioState.value.copy(currentAudioUrl = backupUrl)
+                            exoPlayer.setMediaItem(MediaItem.fromUri(backupUrl))
+                            exoPlayer.setPlaybackSpeed(_audioState.value.playbackSpeed)
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }
+                        return
                     }
+
+                    val isOnline = isNetworkConnected()
+                    val msgLower = error.message?.lowercase().orEmpty()
+                    val causeLower = error.cause?.message?.lowercase().orEmpty()
+                    val is404 = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+                            || msgLower.contains("404") || causeLower.contains("404")
+                    val is403 = msgLower.contains("403") || causeLower.contains("403")
+                    val isTimeout = error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+                            || msgLower.contains("timeout")
+
+                    val errorMsg = when {
+                        !isOnline -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NETWORK_OFFLINE
+                        is404 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NOT_FOUND
+                        is403 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_SERVER_ERROR
+                        isTimeout -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_TIMEOUT
+                        else -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_DECODE_ERROR
+                    }
+
                     _audioState.value = _audioState.value.copy(
                         error = errorMsg,
                         isLoading = false,
@@ -114,6 +162,27 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         })
+        
+        // Load saved preferences at startup
+        val prefs = application.getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        val defaultInstrument = prefs.getInt("midi_instrument", 16)
+        val isSatbEnabled = prefs.getBoolean("is_satb_routing_enabled", false)
+        _audioState.value = _audioState.value.copy(
+            sopranoInstrument = defaultInstrument,
+            altoInstrument = defaultInstrument,
+            tenorInstrument = defaultInstrument,
+            bassInstrument = defaultInstrument,
+            isSatbRoutingEnabled = isSatbEnabled
+        )
+        
+        // Prefetch MIDI filenames from GitHub contents API at startup
+        viewModelScope.launch {
+            try {
+                hymnsRepository.getMidiFileNames()
+            } catch (e: Exception) {
+                android.util.Log.e("AudioViewModel", "Failed to prefetch GitHub midi file names", e)
+            }
+        }
     }
 
     private fun startProgressUpdate() {
@@ -142,91 +211,137 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     private fun stopProgressUpdate() {
         progressJob?.cancel()
     }
+    fun playSong(number: Int, title: String, isKeerthane: Boolean, signature: String? = null, customAudioUrl: String? = null) {
+        viewModelScope.launch {
+            // Load and await the MIDI files list from GitHub to ensure complete mapping
+            hymnsRepository.getMidiFileNames()
 
-    fun playSong(number: Int, title: String, isKeerthane: Boolean, customAudioUrl: String? = null) {
-        val config = appConfigRepository.getCachedRemoteConfig()
-        val isMidiMigrated = if (isKeerthane) {
-            config.parsedMidiKeerthanes.contains(number)
-        } else {
-            config.parsedMidiHymns.contains(number)
-        }
+            val config = appConfigRepository.getCachedRemoteConfig()
+            
+            val defaultOption = if (!isKeerthane && !signature.isNullOrBlank()) {
+                if (signature.contains("/")) signature.split("/").firstOrNull()?.trim() ?: "" else signature.trim()
+            } else ""
 
-        val audioUrl = customAudioUrl ?: if (isKeerthane) {
-            if (isMidiMigrated) {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/midi/Keerthane_$number.mid"
+            val isMidiMigrated = if (isKeerthane) {
+                config.parsedMidiKeerthanes.contains(number) || (config.disableOggFallback == "keerthane" || config.disableOggFallback == "both")
             } else {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
-            }
-        } else {
-            if (isMidiMigrated) {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/midi/Hymn_$number.mid"
-            } else {
-                "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
-            }
-        }
-
-        val isMidi = audioUrl.endsWith(".mid", ignoreCase = true)
-        
-        if (_audioState.value.currentAudioUrl == audioUrl) {
-            _audioState.value = _audioState.value.copy(
-                isVisible = true,
-                currentSongTitle = title,
-                error = null
-            )
-            if (isMidi) {
-                val mp = mediaPlayer
-                if (mp == null) {
-                    rawMidiCache = null
-                    playMidi(audioUrl, number, title, isKeerthane)
+                val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                              defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                              defaultOption.lowercase().startsWith("mt")
+                if (isMtRef) {
+                    true
                 } else {
-                    mp.seekTo(0)
-                    _audioState.value = _audioState.value.copy(position = 0, isPlaying = true)
-                    mp.start()
-                    startProgressUpdate()
+                    val baseMeter = if (defaultOption.contains("_")) defaultOption.substringBefore("_") else defaultOption
+                    val normalized = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(baseMeter)
+                    val hasMatchingFiles = hymnsRepository.getCachedMidiFileNames().any { filename ->
+                        val nameWithoutExt = filename.substringBeforeLast(".mid")
+                        val normalizedName = com.reyzie.hymns.utils.MeterUtils.getNormalizedMeter(nameWithoutExt)
+                        nameWithoutExt.equals(defaultOption, ignoreCase = true) ||
+                        normalizedName == normalized ||
+                        normalizedName.startsWith("${normalized}_") ||
+                        nameWithoutExt.lowercase().startsWith("hymn_${number}") ||
+                        nameWithoutExt.lowercase().startsWith("${number}_")
+                    }
+                    hasMatchingFiles || config.parsedMidiHymns.contains(normalized) || (config.disableOggFallback == "hymns" || config.disableOggFallback == "both")
+                }
+            }
+
+            val audioUrl = customAudioUrl ?: if (isKeerthane) {
+                if (isMidiMigrated) {
+                    "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Keerthane/Keerthane_$number.mid"
+                } else {
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
                 }
             } else {
-                if (exoPlayer.mediaItemCount == 0) {
-                    _audioState.value = _audioState.value.copy(isLoading = true, error = null)
-                    exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
-                    exoPlayer.prepare()
+                if (isMidiMigrated) {
+                    val isMtRef = defaultOption.contains("M.T.", ignoreCase = true) || 
+                                  defaultOption.contains("Mang.T.B.", ignoreCase = true) || 
+                                  defaultOption.lowercase().startsWith("mt")
+                    if (isMtRef) {
+                        val mtNumber = defaultOption.filter { it.isDigit() || it == 'b' || it == 'c' || it == 'd' || it == 'e' }
+                        "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Mangalore%20Tunes/mt${mtNumber}.mid"
+                    } else {
+                        val meterName = com.reyzie.hymns.utils.MeterUtils.getMeterMidiFileName(defaultOption)
+                        "https://raw.githubusercontent.com/Reynold29/midi-vault/main/Hymns/${meterName}.mid"
+                    }
+                } else {
+                    "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
                 }
-                exoPlayer.seekTo(0)
-                _audioState.value = _audioState.value.copy(position = 0, isPlaying = false)
+            }
+
+            val isMidi = audioUrl.endsWith(".mid", ignoreCase = true)
+            
+            if (_audioState.value.currentAudioUrl == audioUrl) {
+                _audioState.value = _audioState.value.copy(
+                    isVisible = true,
+                    currentSongTitle = title,
+                    error = null
+                )
+                if (isMidi) {
+                    val mp = mediaPlayer
+                    if (mp == null) {
+                        rawMidiCache = null
+                        playMidi(audioUrl, number, title, isKeerthane)
+                    } else {
+                        mp.seekTo(0)
+                        _audioState.value = _audioState.value.copy(position = 0, isPlaying = true)
+                        mp.start()
+                        startProgressUpdate()
+                    }
+                } else {
+                    val state = _audioState.value
+                    if (exoPlayer.mediaItemCount == 0) {
+                        _audioState.value = _audioState.value.copy(isLoading = true, error = null)
+                        exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
+                        exoPlayer.prepare()
+                    }
+                    exoPlayer.setPlaybackSpeed(state.playbackSpeed)
+                    exoPlayer.seekTo(0)
+                    _audioState.value = _audioState.value.copy(position = 0, isPlaying = false)
+                    exoPlayer.play()
+                }
+                return@launch
+            }
+
+            rawMidiCache = null
+            stopProgressUpdate()
+            isUsingMediaPlayer = isMidi
+            val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+            val defaultInstrument = prefs.getInt("midi_instrument", 16)
+            _audioState.value = _audioState.value.copy(
+                currentSongTitle = title,
+                currentSongNumber = number,
+                isKeerthane = isKeerthane,
+                isVisible = true,
+                isPlaying = false,
+                isLoading = true,
+                error = null,
+                position = 0,
+                duration = 0,
+                currentAudioUrl = audioUrl,
+                sopranoInstrument = defaultInstrument,
+                altoInstrument = defaultInstrument,
+                tenorInstrument = defaultInstrument,
+                bassInstrument = defaultInstrument
+            )
+
+            // Reset ExoPlayer
+            exoPlayer.stop()
+            exoPlayer.clearMediaItems()
+
+            // Reset MediaPlayer fallback
+            mediaPlayer?.release()
+            mediaPlayer = null
+
+            if (isMidi) {
+                playMidi(audioUrl, number, title, isKeerthane)
+            } else {
+                val state = _audioState.value
+                exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
+                exoPlayer.setPlaybackSpeed(state.playbackSpeed)
+                exoPlayer.prepare()
                 exoPlayer.play()
             }
-            return
-        }
-
-        rawMidiCache = null
-        stopProgressUpdate()
-        isUsingMediaPlayer = isMidi
-        _audioState.value = _audioState.value.copy(
-            currentSongTitle = title,
-            currentSongNumber = number,
-            isKeerthane = isKeerthane,
-            isVisible = true,
-            isPlaying = false,
-            isLoading = true,
-            error = null,
-            position = 0,
-            duration = 0,
-            currentAudioUrl = audioUrl
-        )
-
-        // Reset ExoPlayer
-        exoPlayer.stop()
-        exoPlayer.clearMediaItems()
-
-        // Reset MediaPlayer fallback
-        mediaPlayer?.release()
-        mediaPlayer = null
-
-        if (isMidi) {
-            playMidi(audioUrl, number, title, isKeerthane)
-        } else {
-            exoPlayer.setMediaItem(MediaItem.fromUri(audioUrl))
-            exoPlayer.prepare()
-            exoPlayer.play()
         }
     }
 
@@ -235,15 +350,26 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         downloadJob = viewModelScope.launch(Dispatchers.IO) {
             try {
                 // 1. Download MIDI bytes
-                val connection = java.net.URL(audioUrl).openConnection() as java.net.HttpURLConnection
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-                val midiBytes = connection.inputStream.use { it.readBytes() }
+                val config = appConfigRepository.getCachedRemoteConfig()
+                val token = config.githubMidiToken
+                val backupBase = config.audioBackupUrl
+
+                val midiBytes = try {
+                    downloadMidiBytes(audioUrl, token)
+                } catch (e: Exception) {
+                    val backupUrl = getBackupUrl(audioUrl, backupBase)
+                    if (!backupUrl.isNullOrBlank()) {
+                        android.util.Log.i("AudioViewModel", "Primary MIDI download failed, trying backup: $backupUrl", e)
+                        downloadMidiBytes(backupUrl, rawToken = null)
+                    } else {
+                        throw e
+                    }
+                }
                 rawMidiCache = midiBytes
                 
                 // 2. Patch to chosen MIDI Instrument from preferences
                 val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
-                val instrument = prefs.getInt("midi_instrument", 19)
+                val instrument = prefs.getInt("midi_instrument", 16)
                 val state = _audioState.value
                 val patchedBytes = patchMidiInstrument(
                     midiBytes = midiBytes,
@@ -257,6 +383,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     altoInstrument = state.altoInstrument,
                     tenorInstrument = state.tenorInstrument,
                     bassInstrument = state.bassInstrument,
+                    isSatbRoutingEnabled = state.isSatbRoutingEnabled,
                     speed = state.playbackSpeed
                 )
                 
@@ -281,7 +408,15 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 isPlaying = true,
                                 error = null
                             )
+                            try {
+                                val params = preparedMp.playbackParams
+                                params.speed = _audioState.value.playbackSpeed
+                                preparedMp.playbackParams = params
+                            } catch (e: Exception) {
+                                android.util.Log.e("AudioViewModel", "Failed to set native speed on prepare", e)
+                            }
                             preparedMp.start()
+                            mediaPlayer = preparedMp // Store the active player reference!
                             startProgressUpdate()
                         }
                         setOnErrorListener { _, _, _ ->
@@ -310,12 +445,50 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                     mediaPlayer = mp
                 }
             } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    val is404 = e is java.io.FileNotFoundException || e.message?.contains("404") == true
-                    val errorMsg = if (is404) {
-                        "AUDIO_NOT_FOUND"
+                android.util.Log.e("AudioViewModel", "Error downloading or playing MIDI for url: $audioUrl", e)
+                val msgLower = e.message?.lowercase().orEmpty()
+                val is404 = e is java.io.FileNotFoundException || msgLower.contains("404")
+                if (is404) {
+                    val config = appConfigRepository.getCachedRemoteConfig()
+                    val disableFallback = if (isKeerthane) {
+                        config.parsedMidiKeerthanes.contains(number) || (config.disableOggFallback == "keerthane" || config.disableOggFallback == "both")
                     } else {
-                        com.reyzie.hymns.data.ContentErrorMessages.AUDIO_OFFLINE
+                        (config.disableOggFallback == "hymns" || config.disableOggFallback == "both")
+                    }
+                    
+                    if (!disableFallback) {
+                        val fallbackUrl = if (isKeerthane) {
+                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Keerthane/Keerthane_$number.ogg"
+                        } else {
+                            "https://raw.githubusercontent.com/reynold29/midi-files/main/Hymns/Hymn_$number.ogg"
+                        }
+                        android.util.Log.d("AudioViewModel", "MIDI 404. Falling back to ogg: $fallbackUrl")
+                        withContext(Dispatchers.Main) {
+                            isUsingMediaPlayer = false
+                            _audioState.value = _audioState.value.copy(
+                                isLoading = true,
+                                currentAudioUrl = fallbackUrl
+                            )
+                            exoPlayer.setMediaItem(MediaItem.fromUri(fallbackUrl))
+                            exoPlayer.setPlaybackSpeed(_audioState.value.playbackSpeed)
+                            exoPlayer.prepare()
+                            exoPlayer.play()
+                        }
+                        return@launch
+                    }
+                }
+                
+                withContext(Dispatchers.Main) {
+                    val isOnline = isNetworkConnected()
+                    val is403 = msgLower.contains("403") || msgLower.contains("rate limit")
+                    val isTimeout = e is java.net.SocketTimeoutException || msgLower.contains("timeout")
+
+                    val errorMsg = when {
+                        !isOnline -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NETWORK_OFFLINE
+                        is404 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_NOT_FOUND
+                        is403 -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_SERVER_ERROR
+                        isTimeout -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_TIMEOUT
+                        else -> com.reyzie.hymns.data.ContentErrorMessages.AUDIO_DECODE_ERROR
                     }
                     _audioState.value = _audioState.value.copy(
                         error = errorMsg,
@@ -328,6 +501,17 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun isNetworkConnected(): Boolean {
+        return try {
+            val cm = getApplication<Application>().getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+            val net = cm?.activeNetwork
+            val caps = cm?.getNetworkCapabilities(net)
+            caps != null && caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (e: Exception) {
+            true
+        }
+    }
+
     private fun patchMidiInstrument(
         midiBytes: ByteArray,
         instrumentProgram: Int,
@@ -336,10 +520,11 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         isAltoEnabled: Boolean,
         isTenorEnabled: Boolean,
         isBassEnabled: Boolean,
-        sopranoInstrument: Int = 19,
-        altoInstrument: Int = 19,
-        tenorInstrument: Int = 19,
-        bassInstrument: Int = 19,
+        sopranoInstrument: Int = 16,
+        altoInstrument: Int = 16,
+        tenorInstrument: Int = 16,
+        bassInstrument: Int = 16,
+        isSatbRoutingEnabled: Boolean = false,
         speed: Float = 1.0f
     ): ByteArray {
         val result = midiBytes.clone()
@@ -445,12 +630,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                             0x90 -> {
                                 // Note On: data1 = note, data2 = velocity
                                 if (trackPtr + 1 < trackEnd) {
-                                    val isMuted = when (channel) {
-                                        0 -> !isSopranoEnabled
-                                        1 -> !isAltoEnabled
-                                        2 -> !isTenorEnabled
-                                        3 -> !isBassEnabled
-                                        else -> false
+                                    val isMuted = if (isSatbRoutingEnabled) {
+                                        when (channel) {
+                                            0 -> !isSopranoEnabled
+                                            1 -> !isAltoEnabled
+                                            2 -> !isTenorEnabled
+                                            3 -> !isBassEnabled
+                                            else -> false
+                                        }
+                                    } else {
+                                        false
                                     }
                                     if (isMuted) {
                                         result[trackPtr + 1] = 0.toByte()
@@ -481,12 +670,16 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                                 if (trackPtr < trackEnd) {
                                     // Channel 9 is standard MIDI drums. Skip it.
                                     if (channel != 9) {
-                                        val instr = when (channel) {
-                                            0 -> sopranoInstrument
-                                            1 -> altoInstrument
-                                            2 -> tenorInstrument
-                                            3 -> bassInstrument
-                                            else -> instrumentProgram
+                                        val instr = if (isSatbRoutingEnabled) {
+                                            when (channel) {
+                                                0 -> sopranoInstrument
+                                                1 -> altoInstrument
+                                                2 -> tenorInstrument
+                                                3 -> bassInstrument
+                                                else -> instrumentProgram
+                                            }
+                                        } else {
+                                            instrumentProgram
                                         }
                                         result[trackPtr] = instr.toByte()
                                     }
@@ -612,6 +805,19 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun setSatbRoutingEnabled(enabled: Boolean) {
+        val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_satb_routing_enabled", enabled).apply()
+        
+        _audioState.value = _audioState.value.copy(isSatbRoutingEnabled = enabled)
+        
+        val state = _audioState.value
+        val url = state.currentAudioUrl
+        if (url != null && url.endsWith(".mid", ignoreCase = true)) {
+            applyRealtimeMidiChanges()
+        }
+    }
+
     private fun applyRealtimeMidiChanges() {
         val mp = mediaPlayer ?: return
         val isPlaying = mp.isPlaying
@@ -627,7 +833,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         val num = state.currentSongNumber ?: return
         
         val prefs = getApplication<Application>().getSharedPreferences("settings_prefs", android.content.Context.MODE_PRIVATE)
-        val instrument = prefs.getInt("midi_instrument", 19)
+        val instrument = prefs.getInt("midi_instrument", 16)
         
         val patchedBytes = patchMidiInstrument(
             midiBytes = midiBytes,
@@ -641,6 +847,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             altoInstrument = state.altoInstrument,
             tenorInstrument = state.tenorInstrument,
             bassInstrument = state.bassInstrument,
+            isSatbRoutingEnabled = state.isSatbRoutingEnabled,
             speed = state.playbackSpeed
         )
         
@@ -687,7 +894,14 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         if (isUsingMediaPlayer) {
             val mp = mediaPlayer
             if (mp != null) {
-                applyRealtimeMidiChanges()
+                try {
+                    val params = mp.playbackParams
+                    params.speed = speed
+                    mp.playbackParams = params
+                } catch (e: Exception) {
+                    android.util.Log.e("AudioViewModel", "Failed to set native MediaPlayer playback speed, falling back to patch", e)
+                    applyRealtimeMidiChanges()
+                }
             }
         } else {
             exoPlayer.setPlaybackSpeed(speed)
@@ -723,9 +937,140 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         _audioState.value = AudioState()
     }
 
+    fun pausePlayback() {
+        if (isUsingMediaPlayer) {
+            val mp = mediaPlayer
+            if (mp != null && mp.isPlaying) {
+                mp.pause()
+                _audioState.value = _audioState.value.copy(isPlaying = false)
+                stopProgressUpdate()
+            }
+        } else {
+            if (exoPlayer.isPlaying) {
+                exoPlayer.pause()
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
+        try {
+            getApplication<Application>().unregisterReceiver(screenOffReceiver)
+        } catch (_: Exception) {}
         mediaPlayer?.release()
         exoPlayer.release()
+    }
+
+    private fun getBackupUrl(primaryUrl: String, backupBaseUrl: String?): String? {
+        if (backupBaseUrl.isNullOrBlank() || backupBaseUrl == "null") return null
+        val base = backupBaseUrl.trim().removeSuffix("/")
+        val prefixes = listOf(
+            "https://raw.githubusercontent.com/Reynold29/midi-vault/main/",
+            "https://raw.githubusercontent.com/reynold29/midi-vault/main/",
+            "https://raw.githubusercontent.com/reynold29/midi-files/main/",
+            "https://raw.githubusercontent.com/Reynold29/midi-files/main/"
+        )
+        for (prefix in prefixes) {
+            if (primaryUrl.startsWith(prefix, ignoreCase = true)) {
+                val path = primaryUrl.substring(prefix.length)
+                return "$base/$path"
+            }
+        }
+        if (primaryUrl.contains("api.github.com/repos/Reynold29/midi-vault/contents/")) {
+            val path = primaryUrl.substringAfter("api.github.com/repos/Reynold29/midi-vault/contents/")
+            return "$base/$path"
+        }
+        return null
+    }
+
+    private suspend fun downloadMidiBytes(targetUrl: String, rawToken: String? = null): ByteArray = withContext(Dispatchers.IO) {
+        var token = rawToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+        if (token == "null") token = null
+        
+        if (token.isNullOrBlank() && targetUrl.contains("midi-vault", ignoreCase = true)) {
+            try {
+                val fetchedConfig = appConfigRepository.fetchRemoteConfig()
+                token = fetchedConfig.githubMidiToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
+                if (token == "null") token = null
+            } catch (e: Exception) {
+                android.util.Log.w("AudioViewModel", "Failed on-demand remote config fetch for MIDI token", e)
+            }
+        }
+
+        val isMidiVault = targetUrl.contains("midi-vault", ignoreCase = true)
+        val useApi = isMidiVault && !token.isNullOrBlank()
+
+        var finalUrl = targetUrl
+        if (useApi) {
+            val rawPath = if (targetUrl.contains("raw.githubusercontent.com")) {
+                targetUrl.substringAfter("/midi-vault/main/")
+            } else {
+                targetUrl.substringAfter("/contents/")
+            }
+            val decodedPath = try { java.net.URLDecoder.decode(rawPath, "UTF-8") } catch (e: Exception) { rawPath }
+            val encodedPath = decodedPath.split("/").joinToString("/") { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+            finalUrl = "https://api.github.com/repos/Reynold29/midi-vault/contents/$encodedPath"
+        }
+
+        fun executeRequest(authHeaderVal: String?): ByteArray? {
+            try {
+                val url = java.net.URL(finalUrl)
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 12000
+                connection.readTimeout = 12000
+                connection.instanceFollowRedirects = false
+                connection.setRequestProperty("User-Agent", "CSI-Hymns-App")
+
+                if (!authHeaderVal.isNullOrBlank()) {
+                    connection.setRequestProperty("Authorization", authHeaderVal)
+                    connection.setRequestProperty("Accept", "application/vnd.github.v3.raw")
+                }
+
+                val responseCode = connection.responseCode
+                android.util.Log.d("AudioViewModel", "MIDI download GET $finalUrl with ${authHeaderVal?.take(15)}... -> HTTP $responseCode")
+
+                if (responseCode in 300..399) {
+                    val redirectUrl = connection.getHeaderField("Location")
+                    if (!redirectUrl.isNullOrBlank()) {
+                        android.util.Log.d("AudioViewModel", "Following 302 redirect to: $redirectUrl")
+                        val redirectConn = java.net.URL(redirectUrl).openConnection() as java.net.HttpURLConnection
+                        redirectConn.connectTimeout = 12000
+                        redirectConn.readTimeout = 12000
+                        redirectConn.setRequestProperty("User-Agent", "CSI-Hymns-App")
+                        val redirectCode = redirectConn.responseCode
+                        if (redirectCode in 200..299) {
+                            return redirectConn.inputStream.use { it.readBytes() }
+                        } else {
+                            android.util.Log.e("AudioViewModel", "Redirect HTTP $redirectCode from $redirectUrl")
+                            return null
+                        }
+                    }
+                }
+
+                if (responseCode in 200..299) {
+                    return connection.inputStream.use { it.readBytes() }
+                }
+                android.util.Log.w("AudioViewModel", "Request $finalUrl failed with HTTP $responseCode")
+            } catch (e: Exception) {
+                android.util.Log.w("AudioViewModel", "Exception during executeRequest for $finalUrl", e)
+            }
+            return null
+        }
+
+        var result: ByteArray? = null
+        if (useApi) {
+            result = executeRequest("Bearer $token")
+            if (result == null) {
+                result = executeRequest("token $token")
+            }
+        } else {
+            result = executeRequest(null)
+        }
+
+        if (result != null) {
+            return@withContext result
+        }
+
+        throw java.io.IOException("Failed to download MIDI from $targetUrl (finalUrl: $finalUrl)")
     }
 }
