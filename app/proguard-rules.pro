@@ -49,9 +49,9 @@
 -keep class com.google.android.gms.cast.** { *; }
 -dontwarn com.google.android.gms.**
 
-# OneSignal / PostHog
--keep class com.onesignal.** { *; }
--dontwarn com.onesignal.**
+# Firebase / PostHog
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
 -keep class com.posthog.** { *; }
 -dontwarn com.posthog.**
 
@@ -73,3 +73,12 @@
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn org.slf4j.**
+
+# Adyen / CashApp Pay / kotlinx.datetime
+-keep class kotlinx.datetime.** { *; }
+-dontwarn kotlinx.datetime.**
+-keep class app.cash.paykit.** { *; }
+-dontwarn app.cash.paykit.**
+-keep class com.adyen.checkout.** { *; }
+-dontwarn com.adyen.checkout.**
+

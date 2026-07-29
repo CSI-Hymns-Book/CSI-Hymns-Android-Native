@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-class BroadcastMessageService(context: Context) {
+class BroadcastMessageService(private val context: Context) {
     private val supabase = SupabaseService.getInstance()
     private val prefs = context.getSharedPreferences("hymns_prefs", Context.MODE_PRIVATE)
 
@@ -23,6 +23,8 @@ class BroadcastMessageService(context: Context) {
      */
     suspend fun getActiveUndismissedBroadcast(): InAppMessage? = withContext(Dispatchers.IO) {
         try {
+            val currentVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+            
             val activeAnnouncements = supabase.client.from("in_app_messages")
                 .select {
                     filter {
@@ -30,6 +32,7 @@ class BroadcastMessageService(context: Context) {
                     }
                 }
                 .decodeList<InAppMessage>()
+                .filter { it.targetVersion.isNullOrBlank() || it.targetVersion == currentVersion }
                 .sortedByDescending { it.createdAt }
 
             val dismissedIds = getDismissedIds()

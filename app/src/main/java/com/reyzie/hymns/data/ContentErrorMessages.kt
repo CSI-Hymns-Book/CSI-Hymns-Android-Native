@@ -15,6 +15,16 @@ object ContentErrorMessages {
         "Content isn't available yet. Connect to the internet once to download worship materials."
     const val AUDIO_OFFLINE =
         "Audio needs an internet connection. Lyrics and order of service work offline."
+    const val AUDIO_NOT_FOUND =
+        "Audio recording for this tune is not available yet."
+    const val AUDIO_NETWORK_OFFLINE =
+        "No internet connection. Please check your Wi-Fi or mobile data."
+    const val AUDIO_SERVER_ERROR =
+        "Audio server busy or rate-limited. Please try again shortly."
+    const val AUDIO_DECODE_ERROR =
+        "Unable to decode or play this audio track."
+    const val AUDIO_TIMEOUT =
+        "Audio download timed out. Please try playing again."
     const val REFRESH_SUCCESS = "Content updated successfully."
     const val REFRESH_PARTIAL = "Some content couldn't be updated. Showing your saved copy."
 

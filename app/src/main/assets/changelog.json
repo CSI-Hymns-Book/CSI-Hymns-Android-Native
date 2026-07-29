@@ -1,5 +1,20 @@
 [
     {
+        "title": "Realtime MIDI Transpose, SATB Routing & Audio Polish 🎵🙏",
+        "version": "5.1.2",
+        "date": "26-07-2026",
+        "changes": [
+            "NEW Real-Time MIDI Transposition — transpose song keys on the fly during MIDI playback. Hymns for now, Keerthane COMING SOON!",
+            "NEW Independent SATB Instrument Routing — customize separate MIDI instruments for Soprano, Alto, Tenor, and Bass voice parts (including Choir, Organ, & more)",
+            "NEW Precision Tempo & Pitch Control — adjustable high-precision speed controls without audio distortion",
+            "NEW Dynamic Tune Selector Grid & Dropdown — easily switch between multiple tune variations and meter signatures directly on song detail pages",
+            "NEW Version-Targeted Announcements — stay updated with important app announcements tailored for your app version",
+            "Admin Controls Expansion — role-based JSON admin permissions, Sudo root access, and local AppConfig overrides",
+            "Stability & Fixes — resolved navigation drawer crashes, section switching glitches, and synced PostHog user sessions",
+            "Thank you for using CSI Hymns! Report any issues from the app or Settings"
+        ]
+    },
+    {
         "title": "HOTFIXES + M.T. Hymns, MIDI Playback & Admin Tools ⛪🎶",
         "version": "5.1.0",
         "date": "12-07-2026",

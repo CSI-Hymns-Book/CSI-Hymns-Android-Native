@@ -9,6 +9,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import com.adyen.checkout.dropin.DropIn
 import com.reyzie.hymns.ui.screens.MainScreen
 import com.reyzie.hymns.ui.theme.CSIHymnsBookTheme
 import com.reyzie.hymns.ui.widgets.ChristmasAmbienceOverlay
@@ -34,7 +35,29 @@ import io.github.jan.supabase.auth.handleDeeplinks
 class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* OneSignal handles opt-in after permission */ }
+    ) { isGranted ->
+        com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
+    }
+
+    val dropInLauncher = DropIn.registerForDropInResult(
+        this,
+        object : com.adyen.checkout.dropin.SessionDropInCallback {
+            override fun onDropInResult(sessionDropInResult: com.adyen.checkout.dropin.SessionDropInResult?) {
+                when (sessionDropInResult) {
+                    is com.adyen.checkout.dropin.SessionDropInResult.Finished -> {
+                        android.widget.Toast.makeText(this@MainActivity, "Thank you for your generous support! May God bless you!", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    is com.adyen.checkout.dropin.SessionDropInResult.CancelledByUser -> {
+                        android.widget.Toast.makeText(this@MainActivity, "Payment was cancelled.", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                    is com.adyen.checkout.dropin.SessionDropInResult.Error -> {
+                        android.widget.Toast.makeText(this@MainActivity, "Payment error: ${sessionDropInResult.reason}", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                    null -> {}
+                }
+            }
+        }
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +65,17 @@ class MainActivity : ComponentActivity() {
         AnalyticsService.init(application)
         if (savedInstanceState == null && OnboardingPrefs.isWelcomeCompleted(this)) {
             OnboardingPrefs.incrementLaunchCount(this)
+        }
+
+        // Request notification permission & sync FCM token
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
+            }
+        } else {
+            com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
         }
         
         // Initialize Supabase
@@ -81,7 +115,7 @@ class MainActivity : ComponentActivity() {
                 isChristmasMode = isChristmasMode
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    MainScreen()
+                    MainScreen(dropInLauncher = dropInLauncher)
                     if (isChristmasMode) {
                         ChristmasAmbienceOverlay(
                             modifier = Modifier.fillMaxSize(),
@@ -101,6 +135,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         // Handle incoming deep links for OAuth redirects on existing activity
         SupabaseService.getInstance().client.handleDeeplinks(intent)
     }

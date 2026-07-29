@@ -67,7 +67,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.onesignal.OneSignal
 import com.reyzie.hymns.R
 import com.reyzie.hymns.data.OnboardingPrefs
 import com.reyzie.hymns.data.SupabaseService
@@ -95,9 +94,6 @@ fun OnboardingScreen(
         HapticFeedbackManager.mediumClick(context)
         scope.launch {
             val value = if (accepted) 1 else 0
-            if (accepted) {
-                OneSignal.consentGiven = true
-            }
             OnboardingPrefs.markWelcomeCompleted(context, value, pendingChangelog = true)
             SupabaseService.getInstance().setPrivacyPolicyAcceptedInProfile(value)
             busy = false
