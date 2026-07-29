@@ -279,7 +279,13 @@ Please keep changes focused and match existing Compose / MVVM conventions.
 
 ## License
 
-Private / personal project. Add your license here if you plan to open-source.
+This project is licensed under the **Apache License 2.0** with **Custom Non-Commercial & Asset Protection Addendums**.
+
+- **Non-Commercial**: The app and its code cannot be copied, compiled, or resold as a paid app or monetized through paywalls/ads by unauthorized third parties.
+- **Asset Protection**: All media assets, audio recordings, MIDI files, lyrics transcriptions, and database schemas are protected under this license and cannot be extracted for external commercial use.
+- **Attribution**: Original authorship credit to "Reynold / CSI Hymns Book" must be maintained in all forks and distributions.
+
+See the full [LICENSE](file:///Users/reyzie/Documents/Personal%20Projects/CSI-Hymns-Android-Native/LICENSE) file for complete details.
 
 ---
 
