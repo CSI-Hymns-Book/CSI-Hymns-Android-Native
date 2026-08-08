@@ -157,3 +157,15 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEa
         )
     }
 }
+
+// CI: expose versionName / versionCode without grepping build files.
+val ciVersionName = android.defaultConfig.versionName.orEmpty()
+val ciVersionCode = android.defaultConfig.versionCode ?: 0
+tasks.register("printCiVersion") {
+    group = "ci"
+    description = "Print VERSION_NAME and VERSION_CODE for Jenkins / CI scripts"
+    doLast {
+        println("VERSION_NAME=$ciVersionName")
+        println("VERSION_CODE=$ciVersionCode")
+    }
+}

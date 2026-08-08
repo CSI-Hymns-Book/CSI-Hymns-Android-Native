@@ -192,12 +192,32 @@ pipeline {
 
         stage('Archive') {
             steps {
-                archiveArtifacts artifacts: '''
-app/build/outputs/**/*.apk,
-app/build/outputs/**/*.aab,
-app/build/outputs/mapping/release/mapping.txt,
-app/build/intermediates/native_debug_metadata/release/*.zip
-''', fingerprint: true, allowEmptyArchive: true
+                script {
+                    def patterns = [
+                        'app/build/outputs/**/*.apk',
+                        'app/build/outputs/**/*.aab',
+                    ]
+
+                    if (fileExists('app/build/outputs/mapping/release/mapping.txt')) {
+                        patterns << 'app/build/outputs/mapping/release/mapping.txt'
+                        echo 'Archiving ProGuard/R8 mapping.txt'
+                    } else {
+                        echo 'Skipping mapping.txt (not present — minify may be off)'
+                    }
+
+                    def nativeStatus = sh(
+                        script: 'ls app/build/intermediates/native_debug_metadata/release/*.zip >/dev/null 2>&1',
+                        returnStatus: true
+                    )
+                    if (nativeStatus == 0) {
+                        patterns << 'app/build/intermediates/native_debug_metadata/release/*.zip'
+                        echo 'Archiving native_debug_metadata'
+                    } else {
+                        echo 'Skipping native_debug_metadata (not generated for this build)'
+                    }
+
+                    archiveArtifacts artifacts: patterns.join(','), fingerprint: true, allowEmptyArchive: false
+                }
             }
         }
 
@@ -243,11 +263,28 @@ app/build/intermediates/native_debug_metadata/release/*.zip
     }
 
     post {
-        always {
+        // Success: rich notify + artifact uploads (scripts only upload on success).
+        success {
             script {
-                notifySlack()
-                notifyTelegram()
+                notifySlack('success')
+                notifyTelegram('success')
             }
+        }
+        // Failure / abort: failure-only message — no deploy, no artifact upload.
+        failure {
+            script {
+                notifySlack('failure')
+                notifyTelegram('failure')
+            }
+        }
+        aborted {
+            script {
+                notifySlack('failure')
+                notifyTelegram('failure')
+            }
+        }
+        // Always: wipe secrets/workspace after notify.
+        always {
             sh '''
             rm -f release-keystore.jks
             rm -f keystore.properties
@@ -260,30 +297,99 @@ app/build/intermediates/native_debug_metadata/release/*.zip
     }
 }
 
-// Load KEY=VALUE lines (supports escaped newlines in values).
+/**
+ * Load KEY=value lines into env without dynamic env[key] (sandbox putAt).
+ * Only known CI keys are assigned via env.NAME = value.
+ */
 def loadDotenv(String path) {
     def text = readFile(path)
-    text.split('\n').each { line ->
-        if (!line.trim() || line.trim().startsWith('#')) {
+    text.split('\n').each { String line ->
+        def trimmed = line.trim()
+        if (!trimmed || trimmed.startsWith('#')) {
             return
         }
-        def eq = line.indexOf('=')
+        def eq = trimmed.indexOf('=')
         if (eq <= 0) {
             return
         }
-        def key = line.substring(0, eq)
-        def value = line.substring(eq + 1)
-        // Strip optional surrounding quotes from older env writers.
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        def key = trimmed.substring(0, eq).trim()
+        def value = trimmed.substring(eq + 1)
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
             value = value.substring(1, value.length() - 1)
         }
         value = value.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
-        env[key] = value
+        setKnownEnv(key, value)
     }
 }
 
-def notifySlack() {
-    env.BUILD_STATUS = currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'
+def setKnownEnv(String key, String value) {
+    switch (key) {
+        case 'VERSION_NAME':
+            env.VERSION_NAME = value
+            break
+        case 'VERSION_CODE':
+            env.VERSION_CODE = value
+            break
+        case 'AGP_VERSION':
+            env.AGP_VERSION = value
+            break
+        case 'KOTLIN_VERSION':
+            env.KOTLIN_VERSION = value
+            break
+        case 'GRADLE_VERSION':
+            env.GRADLE_VERSION = value
+            break
+        case 'GIT_COMMIT':
+            env.GIT_COMMIT = value
+            break
+        case 'GIT_COMMIT_FULL':
+            env.GIT_COMMIT_FULL = value
+            break
+        case 'GIT_AUTHOR':
+            env.GIT_AUTHOR = value
+            break
+        case 'GIT_COMMIT_MESSAGE':
+            env.GIT_COMMIT_MESSAGE = value
+            break
+        case 'JAVA_VERSION':
+            env.JAVA_VERSION = value
+            break
+        case 'ANDROID_STUDIO_VERSION':
+            env.ANDROID_STUDIO_VERSION = value
+            break
+        case 'GITHUB_COMMIT_URL':
+            env.GITHUB_COMMIT_URL = value
+            break
+        case 'PLAY_CONSOLE_URL':
+            env.PLAY_CONSOLE_URL = value
+            break
+        case 'BRANCH':
+            env.BRANCH = value
+            break
+        case 'CHANGELOG_TITLE':
+            env.CHANGELOG_TITLE = value
+            break
+        case 'CHANGELOG_VERSION':
+            env.CHANGELOG_VERSION = value
+            break
+        case 'CHANGELOG_DATE':
+            env.CHANGELOG_DATE = value
+            break
+        case 'CHANGELOG_CHANGES':
+            env.CHANGELOG_CHANGES = value
+            break
+        case 'CHANGELOG_CHANGES_SLACK':
+            env.CHANGELOG_CHANGES_SLACK = value
+            break
+        default:
+            echo "loadDotenv: ignoring unknown key ${key}"
+            break
+    }
+}
+
+def notifySlack(String status) {
+    env.BUILD_STATUS = status
 
     try {
         withCredentials([
@@ -297,8 +403,8 @@ def notifySlack() {
     }
 }
 
-def notifyTelegram() {
-    env.BUILD_STATUS = currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'
+def notifyTelegram(String status) {
+    env.BUILD_STATUS = status
 
     try {
         withCredentials([

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send a rich Slack notification with optional APK/AAB attachments."""
+"""Send Slack notifications — distinct success vs failure messages."""
 
 import json
 import os
@@ -8,6 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from typing import List, Optional, Tuple
 
 
 def require_env(name: str) -> str:
@@ -92,25 +93,45 @@ def upload_file(token: str, channel: str, file_path: Path, title: str) -> None:
     )
 
 
-def build_blocks(status: str, deploy_status: str) -> list:
+def _common_fields() -> List[dict]:
     version = os.environ.get("VERSION_NAME", "unknown")
     version_code = os.environ.get("VERSION_CODE", "unknown")
     branch = os.environ.get("BRANCH", "unknown")
     build_number = os.environ.get("BUILD_NUMBER", "unknown")
-    changelog_title = os.environ.get("CHANGELOG_TITLE", "")
-    changelog_date = os.environ.get("CHANGELOG_DATE", "")
-    changelog_changes = os.environ.get("CHANGELOG_CHANGES", "").replace("\\n", "\n")
     git_author = os.environ.get("GIT_AUTHOR", "unknown")
-    git_commit = os.environ.get("GIT_COMMIT", "unknown")
-    git_message = os.environ.get("GIT_COMMIT_MESSAGE", "")
+    return [
+        {"type": "mrkdwn", "text": f"*Version:*\n{version} ({version_code})"},
+        {"type": "mrkdwn", "text": f"*Branch:*\n{branch}"},
+        {"type": "mrkdwn", "text": f"*Build:*\n#{build_number}"},
+        {"type": "mrkdwn", "text": f"*Author:*\n{git_author}"},
+    ]
+
+
+def _link_context() -> Optional[dict]:
+    links = []
     build_url = os.environ.get("BUILD_URL", "")
     github_url = os.environ.get("GITHUB_COMMIT_URL", "")
     play_url = os.environ.get("PLAY_CONSOLE_URL", "")
+    if build_url:
+        links.append(f"<{build_url}|Jenkins Build>")
+    if github_url:
+        links.append(f"<{github_url}|GitHub Commit>")
+    if play_url:
+        links.append(f"<{play_url}|Play Console>")
+    if not links:
+        return None
+    return {
+        "type": "context",
+        "elements": [{"type": "mrkdwn", "text": " · ".join(links)}],
+    }
 
-    emoji = "✅" if status == "success" else "❌"
-    color = "#2eb886" if status == "success" else "#e01e5a"
 
-    header = f"{emoji} CSI Hymns Android — {status.upper()}"
+def build_success_blocks(deploy_status: str) -> Tuple[list, str]:
+    git_commit = os.environ.get("GIT_COMMIT", "unknown")
+    git_message = os.environ.get("GIT_COMMIT_MESSAGE", "")
+    changelog_title = os.environ.get("CHANGELOG_TITLE", "")
+    changelog_date = os.environ.get("CHANGELOG_DATE", "")
+    changelog_changes = os.environ.get("CHANGELOG_CHANGES", "").replace("\\n", "\n")
 
     if deploy_status == "deployed":
         deploy_line = f"🚀 Deployed to Google Play ({os.environ.get('PLAY_TRACK_LABEL', 'open')})"
@@ -121,20 +142,12 @@ def build_blocks(status: str, deploy_status: str) -> list:
     else:
         deploy_line = f"Deploy: {deploy_status}"
 
-    blocks = [
+    blocks: list = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": header, "emoji": True},
+            "text": {"type": "plain_text", "text": "✅ CSI Hymns Android — SUCCESS", "emoji": True},
         },
-        {
-            "type": "section",
-            "fields": [
-                {"type": "mrkdwn", "text": f"*Version:*\n{version} ({version_code})"},
-                {"type": "mrkdwn", "text": f"*Branch:*\n{branch}"},
-                {"type": "mrkdwn", "text": f"*Build:*\n#{build_number}"},
-                {"type": "mrkdwn", "text": f"*Author:*\n{git_author}"},
-            ],
-        },
+        {"type": "section", "fields": _common_fields()},
         {
             "type": "section",
             "text": {
@@ -148,30 +161,38 @@ def build_blocks(status: str, deploy_status: str) -> list:
         changelog_text = f"*Changelog — {changelog_title}* ({changelog_date})\n{changelog_changes}"
         if len(changelog_text) > 2900:
             changelog_text = changelog_text[:2900] + "…"
-        blocks.append(
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": changelog_text},
-            }
-        )
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": changelog_text}})
 
-    links = []
-    if build_url:
-        links.append(f"<{build_url}|Jenkins Build>")
-    if github_url:
-        links.append(f"<{github_url}|GitHub Commit>")
-    if play_url:
-        links.append(f"<{play_url}|Play Console>")
+    link_block = _link_context()
+    if link_block:
+        blocks.append(link_block)
 
-    if links:
-        blocks.append(
-            {
-                "type": "context",
-                "elements": [{"type": "mrkdwn", "text": " · ".join(links)}],
-            }
-        )
+    return blocks, "#2eb886"
 
-    return blocks, color
+
+def build_failure_blocks() -> Tuple[list, str]:
+    git_commit = os.environ.get("GIT_COMMIT", "unknown")
+    git_message = os.environ.get("GIT_COMMIT_MESSAGE", "")
+    failed_stage = os.environ.get("FAILED_STAGE", "")
+
+    detail = f"*Commit:* `{git_commit}` — {git_message}"
+    if failed_stage:
+        detail = f"*Failed stage:* {failed_stage}\n{detail}"
+
+    blocks: list = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "❌ CSI Hymns Android — BUILD FAILED", "emoji": True},
+        },
+        {"type": "section", "fields": _common_fields()},
+        {"type": "section", "text": {"type": "mrkdwn", "text": detail}},
+    ]
+
+    link_block = _link_context()
+    if link_block:
+        blocks.append(link_block)
+
+    return blocks, "#e01e5a"
 
 
 def main() -> None:
@@ -180,14 +201,19 @@ def main() -> None:
     status = os.environ.get("BUILD_STATUS", "unknown")
     deploy_status = os.environ.get("DEPLOY_STATUS", "skipped")
 
-    blocks, color = build_blocks(status, deploy_status)
+    if status == "success":
+        blocks, color = build_success_blocks(deploy_status)
+        fallback = "CSI Hymns Android build SUCCESS"
+    else:
+        blocks, color = build_failure_blocks()
+        fallback = "CSI Hymns Android build FAILED"
 
     slack_api(
         token,
         "chat.postMessage",
         {
             "channel": channel,
-            "text": f"CSI Hymns Android build {status}",
+            "text": fallback,
             "blocks": blocks,
             "attachments": [{"color": color, "blocks": []}],
         },

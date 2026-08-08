@@ -5,8 +5,16 @@ set -euo pipefail
 OUTPUT="${1:-ci/build_metadata.env}"
 BRANCH="${BRANCH:-unknown}"
 
-VERSION_NAME="$(grep versionName app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')"
-VERSION_CODE="$(grep versionCode app/build.gradle.kts | head -1 | grep -o '[0-9]*')"
+# App version from Gradle (not grep of build.gradle.kts).
+VERSION_NAME="unknown"
+VERSION_CODE="unknown"
+while IFS= read -r line; do
+    case "$line" in
+        VERSION_NAME=*) VERSION_NAME="${line#VERSION_NAME=}" ;;
+        VERSION_CODE=*) VERSION_CODE="${line#VERSION_CODE=}" ;;
+    esac
+done < <(./gradlew -q :app:printCiVersion --no-daemon)
+
 AGP_VERSION="$(grep '^agp =' gradle/libs.versions.toml | sed 's/.*"\(.*\)".*/\1/')"
 KOTLIN_VERSION="$(grep '^kotlin =' gradle/libs.versions.toml | sed 's/.*"\(.*\)".*/\1/')"
 GRADLE_VERSION="$(grep distributionUrl gradle/wrapper/gradle-wrapper.properties | sed 's/.*gradle-\(.*\)-bin.zip/\1/')"

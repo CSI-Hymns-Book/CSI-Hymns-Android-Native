@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send a compact Telegram notification with optional APK/AAB documents."""
+"""Send Telegram notifications — distinct success vs failure messages."""
 
 import json
 import os
@@ -7,6 +7,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 # Bot API sendDocument limit (bots): 50 MiB.
 TELEGRAM_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024
@@ -20,7 +21,11 @@ def require_env(name: str) -> str:
     return value
 
 
-def telegram_api(token: str, method: str, payload: dict | None = None) -> dict:
+def telegram_api(
+    token: str,
+    method: str,
+    payload: Optional[dict] = None,
+) -> dict:
     url = f"https://api.telegram.org/bot{token}/{method}"
     data = None
     headers = {}
@@ -69,7 +74,7 @@ def send_document(token: str, chat_id: str, file_path: Path, caption: str) -> No
         raise RuntimeError(f"Telegram document upload failed for {file_path}: {body.get('description', body)}")
 
 
-def build_message(status: str, deploy_status: str) -> str:
+def build_success_message(deploy_status: str) -> str:
     version = os.environ.get("VERSION_NAME", "unknown")
     version_code = os.environ.get("VERSION_CODE", "unknown")
     branch = os.environ.get("BRANCH", "unknown")
@@ -79,8 +84,6 @@ def build_message(status: str, deploy_status: str) -> str:
     changelog_changes = os.environ.get("CHANGELOG_CHANGES", "").replace("\\n", "\n")
     build_url = os.environ.get("BUILD_URL", "")
     github_url = os.environ.get("GITHUB_COMMIT_URL", "")
-
-    emoji = "✅" if status == "success" else "❌"
 
     if deploy_status == "deployed":
         deploy_line = f"Deployed to Play ({os.environ.get('PLAY_TRACK_LABEL', 'open')})"
@@ -92,7 +95,7 @@ def build_message(status: str, deploy_status: str) -> str:
         deploy_line = deploy_status
 
     lines = [
-        f"{emoji} CSI Hymns Android — {status.upper()}",
+        "✅ CSI Hymns Android — SUCCESS",
         f"Version: {version} ({version_code})",
         f"Branch: {branch} · Build #{build_number}",
         deploy_line,
@@ -100,7 +103,6 @@ def build_message(status: str, deploy_status: str) -> str:
 
     if changelog_title:
         lines.append(f"\n{changelog_title} ({changelog_date})")
-        # Telegram messages cap at 4096 chars — keep changelog compact
         if len(changelog_changes) > 1200:
             changelog_changes = changelog_changes[:1200] + "…"
         lines.append(changelog_changes)
@@ -113,13 +115,40 @@ def build_message(status: str, deploy_status: str) -> str:
     return "\n".join(lines)
 
 
+def build_failure_message() -> str:
+    version = os.environ.get("VERSION_NAME", "unknown")
+    version_code = os.environ.get("VERSION_CODE", "unknown")
+    branch = os.environ.get("BRANCH", "unknown")
+    build_number = os.environ.get("BUILD_NUMBER", "unknown")
+    git_commit = os.environ.get("GIT_COMMIT", "unknown")
+    build_url = os.environ.get("BUILD_URL", "")
+    failed_stage = os.environ.get("FAILED_STAGE", "")
+
+    lines = [
+        "❌ CSI Hymns Android — BUILD FAILED",
+        f"Version: {version} ({version_code})",
+        f"Branch: {branch} · Build #{build_number}",
+        f"Commit: {git_commit}",
+    ]
+    if failed_stage:
+        lines.append(f"Failed stage: {failed_stage}")
+    if build_url:
+        lines.append(f"\nJenkins: {build_url}")
+
+    return "\n".join(lines)
+
+
 def main() -> None:
     token = require_env("TELEGRAM_BOT_TOKEN")
     chat_id = require_env("TELEGRAM_CHAT_ID")
     status = os.environ.get("BUILD_STATUS", "unknown")
     deploy_status = os.environ.get("DEPLOY_STATUS", "skipped")
 
-    message = build_message(status, deploy_status)
+    if status == "success":
+        message = build_success_message(deploy_status)
+    else:
+        message = build_failure_message()
+
     if len(message) > 4096:
         message = message[:4093] + "…"
 

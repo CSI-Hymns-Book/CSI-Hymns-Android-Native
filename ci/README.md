@@ -6,7 +6,7 @@ Helper scripts used by `Jenkinsfile`. Jenkins injects signing credentials and no
 
 | Script | Purpose |
 |--------|---------|
-| `collect_metadata.sh` | Version, git info, Gradle/AGP/Kotlin versions → `build_metadata.env` |
+| `collect_metadata.sh` | Version via `./gradlew :app:printCiVersion`, git info, tooling → `build_metadata.env` |
 | `read_changelog.py` | Latest `changelog.json` entry → `changelog.env` + `changelog_release.txt` |
 | `notify_slack.py` | Rich Slack message + APK/AAB uploads |
 | `notify_telegram.py` | Compact Telegram message + APK/AAB documents |
@@ -67,6 +67,7 @@ export PATH="/opt/homebrew/opt/ruby/bin:/opt/homebrew/lib/ruby/gems/4.0.0/bin:$P
 ## Local test
 
 ```bash
+./gradlew -q :app:printCiVersion
 python3 ci/read_changelog.py
 BRANCH=main bash ci/collect_metadata.sh ci/build_metadata.env
 ```
