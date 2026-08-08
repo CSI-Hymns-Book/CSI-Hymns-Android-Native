@@ -1,6 +1,9 @@
 pipeline {
 
-    agent any
+    // Built-in "Jenkins" node is the Mac Mini controller — Android SDK is on the MacBook agent.
+    agent {
+        label 'MacBook Pro M1 Pro — Builder'
+    }
 
     options {
         ansiColor('xterm')
@@ -37,9 +40,9 @@ pipeline {
     }
 
     environment {
-        // Prefer agent env; fall back to known macbook SDK path.
-        ANDROID_HOME = "${System.getenv('ANDROID_HOME') ?: '/Users/reyzie29/Library/Android/sdk'}"
-        ANDROID_SDK_ROOT = "${System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME') ?: '/Users/reyzie29/Library/Android/sdk'}"
+        // Literal paths only — System.getenv() is blocked by Jenkins script sandbox.
+        ANDROID_HOME = '/Users/reyzie29/Library/Android/sdk'
+        ANDROID_SDK_ROOT = '/Users/reyzie29/Library/Android/sdk'
         KEYSTORE_FILE = 'release-keystore.jks'
         DEPLOY_STATUS = 'skipped'
         BUILD_STATUS = 'unknown'
