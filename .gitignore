@@ -33,6 +33,13 @@ generated/
 *.jks
 *.keystore
 
+# Fastlane / Ruby
+vendor/bundle/
+.bundle/
+ci/build_metadata.env
+ci/changelog.env
+ci/changelog_release.txt
+
 # Temporary files
 tmp/
 temp/
