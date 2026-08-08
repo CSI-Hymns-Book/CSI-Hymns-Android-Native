@@ -1,8 +1,6 @@
 pipeline {
 
-    agent {
-        label 'macbook'
-    }
+    agent any
 
     options {
         ansiColor('xterm')
