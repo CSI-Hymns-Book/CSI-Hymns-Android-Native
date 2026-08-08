@@ -5,9 +5,11 @@ import json
 import os
 import sys
 import urllib.error
-import urllib.parse
 import urllib.request
 from pathlib import Path
+
+# Bot API sendDocument limit (bots): 50 MiB.
+TELEGRAM_DOCUMENT_MAX_BYTES = 50 * 1024 * 1024
 
 
 def require_env(name: str) -> str:
@@ -36,6 +38,15 @@ def telegram_api(token: str, method: str, payload: dict | None = None) -> dict:
 
 def send_document(token: str, chat_id: str, file_path: Path, caption: str) -> None:
     import subprocess
+
+    size = file_path.stat().st_size
+    if size > TELEGRAM_DOCUMENT_MAX_BYTES:
+        print(
+            f"Skipping Telegram upload for {file_path.name}: "
+            f"{size} bytes exceeds {TELEGRAM_DOCUMENT_MAX_BYTES}-byte Bot API limit",
+            file=sys.stderr,
+        )
+        return
 
     result = subprocess.run(
         [
@@ -131,6 +142,6 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (urllib.error.URLError, RuntimeError, json.JSONDecodeError) as exc:
+    except (urllib.error.URLError, RuntimeError, json.JSONDecodeError, OSError) as exc:
         print(f"Telegram notification failed: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -1,6 +1,6 @@
 # CSI Hymns Android — CI scripts
 
-Helper scripts used by `JenkinsFile`. Jenkins injects signing credentials and notification tokens at runtime.
+Helper scripts used by `Jenkinsfile`. Jenkins injects signing credentials and notification tokens at runtime.
 
 ## Scripts
 
@@ -29,8 +29,8 @@ Helper scripts used by `JenkinsFile`. Jenkins injects signing credentials and no
 
 | Parameter | Fastlane track |
 |-----------|----------------|
-| `open` | `beta` (Open Testing) |
-| `production` | `production` (requires `CONFIRM_PRODUCTION=true`) |
+| `open` | `beta` (Open Testing, `release_status=completed`) |
+| `production` | `production` draft (requires `CONFIRM_PRODUCTION=true`; promote manually in Play Console) |
 
 ## Fastlane / Ruby setup
 

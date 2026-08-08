@@ -13,6 +13,10 @@ platform :android do
       changelog_text = File.read(release_notes_path).strip
     end
 
+    # Production stays draft so it never goes live at 100% from CI.
+    # Open/beta testing can complete immediately.
+    release_status = track == "production" ? "draft" : "completed"
+
     upload_params = {
       track: track,
       aab: aab_path,
@@ -20,7 +24,7 @@ platform :android do
       skip_upload_metadata: changelog_text.empty?,
       skip_upload_images: true,
       skip_upload_screenshots: true,
-      release_status: "completed"
+      release_status: release_status
     }
 
     unless changelog_text.empty?
@@ -29,5 +33,6 @@ platform :android do
     end
 
     upload_to_play_store(**upload_params)
+    UI.important("Uploaded to #{track} with release_status=#{release_status}")
   end
 end

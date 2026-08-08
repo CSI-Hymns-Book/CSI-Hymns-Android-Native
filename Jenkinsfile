@@ -28,7 +28,7 @@ pipeline {
         choice(
             name: 'PLAY_TRACK',
             choices: ['open', 'production'],
-            description: 'Play track — open = Open Testing (beta), production = Production'
+            description: 'Play track — open = Open Testing (beta), production = Production (draft upload)'
         )
 
         booleanParam(
@@ -39,8 +39,9 @@ pipeline {
     }
 
     environment {
-        ANDROID_HOME = '/Users/reyzie29/Library/Android/sdk'
-        ANDROID_SDK_ROOT = '/Users/reyzie29/Library/Android/sdk'
+        // Prefer agent env; fall back to known macbook SDK path.
+        ANDROID_HOME = "${System.getenv('ANDROID_HOME') ?: '/Users/reyzie29/Library/Android/sdk'}"
+        ANDROID_SDK_ROOT = "${System.getenv('ANDROID_SDK_ROOT') ?: System.getenv('ANDROID_HOME') ?: '/Users/reyzie29/Library/Android/sdk'}"
         KEYSTORE_FILE = 'release-keystore.jks'
         DEPLOY_STATUS = 'skipped'
         BUILD_STATUS = 'unknown'
@@ -105,15 +106,14 @@ pipeline {
                         variable: 'KEY_PASSWORD'
                     )
                 ]) {
+                    // printf %s avoids shell expansion of $, `, \\ in passwords/aliases.
                     sh '''
                     cp "$KEYSTORE" "$KEYSTORE_FILE"
 
-                    cat > keystore.properties <<EOF
-storeFile=$KEYSTORE_FILE
-storePassword=$STORE_PASSWORD
-keyAlias=$KEY_ALIAS
-keyPassword=$KEY_PASSWORD
-EOF
+                    printf 'storeFile=%s\n' "$KEYSTORE_FILE" > keystore.properties
+                    printf 'storePassword=%s\n' "$STORE_PASSWORD" >> keystore.properties
+                    printf 'keyAlias=%s\n' "$KEY_ALIAS" >> keystore.properties
+                    printf 'keyPassword=%s\n' "$KEY_PASSWORD" >> keystore.properties
                     '''
                 }
             }
@@ -149,7 +149,15 @@ EOF
                     exit 1
                 fi
 
-                jarsigner -verify "$APK"
+                APKSIGNER="$(ls -1 "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)"
+                if [ -z "$APKSIGNER" ] || [ ! -x "$APKSIGNER" ]; then
+                    echo "apksigner not found under $ANDROID_HOME/build-tools"
+                    exit 1
+                fi
+
+                # APK Signature Scheme v2/v3 — use apksigner, not jarsigner.
+                "$APKSIGNER" verify --print-certs "$APK"
+                # AAB uses JAR signing; jarsigner is appropriate here.
                 jarsigner -verify "$AAB"
                 '''
             }
@@ -223,7 +231,7 @@ app/build/intermediates/native_debug_metadata/release/*.zip
                             """
                         }
                         env.DEPLOY_STATUS = 'deployed'
-                        echo "Deployed to Google Play (${params.PLAY_TRACK} → ${fastlaneTrack})"
+                        echo "Deployed to Google Play (${params.PLAY_TRACK} → ${fastlaneTrack}; production uploads as draft)"
                     } catch (Exception deployError) {
                         env.DEPLOY_STATUS = 'failed'
                         throw deployError
@@ -264,6 +272,10 @@ def loadDotenv(String path) {
         }
         def key = line.substring(0, eq)
         def value = line.substring(eq + 1)
+        // Strip optional surrounding quotes from older env writers.
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.substring(1, value.length() - 1)
+        }
         value = value.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
         env[key] = value
     }

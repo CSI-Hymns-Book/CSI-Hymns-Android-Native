@@ -5,6 +5,7 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -36,30 +37,59 @@ def slack_api(token: str, method: str, payload: dict) -> dict:
     return body
 
 
-def upload_file(token: str, channel: str, file_path: Path, title: str) -> None:
-    import subprocess
-
-    result = subprocess.run(
-        [
-            "curl",
-            "-sS",
-            "-F",
-            f"token={token}",
-            "-F",
-            f"channels={channel}",
-            "-F",
-            f"title={title}",
-            "-F",
-            f"file=@{file_path}",
-            "https://slack.com/api/files.upload",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
+def slack_api_form(token: str, method: str, form: dict) -> dict:
+    """POST application/x-www-form-urlencoded (required by getUploadURLExternal)."""
+    url = f"https://slack.com/api/{method}"
+    data = urllib.parse.urlencode(form).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
     )
-    body = json.loads(result.stdout or "{}")
+    with urllib.request.urlopen(request, timeout=120) as response:
+        body = json.loads(response.read().decode("utf-8"))
     if not body.get("ok"):
-        raise RuntimeError(f"Slack file upload failed for {file_path}: {body.get('error', body)}")
+        raise RuntimeError(f"Slack API {method} failed: {body.get('error', body)}")
+    return body
+
+
+def upload_file(token: str, channel: str, file_path: Path, title: str) -> None:
+    """Upload via files.getUploadURLExternal + completeUploadExternal (files.upload is deprecated)."""
+    length = file_path.stat().st_size
+    filename = title or file_path.name
+
+    meta = slack_api_form(
+        token,
+        "files.getUploadURLExternal",
+        {"filename": filename, "length": str(length)},
+    )
+    upload_url = meta["upload_url"]
+    file_id = meta["file_id"]
+
+    with file_path.open("rb") as handle:
+        file_bytes = handle.read()
+    upload_request = urllib.request.Request(
+        upload_url,
+        data=file_bytes,
+        method="POST",
+        headers={"Content-Type": "application/octet-stream"},
+    )
+    with urllib.request.urlopen(upload_request, timeout=600) as response:
+        if response.status >= 400:
+            raise RuntimeError(f"Slack binary upload failed for {file_path}: HTTP {response.status}")
+
+    slack_api(
+        token,
+        "files.completeUploadExternal",
+        {
+            "files": [{"id": file_id, "title": filename}],
+            "channel_id": channel,
+        },
+    )
 
 
 def build_blocks(status: str, deploy_status: str) -> list:
@@ -179,6 +209,6 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (urllib.error.URLError, RuntimeError, json.JSONDecodeError) as exc:
+    except (urllib.error.URLError, RuntimeError, json.JSONDecodeError, OSError) as exc:
         print(f"Slack notification failed: {exc}", file=sys.stderr)
         sys.exit(1)

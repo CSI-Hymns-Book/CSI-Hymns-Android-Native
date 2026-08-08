@@ -36,25 +36,30 @@ GITHUB_REPO="CSI-Hymns-Book/CSI-Hymns-Android-Native"
 GITHUB_COMMIT_URL="https://github.com/${GITHUB_REPO}/commit/${GIT_COMMIT_FULL}"
 PLAY_CONSOLE_URL="https://play.google.com/console/developers/app/com.reyzie.hymns"
 
+# Escape \, ", and newlines for loadDotenv() in Jenkinsfile (KEY=value, no wrapping quotes).
 escape() {
-    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/g' | tr -d '\n'
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    printf '%s' "$s"
 }
 
 cat > "$OUTPUT" <<EOF
-VERSION_NAME="${VERSION_NAME}"
-VERSION_CODE="${VERSION_CODE}"
-AGP_VERSION="${AGP_VERSION}"
-KOTLIN_VERSION="${KOTLIN_VERSION}"
-GRADLE_VERSION="${GRADLE_VERSION}"
-GIT_COMMIT="${GIT_COMMIT}"
-GIT_COMMIT_FULL="${GIT_COMMIT_FULL}"
-GIT_AUTHOR="${GIT_AUTHOR}"
-GIT_COMMIT_MESSAGE="${GIT_COMMIT_MESSAGE}"
-JAVA_VERSION="${JAVA_VERSION}"
-ANDROID_STUDIO_VERSION="${ANDROID_STUDIO_VERSION}"
-GITHUB_COMMIT_URL="${GITHUB_COMMIT_URL}"
-PLAY_CONSOLE_URL="${PLAY_CONSOLE_URL}"
-BRANCH="${BRANCH}"
+VERSION_NAME=$(escape "$VERSION_NAME")
+VERSION_CODE=$(escape "$VERSION_CODE")
+AGP_VERSION=$(escape "$AGP_VERSION")
+KOTLIN_VERSION=$(escape "$KOTLIN_VERSION")
+GRADLE_VERSION=$(escape "$GRADLE_VERSION")
+GIT_COMMIT=$(escape "$GIT_COMMIT")
+GIT_COMMIT_FULL=$(escape "$GIT_COMMIT_FULL")
+GIT_AUTHOR=$(escape "$GIT_AUTHOR")
+GIT_COMMIT_MESSAGE=$(escape "$GIT_COMMIT_MESSAGE")
+JAVA_VERSION=$(escape "$JAVA_VERSION")
+ANDROID_STUDIO_VERSION=$(escape "$ANDROID_STUDIO_VERSION")
+GITHUB_COMMIT_URL=$(escape "$GITHUB_COMMIT_URL")
+PLAY_CONSOLE_URL=$(escape "$PLAY_CONSOLE_URL")
+BRANCH=$(escape "$BRANCH")
 EOF
 
 echo "Metadata written to $OUTPUT"
