@@ -34,8 +34,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshAppConfig() {
         viewModelScope.launch {
+            val previousFingerprint = com.reyzie.hymns.data.MidiFileCache.configFingerprint(_remoteAppConfig.value)
             try {
                 val remote = appConfigRepository.fetchRemoteConfig()
+                val newFingerprint = com.reyzie.hymns.data.MidiFileCache.configFingerprint(remote)
+                if (newFingerprint != previousFingerprint) {
+                    com.reyzie.hymns.data.MidiFileCache.getInstance(getApplication()).invalidateAll()
+                    com.reyzie.hymns.data.HymnsRepository(getApplication()).invalidateMidiFileNameCache()
+                }
                 _remoteAppConfig.value = remote
                 CastService.getInstance().applyRemoteConfig(getApplication(), remote)
                 applyChristmasFromRemote(remote.isChristmasTime)

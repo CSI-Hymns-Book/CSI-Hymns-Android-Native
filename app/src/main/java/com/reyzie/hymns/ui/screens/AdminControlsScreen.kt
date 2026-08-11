@@ -65,12 +65,17 @@ enum class LyricSongType {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminControlsScreen(
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    settingsViewModel: SettingsViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val remoteConfig = com.reyzie.hymns.data.AppConfigRepository(context = context).getCachedRemoteConfig()
+    val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
+
+    LaunchedEffect(Unit) {
+        settingsViewModel.refreshAppConfig()
+    }
 
     val hasLyrics = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.LYRICS)
     val hasAnnouncements = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.PR_MANAGER)
@@ -399,6 +404,8 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                     Toast.makeText(context, "Hymn updated locally!", Toast.LENGTH_SHORT).show()
                     editingHymn = null
                     loadData()
+                    ContentSyncManager(context).invalidateVaultSha()
+                    ContentUpdateBus.notifyHymnsUpdated()
 
                     // Read updated json content and push to github
                     val store = ContentLocalStore(context)
@@ -429,6 +436,8 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                     Toast.makeText(context, "Keerthane updated locally!", Toast.LENGTH_SHORT).show()
                     editingKeerthane = null
                     loadData()
+                    ContentSyncManager(context).invalidateVaultSha()
+                    ContentUpdateBus.notifyKeerthanesUpdated()
 
                     // Read updated json content and push to github
                     val store = ContentLocalStore(context)
@@ -458,6 +467,8 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                     Toast.makeText(context, "Order Page updated locally!", Toast.LENGTH_SHORT).show()
                     editingOrderPage = null
                     loadData()
+                    ContentSyncManager(context).invalidateVaultSha()
+                    ContentUpdateBus.notifyOrderUpdated()
 
                     // Read updated json content and push to github
                     val store = ContentLocalStore(context)
@@ -488,6 +499,8 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                     Toast.makeText(context, "MT Hymn updated locally!", Toast.LENGTH_SHORT).show()
                     editingMangaloreHymn = null
                     loadData()
+                    ContentSyncManager(context).invalidateVaultSha()
+                    ContentUpdateBus.notifyMangaloreHymnsUpdated()
 
                     // Read updated json content and push to github
                     val store = ContentLocalStore(context)
@@ -595,7 +608,7 @@ private fun LyricCorrectionPanel(onBackClick: () -> Unit) {
                         isRefreshing = true
                         Toast.makeText(context, "Fetching latest lyrics from GitHub...", Toast.LENGTH_SHORT).show()
                         scope.launch {
-                            val result = com.reyzie.hymns.data.ContentSyncManager(context).syncAll()
+                            val result = com.reyzie.hymns.data.ContentSyncManager(context).syncAll(force = true)
                             isRefreshing = false
                             if (result.anyUpdated) {
                                 Toast.makeText(context, "Successfully updated from remote!", Toast.LENGTH_SHORT).show()
@@ -1410,7 +1423,9 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
     var forceMinBuild by remember(remoteConfig.forceUpdateMinBuildNumber) { mutableStateOf(remoteConfig.forceUpdateMinBuildNumber?.toString() ?: "") }
     var forceMessage by remember(remoteConfig.forceUpdateMessage) { mutableStateOf(remoteConfig.forceUpdateMessage ?: "") }
     var forceStoreUrl by remember(remoteConfig.forceUpdateAndroidStoreUrl) { mutableStateOf(remoteConfig.forceUpdateAndroidStoreUrl ?: "") }
-    var adminEmails by remember(remoteConfig.adminEmails) { mutableStateOf(remoteConfig.adminEmails ?: "") }
+    var adminEmails by remember(remoteConfig.adminEmails) {
+        mutableStateOf(AdminPrefs.prettifyAdminEmailsConfig(remoteConfig.adminEmails))
+    }
     var githubToken by remember(remoteConfig.githubMidiToken) { mutableStateOf(remoteConfig.githubMidiToken ?: "") }
     var midiHymnsRanges by remember(remoteConfig.midiHymnsRanges) { mutableStateOf(remoteConfig.midiHymnsRanges ?: "") }
     var midiKeerthanesRanges by remember(remoteConfig.midiKeerthanesRanges) { mutableStateOf(remoteConfig.midiKeerthanesRanges ?: "") }
@@ -1739,10 +1754,24 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
             item {
                 ConfigTextField(
                     label = "Admin Emails",
-                    subtitle = "Comma-separated list of authenticated admin emails.",
+                    subtitle = "JSON object: email → roles array. Expand to edit / Prettify. Saved as jsonb object (not a string).",
                     value = adminEmails,
                     onValueChange = { adminEmails = it },
-                    onSave = { saveValue(AppConfigKeys.ADMIN_EMAILS, adminEmails.takeIf { it.isNotBlank() }) }
+                    onSave = {
+                        val pretty = AdminPrefs.prettifyAdminEmailsConfig(adminEmails)
+                        if (pretty.isBlank()) {
+                            Toast.makeText(context, "Admin emails cannot be empty", Toast.LENGTH_SHORT).show()
+                            return@ConfigTextField
+                        }
+                        try {
+                            org.json.JSONObject(pretty)
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Invalid admin emails JSON: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                            return@ConfigTextField
+                        }
+                        adminEmails = pretty
+                        saveValue(AppConfigKeys.ADMIN_EMAILS, pretty)
+                    }
                 )
             }
 
@@ -1932,7 +1961,11 @@ private fun ExpandedJsonEditorDialog(
                         onClick = {
                             val trimmed = text.trim()
                             try {
-                                if (trimmed.startsWith("{")) {
+                                // Prefer admin-emails normalizer so legacy "\n" string values format correctly.
+                                val pretty = AdminPrefs.prettifyAdminEmailsConfig(trimmed)
+                                if (pretty.isNotBlank()) {
+                                    text = pretty
+                                } else if (trimmed.startsWith("{")) {
                                     text = org.json.JSONObject(trimmed).toString(2)
                                 } else if (trimmed.startsWith("[")) {
                                     text = org.json.JSONArray(trimmed).toString(2)

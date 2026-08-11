@@ -26,6 +26,7 @@ class HymnsRepository(context: Context) {
     private val gson = Gson()
     private val appConfigRepository = AppConfigRepository(context = appContext)
     private var cachedMidiFileNames: List<String>? = null
+    private var cachedMidiListFingerprint: String? = null
 
     suspend fun loadHymns(section: AppSection = AppSection.CSI): List<Hymn> = withContext(Dispatchers.IO) {
         store.ensureSeeded()
@@ -207,28 +208,64 @@ class HymnsRepository(context: Context) {
         return null
     }
 
-    suspend fun getMidiFileNames(): List<String> = withContext(Dispatchers.IO) {
-        cachedMidiFileNames?.let { if (it.isNotEmpty()) return@withContext it }
-        
+    fun invalidateMidiFileNameCache() {
+        cachedMidiFileNames = null
+        cachedMidiListFingerprint = null
+        appContext.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .remove("cached_midi_files_json")
+            .remove("cached_midi_files_fingerprint")
+            .apply()
+        Log.d(TAG, "Invalidated MIDI file name cache")
+    }
+
+    suspend fun getMidiFileNames(forceRefresh: Boolean = false): List<String> = withContext(Dispatchers.IO) {
+        val config = appConfigRepository.getCachedRemoteConfig()
+        val fingerprint = MidiFileCache.configFingerprint(config)
         val prefs = appContext.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE)
-        val cachedJson = prefs.getString("cached_midi_files_json", null)
-        if (!cachedJson.isNullOrBlank()) {
-            val listFromPrefs = parseGitHubContentsNames(cachedJson)
-            if (listFromPrefs.isNotEmpty()) {
-                cachedMidiFileNames = listFromPrefs
+        val storedFingerprint = prefs.getString("cached_midi_files_fingerprint", null)
+
+        if (!forceRefresh &&
+            fingerprint == cachedMidiListFingerprint &&
+            !cachedMidiFileNames.isNullOrEmpty()
+        ) {
+            return@withContext cachedMidiFileNames!!
+        }
+
+        if (!forceRefresh && fingerprint == storedFingerprint) {
+            val cachedJson = prefs.getString("cached_midi_files_json", null)
+            if (!cachedJson.isNullOrBlank()) {
+                val listFromPrefs = parseGitHubContentsNames(cachedJson)
+                if (listFromPrefs.isNotEmpty()) {
+                    cachedMidiFileNames = listFromPrefs
+                    cachedMidiListFingerprint = fingerprint
+                    return@withContext listFromPrefs
+                }
             }
+        } else if (storedFingerprint != null && storedFingerprint != fingerprint) {
+            // Token / ranges changed — drop sticky prefs list
+            prefs.edit()
+                .remove("cached_midi_files_json")
+                .remove("cached_midi_files_fingerprint")
+                .apply()
+            cachedMidiFileNames = null
         }
 
         try {
-            val config = appConfigRepository.getCachedRemoteConfig()
             val token = config.githubMidiToken
             val response = fetchUrlWithAuth("https://api.github.com/repos/Reynold29/midi-vault/contents/Hymns", token)
             if (response != null) {
                 val parsed = parseGitHubContentsNames(response)
                 if (parsed.isNotEmpty()) {
                     cachedMidiFileNames = parsed
-                    prefs.edit().putString("cached_midi_files_json", response).apply()
+                    cachedMidiListFingerprint = fingerprint
+                    prefs.edit()
+                        .putString("cached_midi_files_json", response)
+                        .putString("cached_midi_files_fingerprint", fingerprint)
+                        .apply()
                     return@withContext parsed
+                } else {
+                    Log.w(TAG, "GitHub MIDI listing returned empty names; keeping prior cache if any")
                 }
             }
         } catch (e: Exception) {
@@ -238,6 +275,15 @@ class HymnsRepository(context: Context) {
         val existingCache = cachedMidiFileNames
         if (!existingCache.isNullOrEmpty()) {
             return@withContext existingCache
+        }
+
+        val cachedJson = prefs.getString("cached_midi_files_json", null)
+        if (!cachedJson.isNullOrBlank()) {
+            val listFromPrefs = parseGitHubContentsNames(cachedJson)
+            if (listFromPrefs.isNotEmpty()) {
+                cachedMidiFileNames = listFromPrefs
+                return@withContext listFromPrefs
+            }
         }
 
         // Fallback default list if offline / rate limited / fresh install without network

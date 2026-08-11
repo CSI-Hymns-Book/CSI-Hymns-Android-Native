@@ -250,7 +250,12 @@ fun MainScreen(
     var newReplyNotificationMsg by remember { mutableStateOf<com.reyzie.hymns.data.TicketMessage?>(null) }
     var showAdminControls by rememberSaveable { mutableStateOf(false) }
 
-    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasAnyAdminRole(context, currentUserEmail, remoteConfig.adminEmails)
+    // Derive admin on every composition from live session email + AppConfig (never persist isAdmin).
+    val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasAnyAdminRole(
+        context,
+        currentUserEmail,
+        remoteConfig.adminEmails
+    )
     var activeBroadcastMsg by remember { mutableStateOf<com.reyzie.hymns.data.InAppMessage?>(null) }
     val broadcastService = remember { com.reyzie.hymns.data.BroadcastMessageService(context) }
     val changelogService = remember { ChangelogService(context) }
@@ -334,6 +339,13 @@ fun MainScreen(
         val decision = service.getDecision()
         if (decision.requiresUpdate) {
             forceUpdateDecision = decision
+        }
+    }
+
+    // On login, refresh AppConfig so admin_emails (and MIDI tokens/ranges) are fresh before role checks.
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn) {
+            settingsViewModel.refreshAppConfig()
         }
     }
 

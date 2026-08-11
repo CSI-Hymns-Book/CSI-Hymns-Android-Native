@@ -42,6 +42,11 @@ class AppConfigService(
     /** Normalize jsonb app_config values to strings for existing parsers. */
     internal fun configValueAsString(element: JsonElement?): String? {
         if (element == null || element is JsonNull) return null
+        // Prefer structured jsonb (object/array) as pretty text for editors + parsers.
+        if (element is JsonObject || element is JsonArray) {
+            return Json { prettyPrint = true; prettyPrintIndent = "  " }
+                .encodeToString(JsonElement.serializer(), element)
+        }
         val primitive = runCatching { element.jsonPrimitive }.getOrNull() ?: return element.toString()
         if (primitive.isString) return primitive.content
         primitive.booleanOrNull?.let { return if (it) "true" else "false" }

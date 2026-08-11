@@ -159,7 +159,8 @@ class AppConfigRepository(
             castAppId = raw[AppConfigKeys.CAST_APP_ID]?.trim()?.takeIf { it.isNotEmpty() },
             castReceiverUrl = raw[AppConfigKeys.CAST_RECEIVER_URL]?.trim()?.takeIf { it.isNotEmpty() },
             pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE]),
-            adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]?.trim()?.takeIf { it.isNotEmpty() },
+            adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]
+                ?.let { AdminPrefs.prettifyAdminEmailsConfig(it).takeIf { pretty -> pretty.isNotEmpty() } },
             githubMidiToken = (raw[AppConfigKeys.GITHUB_MIDI_TOKEN] ?: raw[AppConfigKeys.GITHUB_TOKEN])?.trim()?.takeIf { it.isNotEmpty() },
             isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED]),
             midiHymnsRanges = raw[AppConfigKeys.MIDI_HYMNS_RANGES]?.trim(),
@@ -312,10 +313,33 @@ class AppConfigRepository(
                 null -> JsonNull
                 is Boolean -> JsonPrimitive(value)
                 is Number -> JsonPrimitive(value)
-                else -> JsonPrimitive(value.toString())
+                is JsonElement -> value
+                else -> toJsonbValue(key, value.toString())
             }
             appConfigService.update(key, jsonValue)
         }
+    }
+
+    /**
+     * Store structured JSON as a real jsonb object/array (not a JSON string with "\n").
+     * Plain text keys remain json strings.
+     */
+    private fun toJsonbValue(key: String, raw: String): JsonElement {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return JsonNull
+
+        val preferStructured = key == AppConfigKeys.ADMIN_EMAILS ||
+            trimmed.startsWith("{") ||
+            trimmed.startsWith("[")
+
+        if (preferStructured) {
+            val normalized = AdminPrefs.normalizeAdminEmailsRaw(trimmed)
+            runCatching { Json.parseToJsonElement(normalized) }
+                .getOrNull()
+                ?.takeIf { it is JsonObject || it is JsonArray }
+                ?.let { return it }
+        }
+        return JsonPrimitive(trimmed)
     }
 
     fun clearOverrides() {
