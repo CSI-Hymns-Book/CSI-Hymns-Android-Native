@@ -67,15 +67,16 @@ class MainActivity : ComponentActivity() {
             OnboardingPrefs.incrementLaunchCount(this)
         }
 
-        // Request notification permission & sync FCM token
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        if (com.reyzie.hymns.data.ConsentManager.pushConsent.value) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
+                }
             } else {
                 com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
             }
-        } else {
-            com.reyzie.hymns.data.HymnsFirebaseMessagingService.subscribeToDefaultTopics(this)
         }
         
         // Initialize Supabase
@@ -141,6 +142,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun maybeRequestNotificationPermissionOnSecondLaunch() {
+        if (!com.reyzie.hymns.data.ConsentManager.pushConsent.value) return
         if (!OnboardingPrefs.isWelcomeCompleted(this)) return
         if (OnboardingPrefs.isNotificationPromptDone(this)) return
         val launchCount = OnboardingPrefs.getLaunchCount(this)

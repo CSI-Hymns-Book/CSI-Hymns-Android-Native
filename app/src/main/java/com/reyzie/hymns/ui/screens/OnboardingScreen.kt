@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.RocketLaunch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -69,18 +68,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.reyzie.hymns.R
 import com.reyzie.hymns.data.OnboardingPrefs
-import com.reyzie.hymns.data.SupabaseService
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val ONBOARDING_PAGE_COUNT = 3
+private const val ONBOARDING_PAGE_COUNT = 2
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OnboardingScreen(
-    onDone: () -> Unit,
-    onOpenPrivacyPolicy: () -> Unit
+    onDone: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -88,14 +85,12 @@ fun OnboardingScreen(
     val scheme = MaterialTheme.colorScheme
     val pagerState = rememberPagerState(pageCount = { ONBOARDING_PAGE_COUNT })
 
-    fun finish(accepted: Boolean) {
+    fun finish() {
         if (busy) return
         busy = true
         HapticFeedbackManager.mediumClick(context)
         scope.launch {
-            val value = if (accepted) 1 else 0
-            OnboardingPrefs.markWelcomeCompleted(context, value, pendingChangelog = true)
-            SupabaseService.getInstance().setPrivacyPolicyAcceptedInProfile(value)
+            OnboardingPrefs.markWelcomeCompleted(context, 1, pendingChangelog = true)
             busy = false
             onDone()
         }
@@ -132,11 +127,7 @@ fun OnboardingScreen(
                 val isActive = pagerState.currentPage == page
                 when (page) {
                     0 -> OnboardingWelcomePage(isActive = isActive)
-                    1 -> OnboardingFeaturesPage(isActive = isActive)
-                    else -> OnboardingPrivacyPage(
-                        isActive = isActive,
-                        onOpenPrivacyPolicy = onOpenPrivacyPolicy
-                    )
+                    else -> OnboardingFeaturesPage(isActive = isActive)
                 }
             }
 
@@ -164,8 +155,8 @@ fun OnboardingScreen(
                         )
                     }
                 },
-                onFinish = { finish(accepted = true) },
-                onSkipPrivacy = { finish(accepted = false) },
+                onFinish = { finish() },
+                onSkipTour = { finish() },
                 scheme = scheme
             )
         }
@@ -180,7 +171,7 @@ private fun OnboardingBottomBar(
     onBack: () -> Unit,
     onNext: () -> Unit,
     onFinish: () -> Unit,
-    onSkipPrivacy: () -> Unit,
+    onSkipTour: () -> Unit,
     scheme: androidx.compose.material3.ColorScheme
 ) {
     val context = LocalContext.current
@@ -228,25 +219,6 @@ private fun OnboardingBottomBar(
         if (isLastPage) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(
-                    onClick = onSkipPrivacy,
-                    enabled = !busy,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        "Continue without accepting",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = scheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FilledTonalIconButton(
@@ -285,6 +257,25 @@ private fun OnboardingBottomBar(
                 }
             }
         } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = onSkipTour,
+                    enabled = !busy,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        "Skip tour",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -567,98 +558,6 @@ private fun OnboardingFeatureRow(icon: ImageVector, title: String, body: String)
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingPrivacyPage(
-    isActive: Boolean,
-    onOpenPrivacyPolicy: () -> Unit
-) {
-    val scheme = MaterialTheme.colorScheme
-    var animationStep by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(isActive) {
-        if (isActive) {
-            animationStep = 0
-            delay(80)
-            animationStep = 1
-            delay(200)
-            animationStep = 2
-        } else {
-            animationStep = 0
-        }
-    }
-
-    val headlineColor = scheme.onSurface
-    val bodyColor = scheme.onSurfaceVariant
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.Center
-    ) {
-        AnimatedStaggerItem(visible = animationStep >= 1) {
-            Text(
-                "You're almost there",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.ExtraBold,
-                color = headlineColor
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        AnimatedStaggerItem(visible = animationStep >= 1) {
-            Text(
-                "Review privacy once, then jump into the app.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = bodyColor
-            )
-        }
-        Spacer(modifier = Modifier.height(20.dp))
-        AnimatedStaggerItem(visible = animationStep >= 2) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                color = scheme.surfaceVariant.copy(alpha = 0.5f)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        val badgeBg = scheme.primaryContainer
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = badgeBg,
-                            modifier = Modifier.size(40.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.PrivacyTip,
-                                contentDescription = null,
-                                tint = scheme.onPrimaryContainer,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            "Privacy",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = headlineColor
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "We respect your privacy. Limited analytics may be used to improve the app. " +
-                            "We do not sell your personal data.\n\n" +
-                            "By tapping Let's Go, you confirm you have reviewed our Privacy Policy.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = bodyColor
-                    )
-                    TextButton(onClick = onOpenPrivacyPolicy) {
-                        Text("Read full Privacy Policy", color = scheme.primary)
-                    }
-                }
             }
         }
     }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.reyzie.hymns.carols.data.repository.CarolsRepository
 import com.reyzie.hymns.cast.CastService
 import com.reyzie.hymns.data.AppConfigRepository
+import com.reyzie.hymns.data.AdminRls
 import com.reyzie.hymns.data.RemoteAppConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -173,7 +174,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 onComplete(null)
             } catch (e: Exception) {
                 android.util.Log.e("SettingsViewModel", "Failed to save config value for key=$key", e)
-                onComplete(e.localizedMessage ?: e.message ?: e.toString())
+                onComplete(AdminRls.mapSaveError(e))
             }
         }
     }

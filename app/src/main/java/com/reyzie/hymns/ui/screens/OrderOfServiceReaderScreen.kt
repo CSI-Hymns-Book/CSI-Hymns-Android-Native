@@ -6,6 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -33,11 +35,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import com.reyzie.hymns.utils.HapticFeedbackManager
+import com.reyzie.hymns.data.OrderIndexEntry
 import com.reyzie.hymns.data.OrderOfServiceRepository
 import com.reyzie.hymns.data.OrderPage
 import com.reyzie.hymns.data.ContentUpdateBus
@@ -55,6 +59,7 @@ fun OrderOfServiceReaderScreen(
 ) {
     val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     var pages by remember { mutableStateOf<List<OrderPage>>(emptyList()) }
+    var indexEntries by remember { mutableStateOf<List<OrderIndexEntry>>(emptyList()) }
     var pageNoToIndex by remember { mutableStateOf<Map<Int, Int>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -63,6 +68,7 @@ fun OrderOfServiceReaderScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { OrderOfServiceRepository(context) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val prefs = remember { context.getSharedPreferences("settings_prefs", Context.MODE_PRIVATE) }
     var serviceFontSize by remember { mutableStateOf(prefs.getInt("global_service_font_size", 18)) }
@@ -70,15 +76,20 @@ fun OrderOfServiceReaderScreen(
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    fun applyLoadResult(result: com.reyzie.hymns.data.OrderOfServiceLoadResult) {
+        pages = result.pages
+        indexEntries = result.index
+        pageNoToIndex = result.pages.mapIndexed { idx, p -> p.pageNo to idx }.toMap()
+        error = result.errorMessage?.takeIf { result.pages.isEmpty() }
+    }
+
     LaunchedEffect(type) {
         loading = true
         error = null
         withContext(Dispatchers.IO) {
             val result = repository.loadPages(type)
             withContext(Dispatchers.Main) {
-                pages = result.pages
-                pageNoToIndex = result.pages.mapIndexed { idx, p -> p.pageNo to idx }.toMap()
-                error = result.errorMessage?.takeIf { result.pages.isEmpty() }
+                applyLoadResult(result)
                 loading = false
             }
         }
@@ -87,8 +98,7 @@ fun OrderOfServiceReaderScreen(
     LaunchedEffect(type) {
         ContentUpdateBus.orderUpdated.collect {
             val result = withContext(Dispatchers.IO) { repository.loadPages(type) }
-            pages = result.pages
-            pageNoToIndex = result.pages.mapIndexed { idx, p -> p.pageNo to idx }.toMap()
+            applyLoadResult(result)
         }
     }
 
@@ -97,13 +107,21 @@ fun OrderOfServiceReaderScreen(
         pageCount = { pages.size.coerceAtLeast(1) }
     )
 
-    fun jumpToPageNumber(pageNo: Int) {
+    fun jumpToPageNumber(pageNo: Int, fromIndex: Boolean = false): Boolean {
         val idx = pageNoToIndex[pageNo]
         if (idx != null) {
             HapticFeedbackManager.mediumClick(context)
             hasSelectedPage = true
             scope.launch { pagerState.scrollToPage(idx) }
+            return true
         }
+        if (fromIndex) {
+            HapticFeedbackManager.smoothClick(context)
+            scope.launch {
+                snackbarHostState.showSnackbar("Page not available yet")
+            }
+        }
+        return false
     }
 
     var pageBackProgress by remember { mutableFloatStateOf(0f) }
@@ -122,6 +140,7 @@ fun OrderOfServiceReaderScreen(
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars),
@@ -155,14 +174,14 @@ fun OrderOfServiceReaderScreen(
                         }) {
                             Icon(Icons.Default.Remove, contentDescription = "Decrease Font Size")
                         }
-                        
+
                         Text(
                             text = "$serviceFontSize",
                             fontWeight = FontWeight.Bold,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
-                        
+
                         IconButton(onClick = {
                             HapticFeedbackManager.smoothClick(context)
                             val newSize = (serviceFontSize + 2).coerceAtMost(44)
@@ -171,8 +190,8 @@ fun OrderOfServiceReaderScreen(
                         }) {
                             Icon(Icons.Default.Add, contentDescription = "Increase Font Size")
                         }
-                        
-                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Spacer(Modifier.width(4.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -239,10 +258,9 @@ fun OrderOfServiceReaderScreen(
                             .widthIn(max = 640.dp)
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 24.dp, vertical = if (isLandscape) 16.dp else 32.dp)
-                            .align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                            .padding(horizontal = 24.dp, vertical = if (isLandscape) 16.dp else 24.dp)
+                            .align(Alignment.TopCenter),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             landingTitle,
@@ -294,6 +312,35 @@ fun OrderOfServiceReaderScreen(
                             containerColor = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                         )
+
+                        if (indexEntries.isNotEmpty()) {
+                            Spacer(Modifier.height(28.dp))
+                            Text(
+                                "ಪರಿವಿಡಿ",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Start
+                            )
+                            Text(
+                                "Tap a page number to open that section",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp, bottom = 12.dp),
+                                textAlign = TextAlign.Start
+                            )
+                            indexEntries.forEach { entry ->
+                                OrderIndexRow(
+                                    entry = entry,
+                                    available = pageNoToIndex.containsKey(entry.pageNo),
+                                    onPageClick = { jumpToPageNumber(entry.pageNo, fromIndex = true) }
+                                )
+                                Spacer(Modifier.height(8.dp))
+                            }
+                            Spacer(Modifier.height(72.dp))
+                        }
                     }
                 }
                 else -> {
@@ -315,30 +362,30 @@ fun OrderOfServiceReaderScreen(
                                     .verticalScroll(rememberScrollState())
                                     .padding(horizontal = 24.dp, vertical = 16.dp)
                             ) {
-                            Text(
-                                "Page ${pageData.pageNo}",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (!pageData.title.isNullOrBlank()) {
-                                Spacer(Modifier.height(8.dp))
                                 Text(
-                                    pageData.title,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.ExtraBold
+                                    "Page ${pageData.pageNo}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
                                 )
+                                if (!pageData.title.isNullOrBlank()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        pageData.title,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    pageData.content,
+                                    fontSize = serviceFontSize.sp,
+                                    lineHeight = (serviceFontSize * 1.6).sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(Modifier.height(96.dp))
                             }
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                pageData.content,
-                                fontSize = serviceFontSize.sp,
-                                lineHeight = (serviceFontSize * 1.6).sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(Modifier.height(96.dp))
                         }
-                    }
                     }
                 }
             }
@@ -362,13 +409,42 @@ fun OrderOfServiceReaderScreen(
                         .padding(horizontal = 20.dp)
                         .padding(bottom = 24.dp)
                 ) {
-                    Text("All pages", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("ಪರಿವಿಡಿ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(12.dp))
+
+                    if (indexEntries.isNotEmpty()) {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.heightIn(max = if (isLandscape) 160.dp else 280.dp)
+                        ) {
+                            items(indexEntries, key = { "${it.pageNo}-${it.title}" }) { entry ->
+                                OrderIndexRow(
+                                    entry = entry,
+                                    available = pageNoToIndex.containsKey(entry.pageNo),
+                                    onPageClick = {
+                                        if (jumpToPageNumber(entry.pageNo, fromIndex = true)) {
+                                            scope.launch {
+                                                sheetState.hide()
+                                            }.invokeOnCompletion { showBottomSheet = false }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(20.dp))
+                    }
+
+                    Text(
+                        "Available pages",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(8.dp))
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(if (isLandscape) 8 else 4),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.heightIn(max = if (isLandscape) 180.dp else 400.dp)
+                        modifier = Modifier.heightIn(max = if (isLandscape) 140.dp else 220.dp)
                     ) {
                         itemsIndexed(pages) { index, page ->
                             val selected = index == pagerState.currentPage
@@ -406,6 +482,57 @@ fun OrderOfServiceReaderScreen(
 }
 
 @Composable
+private fun OrderIndexRow(
+    entry: OrderIndexEntry,
+    available: Boolean,
+    onPageClick: () -> Unit,
+) {
+    val container = if (available) {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    }
+    val titleColor = if (available) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(container)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = entry.title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = titleColor,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.width(10.dp))
+        Surface(
+            onClick = onPageClick,
+            shape = RoundedCornerShape(12.dp),
+            color = if (available) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = if (available) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        ) {
+            Text(
+                text = "${entry.pageNo}",
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun OrderReaderBottomBar(
     hasSelectedPage: Boolean,
     pages: List<OrderPage>,
@@ -437,14 +564,13 @@ private fun OrderReaderBottomBar(
                 TextButton(onClick = onOpenAllPages) {
                     Icon(Icons.Default.GridView, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("All pages", fontWeight = FontWeight.Bold)
+                    Text("Index", fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.width(4.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                Row(modifier = Modifier.horizontalScroll(rememberScrollState())) {
                     visibleNumbers.forEach { no ->
-                        val selected = false
                         FilterChip(
-                            selected = selected,
+                            selected = false,
                             onClick = { onJumpTo(no) },
                             label = { Text("$no") },
                             modifier = Modifier.padding(horizontal = 4.dp)

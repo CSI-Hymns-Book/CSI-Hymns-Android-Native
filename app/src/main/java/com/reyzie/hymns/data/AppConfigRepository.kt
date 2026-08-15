@@ -309,6 +309,9 @@ class AppConfigRepository(
                 commit()
             }
         } else {
+            if (SupabaseService.getInstance().currentUser == null) {
+                throw IllegalStateException(AdminRls.SUDO_CLOUD_SAVE_MESSAGE)
+            }
             val jsonValue = when (value) {
                 null -> JsonNull
                 is Boolean -> JsonPrimitive(value)
@@ -316,7 +319,11 @@ class AppConfigRepository(
                 is JsonElement -> value
                 else -> toJsonbValue(key, value.toString())
             }
-            appConfigService.update(key, jsonValue)
+            try {
+                appConfigService.update(key, jsonValue)
+            } catch (e: Exception) {
+                throw IllegalStateException(AdminRls.mapSaveError(e), e)
+            }
         }
     }
 

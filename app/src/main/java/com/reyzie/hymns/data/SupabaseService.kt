@@ -24,9 +24,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
+import java.io.File
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 @Serializable
 private data class FavoriteRow(
@@ -47,6 +56,11 @@ private data class CustomCategorySongRow(
     @SerialName("song_id") val songId: Int,
     @SerialName("song_type") val songType: String,
     @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+private data class UserDeletedRow(
+    val deleted: JsonElement? = null
 )
 
 @Serializable
@@ -71,6 +85,15 @@ class SupabaseService private constructor() {
                 instance ?: SupabaseService().also { instance = it }
             }
         }
+
+        private val prettyJsonCodec = Json { prettyPrint = true; prettyPrintIndent = "  " }
+
+        private const val EXPORT_README = """CSI Hymns — your information
+
+This zip contains the data we store about your account, including user id, name, email, favourites, custom lists, support tickets, and consent records.
+
+No profile picture is stored.
+"""
     }
 
     private var _client: SupabaseClient? = null
@@ -146,6 +169,61 @@ class SupabaseService private constructor() {
         }
     }
 
+    suspend fun isAccountDeleted(): Boolean = withContext(Dispatchers.IO) {
+        val user = currentUser ?: return@withContext false
+        try {
+            val result = client.postgrest.rpc("is_my_account_deleted")
+            return@withContext try {
+                result.decodeAs<Boolean>()
+            } catch (_: Exception) {
+                parseDeletedFlag(result.data)
+            }
+        } catch (e: Exception) {
+            Log.w("SupabaseService", "is_my_account_deleted RPC failed, falling back to users.deleted", e)
+            try {
+                val row = client.from("users")
+                    .select(Columns.list("deleted")) {
+                        filter { eq("auth_uid", user.id) }
+                    }
+                    .decodeSingleOrNull<UserDeletedRow>()
+                jsonElementIsTrue(row?.deleted)
+            } catch (fallback: Exception) {
+                Log.e("SupabaseService", "Error checking deleted flag", fallback)
+                false
+            }
+        }
+    }
+
+    suspend fun exportMyDataJson(): String = withContext(Dispatchers.IO) {
+        val result = client.postgrest.rpc("export_my_data")
+        try {
+            result.decodeAs<String>()
+        } catch (_: Exception) {
+            result.data
+        }
+    }
+
+    fun isDataExportRateLimited(error: Throwable): Boolean {
+        val message = (error.message ?: error.toString()).lowercase()
+        return message.contains("export_rate_limited")
+            || message.contains("rate_limited")
+            || message.contains("p0001")
+    }
+
+    suspend fun exportMyDataZipFile(cacheDir: File): File = withContext(Dispatchers.IO) {
+        val json = prettyJson(exportMyDataJson())
+        val zipFile = File(cacheDir, "csi-hymns-my-information.zip")
+        ZipOutputStream(FileOutputStream(zipFile)).use { zip ->
+            zip.putNextEntry(ZipEntry("my-data.json"))
+            zip.write(json.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("README.txt"))
+            zip.write(EXPORT_README.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+        }
+        zipFile
+    }
+
     // --- Profile ---
 
     suspend fun upsertProfile(fullName: String) = withContext(Dispatchers.IO) {
@@ -193,6 +271,46 @@ class SupabaseService private constructor() {
             )
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error setting privacy policy in profile", e)
+        }
+    }
+
+    suspend fun syncConsentArtefact(
+        requiredAccepted: Boolean,
+        analytics: Boolean,
+        push: Boolean,
+        version: String?,
+        recordedAtIso: String?,
+        artefact: Map<String, Any>
+    ) = withContext(Dispatchers.IO) {
+        val user = currentUser ?: return@withContext
+        setPrivacyPolicyAcceptedInProfile(if (requiredAccepted) 1 else 0)
+        val iso = recordedAtIso ?: java.time.Instant.now().toString()
+        try {
+            val artefactJson = buildJsonObject {
+                put("policy_version", (artefact["policy_version"] as? String) ?: (version ?: ConsentManager.CURRENT_POLICY_VERSION))
+                put("recorded_at", iso)
+                put("language", (artefact["language"] as? String) ?: "en")
+                put("privacy_accepted", requiredAccepted)
+                put("terms_accepted", requiredAccepted)
+                put("age_confirmed", requiredAccepted)
+                put("analytics", analytics)
+                put("push_notifications", push)
+                put("notice", (artefact["notice"] as? String) ?: "")
+            }
+            client.from("users").update(
+                buildJsonObject {
+                    put("terms_accepted", if (requiredAccepted) 1 else 0)
+                    put("analytics_consent", analytics)
+                    put("push_consent", push)
+                    if (version != null) put("consent_version", version)
+                    put("consent_recorded_at", iso)
+                    put("consent_artefact", artefactJson)
+                }
+            ) {
+                filter { eq("auth_uid", user.id) }
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "syncConsentArtefact failed (new columns may be missing)", e)
         }
     }
 
@@ -415,18 +533,32 @@ class SupabaseService private constructor() {
     suspend fun updateJiraTicketStatus(
         ticketKey: String,
         statusName: String,
-        statusId: String?
+        statusId: String?,
+        guestDeviceId: String? = null
     ) = withContext(Dispatchers.IO) {
         try {
-            val update = buildJsonObject {
-                put("jira_status", statusName)
-                put("updated_at", java.time.Instant.now().toString())
-                if (statusId != null) {
-                    put("jira_status_id", statusId)
+            if (currentUser != null) {
+                val update = buildJsonObject {
+                    put("jira_status", statusName)
+                    put("updated_at", java.time.Instant.now().toString())
+                    if (statusId != null) {
+                        put("jira_status_id", statusId)
+                    }
                 }
-            }
-            client.from("jira_tickets").update(update) {
-                filter { eq("ticket_key", ticketKey) }
+                client.from("jira_tickets").update(update) {
+                    filter { eq("ticket_key", ticketKey) }
+                }
+            } else {
+                val deviceId = guestDeviceId ?: return@withContext
+                client.postgrest.rpc(
+                    "update_guest_ticket_status",
+                    GuestTicketStatusRpcParams(
+                        pDeviceId = deviceId,
+                        pTicketKey = ticketKey,
+                        pJiraStatus = statusName,
+                        pJiraStatusId = statusId.orEmpty()
+                    )
+                ).decodeAsOrNull<Unit>()
             }
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error updating ticket status for $ticketKey", e)
@@ -450,8 +582,13 @@ class SupabaseService private constructor() {
     }
 
     suspend fun updatePaymentGatewayEnabled(gatewayName: String, isEnabled: Boolean): Unit = withContext(Dispatchers.IO) {
+        if (!isInitialized) {
+            throw IllegalStateException("Supabase is not initialized")
+        }
+        if (currentUser == null) {
+            throw IllegalStateException(AdminRls.SUDO_CLOUD_SAVE_MESSAGE)
+        }
         try {
-            if (!isInitialized) return@withContext
             val update = buildJsonObject {
                 put("is_enabled", isEnabled)
             }
@@ -461,6 +598,30 @@ class SupabaseService private constructor() {
             Log.i("SupabaseService", "Successfully updated payment_gateways name=$gatewayName to is_enabled=$isEnabled")
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error updating payment_gateways name=$gatewayName", e)
+            throw IllegalStateException(AdminRls.mapSaveError(e), e)
+        }
+    }
+
+    private fun parseDeletedFlag(raw: String): Boolean {
+        val trimmed = raw.trim().removeSurrounding("\"")
+        return trimmed.equals("true", ignoreCase = true)
+            || trimmed == "t"
+            || trimmed == "1"
+    }
+
+    private fun jsonElementIsTrue(element: JsonElement?): Boolean {
+        val primitive = element as? JsonPrimitive ?: return false
+        if (primitive.booleanOrNull == true) return true
+        if (primitive.intOrNull == 1) return true
+        val text = primitive.contentOrNull?.trim().orEmpty()
+        return parseDeletedFlag(text)
+    }
+
+    private fun prettyJson(raw: String): String {
+        return try {
+            prettyJsonCodec.encodeToString(JsonElement.serializer(), Json.parseToJsonElement(raw))
+        } catch (_: Exception) {
+            raw
         }
     }
 }

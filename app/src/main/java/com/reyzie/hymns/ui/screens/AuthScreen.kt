@@ -32,6 +32,8 @@ fun AuthScreen(
     onBackClick: () -> Unit
 ) {
     val sessionStatus by viewModel.sessionStatus.collectAsState()
+    val sessionVerified by viewModel.sessionVerified.collectAsState()
+    val accountBlockedMessage by viewModel.accountBlockedMessage.collectAsState()
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -47,12 +49,20 @@ fun AuthScreen(
         return
     }
 
-    LaunchedEffect(sessionStatus) {
-        if (sessionStatus is SessionStatus.Authenticated) {
+    LaunchedEffect(sessionVerified) {
+        if (sessionVerified) {
             isLoading = false
             onAuthComplete()
         } else if (sessionStatus is SessionStatus.NotAuthenticated) {
             isLoading = false
+        }
+    }
+
+    LaunchedEffect(accountBlockedMessage) {
+        accountBlockedMessage?.let {
+            isLoading = false
+            errorMessage = it
+            viewModel.consumeAccountBlockedMessage()
         }
     }
 

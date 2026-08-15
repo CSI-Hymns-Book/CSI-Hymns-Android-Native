@@ -42,11 +42,12 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(),
     authViewModel: AuthViewModel = viewModel(),
     onNavigateUp: () -> Unit,
-    onPrivacyPolicyClick: () -> Unit = {},
+    onPrivacyCentreClick: () -> Unit = {},
     onChangelogClick: () -> Unit = {},
     onAboutAppClick: () -> Unit = {},
     onSignInClick: () -> Unit = {},
-    onDonateClick: () -> Unit = {}
+    onDonateClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {}
 ) {
     val themeMode by viewModel.themeMode.collectAsState()
     val isAmoledBlack by viewModel.isAmoledBlack.collectAsState()
@@ -67,7 +68,7 @@ fun SettingsScreen(
         0xFF0061A4, 0xFF6750A4, 0xFFD32F2F, 0xFFC62828, 0xFFE91E63, 0xFF9C27B0, 0xFF673AB7,
         0xFF3F51B5, 0xFF2196F3, 0xFF03A9F4, 0xFF00BCD4, 0xFF009688, 0xFF4CAF50,
         0xFF8BC34A, 0xFFCDDC39, 0xFFFFEB3B, 0xFFFFC107, 0xFFFF9800, 0xFFFF5722,
-        0xFF795548, 0xFF9E9E9E, 0xFF607D8B
+        0xFF795548, 0xFF9E9E9E, 0xFF607D8B, 0xFF00BFA5, 0xFF7C4DFF
     )
 
     var isPaymentEnabled by remember { mutableStateOf(false) }
@@ -274,6 +275,12 @@ fun SettingsScreen(
                             }
                         }
                     )
+                    SettingsActionTile(
+                        title = "Profile",
+                        subtitle = "Name, download your information, deactivate account",
+                        icon = Icons.Default.Person,
+                        onClick = onProfileClick
+                    )
                     Spacer(modifier = Modifier.height(4.dp))
                     SettingsActionTile(
                         title = "Sign Out",
@@ -311,9 +318,10 @@ fun SettingsScreen(
             SettingsSectionHeader(title = "Information", icon = Icons.Default.Info)
             SettingsExpressiveCard {
                 SettingsActionTile(
-                    title = "Privacy Policy",
+                    title = "Privacy Centre",
+                    subtitle = "Policy, optional analytics, and withdrawal",
                     icon = Icons.Default.Security,
-                    onClick = onPrivacyPolicyClick
+                    onClick = onPrivacyCentreClick
                 )
                 SettingsActionTile(
                     title = "Check for Updates",

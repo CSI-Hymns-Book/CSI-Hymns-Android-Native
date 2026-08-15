@@ -2,10 +2,13 @@ package com.reyzie.hymns.data
 
 import android.content.Context
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.postgrest.query.filter.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.util.UUID
 
 data class JiraTicket(
@@ -56,12 +59,10 @@ class TicketsRepository(private val context: Context) {
                     }
                     .decodeList<JiraTicketRow>()
             } else {
-                val deviceId = getDeviceId()
-                supabase.client.from("jira_tickets")
-                    .select {
-                        filter { eq("device_id", deviceId) }
-                    }
-                    .decodeList<JiraTicketRow>()
+                supabase.client.postgrest.rpc(
+                    "get_guest_tickets",
+                    GuestTicketsRpcParams(pDeviceId = getDeviceId())
+                ).decodeList<JiraTicketRow>()
             }
             rows.map { it.toModel() }.sortedByDescending { it.createdAt }
         } catch (e: Exception) {
@@ -79,9 +80,10 @@ class TicketsRepository(private val context: Context) {
                         !(ticket.jiraStatus == "Email Sent" && ticket.ticketKey.startsWith("PENDING-"))
                 }
                 .take(maxTickets)
+            val deviceId = getDeviceId()
             for (ticket in active) {
-                jiraService.syncTicketStatus(ticket.ticketKey)
-                jiraService.syncTicketComments(ticket.id, ticket.ticketKey)
+                jiraService.syncTicketStatus(ticket.ticketKey, deviceId)
+                jiraService.syncTicketComments(ticket.id, ticket.ticketKey, deviceId)
                 delay(250)
             }
         } catch (e: Exception) {
@@ -106,12 +108,23 @@ class TicketsRepository(private val context: Context) {
 
     suspend fun getTicketMessages(ticketKey: String): List<TicketMessage> = withContext(Dispatchers.IO) {
         try {
-            supabase.client.from("ticket_messages")
-                .select {
-                    filter { eq("ticket_key", ticketKey) }
-                }
-                .decodeList<TicketMessage>()
-                .sortedBy { it.createdAt }
+            val user = supabase.currentUser
+            val messages = if (user != null) {
+                supabase.client.from("ticket_messages")
+                    .select {
+                        filter { eq("ticket_key", ticketKey) }
+                    }
+                    .decodeList<TicketMessage>()
+            } else {
+                supabase.client.postgrest.rpc(
+                    "get_guest_ticket_messages",
+                    GuestTicketMessagesRpcParams(
+                        pDeviceId = getDeviceId(),
+                        pTicketKey = ticketKey
+                    )
+                ).decodeList<TicketMessage>()
+            }
+            messages.sortedBy { it.createdAt }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyList()
@@ -119,25 +132,36 @@ class TicketsRepository(private val context: Context) {
     }
 
     suspend fun syncTicketComments(ticketId: String, ticketKey: String) = withContext(Dispatchers.IO) {
-        jiraService.syncTicketComments(ticketId, ticketKey)
+        jiraService.syncTicketComments(ticketId, ticketKey, getDeviceId())
     }
 
     suspend fun sendTicketMessage(ticketId: String, ticketKey: String, message: String): TicketMessage? = withContext(Dispatchers.IO) {
         try {
-            // Also post the comment directly to the main Jira ticket
-            jiraService.addComment(ticketKey, message)
+            val posted = jiraService.addComment(ticketKey, message)
+            if (!posted) return@withContext null
 
-            val msg = TicketMessage(
+            val local = TicketMessage(
+                id = UUID.randomUUID().toString(),
                 ticketId = ticketId,
                 ticketKey = ticketKey,
                 sender = "user",
-                message = message
+                message = message,
+                createdAt = Instant.now().toString()
             )
-            supabase.client.from("ticket_messages")
-                .insert(msg) {
-                    select()
-                }
-                .decodeSingle<TicketMessage>()
+            val user = supabase.currentUser
+            if (user != null) {
+                return@withContext supabase.client.from("ticket_messages")
+                    .insert(local.copy(id = null)) {
+                        select()
+                    }
+                    .decodeSingle<TicketMessage>()
+            }
+            try {
+                supabase.client.from("ticket_messages").insert(local.copy(id = null))
+            } catch (insertError: Exception) {
+                insertError.printStackTrace()
+            }
+            local
         } catch (e: Exception) {
             e.printStackTrace()
             null
@@ -148,6 +172,11 @@ class TicketsRepository(private val context: Context) {
         try {
             val myTickets = getMyTickets()
             if (myTickets.isEmpty()) return@withContext emptyList()
+            val user = supabase.currentUser
+            if (user == null) {
+                return@withContext myTickets.flatMap { getTicketMessages(it.ticketKey) }
+                    .filter { it.sender == "admin" && (it.createdAt ?: "") > lastChecked }
+            }
             val ticketKeys = myTickets.map { it.ticketKey }
             supabase.client.from("ticket_messages")
                 .select {

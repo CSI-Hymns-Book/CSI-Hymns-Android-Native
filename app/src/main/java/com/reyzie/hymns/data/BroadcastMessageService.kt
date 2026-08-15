@@ -65,16 +65,18 @@ class BroadcastMessageService(private val context: Context) {
     }
 
     suspend fun createBroadcast(message: InAppMessage): String? = withContext(Dispatchers.IO) {
+        requireAdminSession()?.let { return@withContext it }
         try {
             supabase.client.from("in_app_messages").insert(message)
             null
         } catch (e: Exception) {
             e.printStackTrace()
-            e.localizedMessage ?: e.toString()
+            AdminRls.mapSaveError(e)
         }
     }
 
     suspend fun updateBroadcast(message: InAppMessage): String? = withContext(Dispatchers.IO) {
+        requireAdminSession()?.let { return@withContext it }
         try {
             supabase.client.from("in_app_messages").update(message) {
                 filter { eq("id", message.id) }
@@ -82,11 +84,12 @@ class BroadcastMessageService(private val context: Context) {
             null
         } catch (e: Exception) {
             e.printStackTrace()
-            e.localizedMessage ?: e.toString()
+            AdminRls.mapSaveError(e)
         }
     }
 
     suspend fun toggleBroadcastActive(id: String, isActive: Boolean): String? = withContext(Dispatchers.IO) {
+        requireAdminSession()?.let { return@withContext it }
         try {
             supabase.client.from("in_app_messages").update(
                 buildJsonObject {
@@ -98,11 +101,12 @@ class BroadcastMessageService(private val context: Context) {
             null
         } catch (e: Exception) {
             e.printStackTrace()
-            e.localizedMessage ?: e.toString()
+            AdminRls.mapSaveError(e)
         }
     }
 
     suspend fun deleteBroadcast(id: String): String? = withContext(Dispatchers.IO) {
+        requireAdminSession()?.let { return@withContext it }
         try {
             supabase.client.from("in_app_messages").delete {
                 filter { eq("id", id) }
@@ -110,7 +114,7 @@ class BroadcastMessageService(private val context: Context) {
             null
         } catch (e: Exception) {
             e.printStackTrace()
-            e.localizedMessage ?: e.toString()
+            AdminRls.mapSaveError(e)
         }
     }
 
@@ -137,6 +141,7 @@ class BroadcastMessageService(private val context: Context) {
     }
 
     suspend fun retriggerBroadcast(oldId: String, newId: String, currentMessage: InAppMessage): String? = withContext(Dispatchers.IO) {
+        requireAdminSession()?.let { return@withContext it }
         try {
             val updated = currentMessage.copy(
                 id = newId,
@@ -149,8 +154,12 @@ class BroadcastMessageService(private val context: Context) {
             null
         } catch (e: Exception) {
             e.printStackTrace()
-            e.localizedMessage ?: e.toString()
+            AdminRls.mapSaveError(e)
         }
+    }
+
+    private fun requireAdminSession(): String? {
+        return if (supabase.currentUser == null) AdminRls.SUDO_CLOUD_SAVE_MESSAGE else null
     }
 
     private fun getDismissedIds(): Set<String> {

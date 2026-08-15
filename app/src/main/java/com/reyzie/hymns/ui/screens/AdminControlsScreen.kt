@@ -1563,7 +1563,11 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
                     onCheckedChange = { enabled ->
                         saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_RAZORPAY_ENABLED, enabled)
                         scope.launch {
-                            com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("razorpay", enabled)
+                            try {
+                                com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("razorpay", enabled)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, com.reyzie.hymns.data.AdminRls.mapSaveError(e), Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 )
@@ -1577,7 +1581,11 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
                     onCheckedChange = { enabled ->
                         saveValue(com.reyzie.hymns.data.AppConfigKeys.IS_ADYEN_ENABLED, enabled)
                         scope.launch {
-                            com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("adyen", enabled)
+                            try {
+                                com.reyzie.hymns.data.SupabaseService.getInstance().updatePaymentGatewayEnabled("adyen", enabled)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, com.reyzie.hymns.data.AdminRls.mapSaveError(e), Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                 )

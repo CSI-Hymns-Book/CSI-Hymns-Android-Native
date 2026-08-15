@@ -16,8 +16,14 @@ data class OrderPage(
     val type: String
 )
 
+data class OrderIndexEntry(
+    val pageNo: Int,
+    val title: String
+)
+
 data class OrderOfServiceLoadResult(
     val pages: List<OrderPage>,
+    val index: List<OrderIndexEntry> = emptyList(),
     val errorMessage: String? = null
 )
 
@@ -38,22 +44,30 @@ class OrderOfServiceRepository(context: Context) {
                 errorMessage = ContentErrorMessages.NO_LOCAL_DATA
             )
         }
-        OrderOfServiceLoadResult(pages = parsePages(json, type))
+        OrderOfServiceLoadResult(
+            pages = parsePages(json, type),
+            index = if (type == "regular") parseIndex(json) else emptyList()
+        )
     }
 
     suspend fun fetchAndUpdate(type: String): OrderOfServiceLoadResult = withContext(Dispatchers.IO) {
         store.ensureSeeded()
         val cachedJson = store.readOrderOfServiceJson()
         val cachedPages = cachedJson?.let { parsePages(it, type) }.orEmpty()
+        val cachedIndex = if (type == "regular") cachedJson?.let { parseIndex(it) }.orEmpty() else emptyList()
         try {
             val body = fetchUrl(AppConstants.ORDER_OF_SERVICE_DATA_URL)
                 ?: throw java.io.IOException("Could not download order of service")
             store.writeOrderOfServiceJson(body)
-            OrderOfServiceLoadResult(pages = parsePages(body, type))
+            OrderOfServiceLoadResult(
+                pages = parsePages(body, type),
+                index = if (type == "regular") parseIndex(body) else emptyList()
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching order of service", e)
             OrderOfServiceLoadResult(
                 pages = cachedPages,
+                index = cachedIndex,
                 errorMessage = ContentErrorMessages.forThrowable(e, cachedPages.isNotEmpty())
             )
         }
@@ -72,6 +86,22 @@ class OrderOfServiceRepository(context: Context) {
             if (!response.isSuccessful) return null
             return response.body?.string()?.takeIf { it.isNotBlank() }
         }
+    }
+
+    private fun parseIndex(jsonStr: String): List<OrderIndexEntry> {
+        val jsonObject = JSONObject(jsonStr)
+        if (!jsonObject.has("index")) return emptyList()
+        val arr = jsonObject.getJSONArray("index")
+        val entries = mutableListOf<OrderIndexEntry>()
+        for (i in 0 until arr.length()) {
+            val item = arr.getJSONObject(i)
+            val pageNo = if (item.has("page_no")) item.getInt("page_no") else item.getInt("pageNo")
+            val title = item.optString("title", "").trim()
+            if (title.isNotEmpty()) {
+                entries.add(OrderIndexEntry(pageNo, title))
+            }
+        }
+        return entries.sortedBy { it.pageNo }
     }
 
     private fun parsePages(jsonStr: String, type: String): List<OrderPage> {

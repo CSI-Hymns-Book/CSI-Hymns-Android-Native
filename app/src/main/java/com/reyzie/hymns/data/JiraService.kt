@@ -13,6 +13,8 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import android.util.Base64
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.postgrest.query.filter.*
 import java.util.concurrent.TimeoutException
 
@@ -150,7 +152,7 @@ class JiraService {
         }
     }
 
-    suspend fun syncTicketStatus(ticketKey: String) = withContext(Dispatchers.IO) {
+    suspend fun syncTicketStatus(ticketKey: String, guestDeviceId: String? = null) = withContext(Dispatchers.IO) {
         if (!isConfigured) return@withContext
         try {
             val url = BuildConfig.JIRA_URL
@@ -174,7 +176,8 @@ class JiraService {
             SupabaseService.getInstance().updateJiraTicketStatus(
                 ticketKey = ticketKey,
                 statusName = statusName,
-                statusId = statusId
+                statusId = statusId,
+                guestDeviceId = guestDeviceId
             )
         } catch (e: Exception) {
             Log.e("JiraService", "Error syncing ticket $ticketKey", e)
@@ -255,7 +258,7 @@ class JiraService {
         }
     }
 
-    suspend fun syncTicketComments(ticketId: String, ticketKey: String) = withContext(Dispatchers.IO) {
+    suspend fun syncTicketComments(ticketId: String, ticketKey: String, guestDeviceId: String? = null) = withContext(Dispatchers.IO) {
         if (!isConfigured) return@withContext
         try {
             val url = BuildConfig.JIRA_URL
@@ -275,6 +278,8 @@ class JiraService {
             val commentsArray = data.optJSONArray("comments") ?: return@withContext
             
             val supabase = SupabaseService.getInstance()
+            val isGuest = supabase.currentUser == null
+            val deviceId = guestDeviceId.orEmpty()
             
             for (i in 0 until commentsArray.length()) {
                 val commentObj = commentsArray.optJSONObject(i) ?: continue
@@ -282,18 +287,29 @@ class JiraService {
                 val text = parseJiraDocText(bodyObj)
                 if (text.isEmpty()) continue
 
-                if (text.contains("[via CSI Android App]")) {
+                if (text.contains("[via CSI Android App]") || text.contains("[via CSI iOS App]")) {
                     continue
                 }
 
-                val existing = supabase.client.from("ticket_messages")
-                    .select {
-                        filter {
-                            eq("ticket_key", ticketKey)
-                            eq("sender", "admin")
-                            eq("message", text)
-                        }
-                    }.decodeList<TicketMessage>()
+                val existing = if (isGuest) {
+                    supabase.client.postgrest.rpc(
+                        "get_guest_ticket_messages",
+                        GuestTicketMessagesRpcParams(
+                            pDeviceId = deviceId,
+                            pTicketKey = ticketKey
+                        )
+                    ).decodeList<TicketMessage>()
+                        .filter { it.sender == "admin" && it.message == text }
+                } else {
+                    supabase.client.from("ticket_messages")
+                        .select {
+                            filter {
+                                eq("ticket_key", ticketKey)
+                                eq("sender", "admin")
+                                eq("message", text)
+                            }
+                        }.decodeList<TicketMessage>()
+                }
                 
                 if (existing.isEmpty()) {
                     val msg = TicketMessage(
