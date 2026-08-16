@@ -37,16 +37,17 @@ class CustomCategoriesRepository(private val context: Context) {
         val user = supabase.currentUser
         if (user != null) {
             migrateLocalIfNeeded()
-            val remote = supabase.fetchCustomCategories()
-            if (remote.isNotEmpty()) {
-                return@withContext remote.map {
-                    CustomCategory(
-                        id = (it["id"] as Number).toInt(),
-                        name = it["name"] as String,
-                        createdAt = it["created_at"] as? String ?: "",
-                        updatedAt = it["updated_at"] as? String ?: ""
-                    )
-                }
+            val remote = supabase.fetchCustomCategories().map {
+                CustomCategory(
+                    id = (it["id"] as Number).toInt(),
+                    name = it["name"] as String,
+                    createdAt = it["created_at"] as? String ?: "",
+                    updatedAt = it["updated_at"] as? String ?: ""
+                )
+            }
+            val remainingLocal = getLocalCategories()
+            if (remote.isNotEmpty() || remainingLocal.isNotEmpty()) {
+                return@withContext remote + remainingLocal
             }
         }
         
@@ -222,9 +223,18 @@ class CustomCategoriesRepository(private val context: Context) {
                 supabase.addSongToCategory(remoteCatId, song.songId, song.songType)
             }
         }
-        
-        saveCategories(emptyList())
-        prefs.edit().putString(LOCAL_CAT_SONGS_KEY, "[]").apply()
-        migratedThisSession = true
+
+        // Only drop local rows whose category was created remotely. A failed
+        // createCustomCategory used to wipe everything, permanently losing folders.
+        val remainder = CustomCategoryMigration.remainingLocal(
+            localCats = localCats,
+            localSongs = localSongs,
+            migratedLocalIds = idMap.keys
+        )
+        saveCategories(remainder.categories)
+        prefs.edit().putString(LOCAL_CAT_SONGS_KEY, gson.toJson(remainder.songs)).apply()
+        if (remainder.categories.isEmpty() && remainder.songs.none { it.deleted == 0 }) {
+            migratedThisSession = true
+        }
     }
 }

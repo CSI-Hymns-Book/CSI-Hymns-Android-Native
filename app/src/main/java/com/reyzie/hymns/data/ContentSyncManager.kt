@@ -80,9 +80,13 @@ class ContentSyncManager(context: Context) {
         }
 
         fetchUrl(AppConstants.ORDER_OF_SERVICE_DATA_URL)?.let { body ->
-            store.writeOrderOfServiceJson(body)
-            prefs.edit().putLong(KEY_LAST_ORDER_SYNC, System.currentTimeMillis()).apply()
-            orderUpdated = true
+            if (OrderOfServiceJson.isValid(body)) {
+                store.writeOrderOfServiceJson(body)
+                prefs.edit().putLong(KEY_LAST_ORDER_SYNC, System.currentTimeMillis()).apply()
+                orderUpdated = true
+            } else {
+                Log.w(TAG, "Skipped invalid order-of-service download")
+            }
         } ?: run {
             if (lastError == null) {
                 lastError = ContentErrorMessages.forThrowable(null, store.hasOrderOfService())

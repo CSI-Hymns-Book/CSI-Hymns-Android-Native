@@ -297,8 +297,8 @@ class SupabaseService private constructor() {
                 }
             ) {
                 select()
-            }.decodeSingle<Map<String, Any>>()
-            return@withContext (response["id"] as? Number)?.toInt()
+            }.decodeSingle<CustomCategoryRow>()
+            return@withContext response.id
         } catch (e: Exception) {
             e.printStackTrace()
             null
