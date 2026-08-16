@@ -31,25 +31,26 @@ class OrderOfServiceRepository(context: Context) {
 
     suspend fun loadPages(type: String): OrderOfServiceLoadResult = withContext(Dispatchers.IO) {
         store.ensureSeeded()
-        val json = store.readOrderOfServiceJson()
-        if (json.isNullOrBlank()) {
+        val pages = readLocalPages(type)
+        if (pages.isEmpty()) {
             return@withContext OrderOfServiceLoadResult(
                 pages = emptyList(),
                 errorMessage = ContentErrorMessages.NO_LOCAL_DATA
             )
         }
-        OrderOfServiceLoadResult(pages = parsePages(json, type))
+        OrderOfServiceLoadResult(pages = pages)
     }
 
     suspend fun fetchAndUpdate(type: String): OrderOfServiceLoadResult = withContext(Dispatchers.IO) {
         store.ensureSeeded()
-        val cachedJson = store.readOrderOfServiceJson()
-        val cachedPages = cachedJson?.let { parsePages(it, type) }.orEmpty()
+        val cachedPages = readLocalPages(type)
         try {
             val body = fetchUrl(AppConstants.ORDER_OF_SERVICE_DATA_URL)
                 ?: throw java.io.IOException("Could not download order of service")
+            val parsed = OrderOfServiceJson.parsePages(body)
+                ?: throw java.io.IOException("Downloaded order-of-service JSON is invalid")
             store.writeOrderOfServiceJson(body)
-            OrderOfServiceLoadResult(pages = parsePages(body, type))
+            OrderOfServiceLoadResult(pages = parsed.filter { it.type == type }.sortedBy { it.pageNo })
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching order of service", e)
             OrderOfServiceLoadResult(
@@ -74,21 +75,21 @@ class OrderOfServiceRepository(context: Context) {
         }
     }
 
-    private fun parsePages(jsonStr: String, type: String): List<OrderPage> {
-        val parsedPages = mutableListOf<OrderPage>()
-        val jsonObject = JSONObject(jsonStr)
-        listOf("regular", "festival").forEach { groupType ->
-            if (!jsonObject.has(groupType)) return@forEach
-            val arr = jsonObject.getJSONArray(groupType)
-            for (i in 0 until arr.length()) {
-                val item = arr.getJSONObject(i)
-                val pageNo = if (item.has("page_no")) item.getInt("page_no") else item.getInt("pageNo")
-                val title = if (item.has("title") && !item.isNull("title")) item.getString("title") else null
-                val content = item.getString("content")
-                parsedPages.add(OrderPage(pageNo, title, content, groupType))
+    private fun readLocalPages(type: String): List<OrderPage> {
+        val json = store.readOrderOfServiceJson()
+        if (json != null) {
+            OrderOfServiceJson.parsePages(json)?.let { parsed ->
+                return parsed.filter { it.type == type }.sortedBy { it.pageNo }
+            }
+            Log.w(TAG, "Corrupt local order-of-service cache; reseeding from bundled assets")
+            store.reseedOrderOfServiceFromAsset()
+            store.readOrderOfServiceJson()?.let { reseeded ->
+                OrderOfServiceJson.parsePages(reseeded)?.let { parsed ->
+                    return parsed.filter { it.type == type }.sortedBy { it.pageNo }
+                }
             }
         }
-        return parsedPages.filter { it.type == type }.sortedBy { it.pageNo }
+        return emptyList()
     }
 
     suspend fun savePage(updated: OrderPage) = withContext(Dispatchers.IO) {

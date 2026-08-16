@@ -55,6 +55,7 @@ class ContentLocalStore(private val context: Context) {
     fun reseedKeerthaneFromAsset(): Boolean = reseedFromAsset(ASSET_KEERTHANE, keerthaneFile)
     fun reseedHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_HYMNS, hymnsFile)
     fun reseedMangaloreHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_MANGALORE_HYMNS, mangaloreHymnsFile)
+    fun reseedOrderOfServiceFromAsset(): Boolean = reseedFromAsset(ASSET_ORDER, orderOfServiceFile)
 
     fun hasHymns(): Boolean = hymnsFile.exists() && hymnsFile.length() > 0
     fun hasKeerthanes(): Boolean = keerthaneFile.exists() && keerthaneFile.length() > 0
