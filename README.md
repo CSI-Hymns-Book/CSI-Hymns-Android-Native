@@ -14,16 +14,16 @@
   <img src="https://img.shields.io/badge/Material%203%20Expressive-6750A4?style=flat&logo=materialdesign&logoColor=white" alt="Material 3" />
   <img src="https://img.shields.io/badge/minSdk-26-green?style=flat" alt="minSdk 26" />
   <img src="https://img.shields.io/badge/targetSdk-36-green?style=flat" alt="targetSdk 36" />
-  <img src="https://img.shields.io/badge/version-1.0-blue?style=flat" alt="v1.0" />
+  <img src="https://img.shields.io/badge/version-5.1.2-blue?style=flat" alt="v5.1.2" />
 </p>
 
 ---
 
 ## Overview
 
-**CSI Hymns Book** is the Android-native rewrite of the CSI Hymns & Lyrics app (formerly Flutter). It helps congregations browse hymns and keerthanes, read bilingual lyrics, flip through stanzas like a book, play MIDI audio, cast to Chromecast, manage favorites and custom categories, follow the Order of Service, and celebrate Christmas with carols — all with a modern, tactile UI.
+**CSI Hymns Book** is the Android-native rewrite of the CSI Hymns & Lyrics app (formerly Flutter). It helps congregations browse CSI hymns, keerthanes, and Mangalore Tunes (M.T.) hymns; read bilingual lyrics; flip through stanzas like a book; play MIDI or fallback audio; cast to Chromecast; manage favorites and custom categories; follow the Order of Service; receive announcements; and celebrate Christmas with community carols — all with a modern, tactile UI.
 
-This repository is the **Kotlin / Jetpack Compose** native rewrite of the original CSI Hymns & Lyrics app.
+This repository is the **Kotlin / Jetpack Compose** native rewrite of the original CSI Hymns & Lyrics app. Current Play/build version is **5.1.2** (`versionCode` 34).
 
 ---
 
@@ -31,11 +31,12 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 | | |
 |---|---|
-| **Offline-first** | Bundled JSON seed + local cache; background sync from GitHub |
+| **Offline-first** | Bundled JSON seed + local cache; background sync from GitHub (hymns, keerthane, Order of Service, M.T. hymns) |
 | **Expressive UI** | M3 Expressive components, haptics, predictive back, page-curl lyrics |
 | **Cloud-backed** | Supabase auth, favorites, custom categories, remote `app_config` |
-| **Audio & Cast** | Media3 ExoPlayer in-app player + Google Cast support |
-| **Community** | Jira lyric correction tickets, Christmas carol contributions |
+| **Audio & Cast** | Media3 ExoPlayer + MIDI playback (transpose, SATB routing, tune selector) and Google Cast |
+| **Notifications** | Firebase Cloud Messaging with in-app broadcasts and version-targeted announcements |
+| **Community** | Jira lyric correction tickets, Christmas carol contributions, optional donations |
 
 ---
 
@@ -43,11 +44,17 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 ### Hymns & Keerthane
 - Search and sort by number, title, or meter
+- **Jump to Meter** (and Jump to MT Tune on Mangalore Tunes) to scroll the list instantly
 - Kannada / English lyrics toggle
 - Adjustable font size and reading progress resume
 - Favorites with cloud sync when signed in
 - Report lyric issues → Jira tickets
 - Dynamic page selection state preservation (remembers your tab choices without page resets)
+
+### Mangalore Tunes (M.T.)
+- Dedicated M.T. Hymns section (enabled via remote `is_mangalore_hymns_enabled`)
+- Lyrics, search, categories, and favorites for the M.T. book
+- Section selector to switch between CSI Hymns & Keerthanes and M.T. Hymns
 
 ### Lyrics experience
 - **Scroll mode** — classic vertical reading
@@ -59,7 +66,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - Full-screen reader with jump-to-page navigation
 
 ### Categories & Collections
-- Recent songs, occasion categories, and custom collections
+- Recent songs, occasion category song lists, and custom collections
 - Guest users can create up to 5 custom categories
 - Add/remove hymns and keerthanes from collections
 
@@ -70,15 +77,28 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 ### Audio & Cast
 - Built-in expressive audio player (play, seek, speed, loop)
+- MIDI playback with live transpose and independent SATB instrument routing
+- Tune selector (grid / dropdown) for multiple tune or meter variations
+- Automatic MIDI when matching files exist on GitHub; `.ogg` fallback unless disabled remotely
 - Chromecast streaming when enabled via remote config
-- High-precision playback speed control (0.5x - 1.5x) using micro-intervals (+/- 0.05x) and a clean instant-Reset control
+- High-precision playback speed control (0.5x–1.5x) using micro-intervals (+/- 0.05x) and a reset control
 - Byte-level raw MIDI tempo metadata scaling (`0xFF 0x51 0x03` modification) for smooth tempo shifts without post-synth audio distortion
-- Progressive remote range-based transitions (`midi_hymns_ranges` and `midi_keerthanes_ranges` app configs) from `.ogg` to `.mid`
+- Progressive remote range-based transitions (`midi_hymns_ranges` and `midi_keerthanes_ranges`) from `.ogg` to `.mid`
+
+### Notifications & announcements
+- Firebase Cloud Messaging for push notifications (image-capable BigPicture style)
+- Runtime notification permission on Android 13+
+- In-app broadcasts, including version-targeted announcements
+
+### Donations
+- Optional in-app donations (INR / USD) when payments are enabled remotely
+- Adyen Drop-in and hosted checkout; Razorpay when that gateway is enabled
+- Return deep links: `csihymns://donation_result` and `https://csihymns.app/donation_result`
 
 ### Account & Settings
-- Google Sign-In via Supabase
-- Light / Dark / System theme, AMOLED black, 21 accent colors
-- Force-update gate, changelog, privacy policy, onboarding
+- Google Sign-In and email/password (sign in, sign up, reset) via Supabase
+- Light / Dark / System theme, AMOLED black, 22 accent colors
+- Force-update gate, Play In-App Updates from Settings, changelog, privacy policy, onboarding
 - Safe navigation drawer Sign-In triggers and crash-free dynamic `AuthScreen` stacked overlays
 - Optimized class-level Proguard rules for serialization and model parsing, enabling full R8 code shrinking and memory reductions
 
@@ -127,6 +147,8 @@ flowchart TB
         CSM[ContentSyncManager]
         SB[(Supabase)]
         GH[GitHub Content]
+        FCM[Firebase Cloud Messaging]
+        Pay[Adyen / hosted checkout]
     end
 
     MS --> Screens
@@ -137,6 +159,8 @@ flowchart TB
     CSM --> GH
     Repo --> SB
     VM --> SB
+    Screens --> FCM
+    Screens --> Pay
 ```
 
 **Pattern:** MVVM · `ViewModel` + `StateFlow` · Repository · Offline-first with reactive `ContentUpdateBus`
@@ -147,15 +171,17 @@ flowchart TB
 
 | Category | Libraries |
 |----------|-----------|
-| UI | Jetpack Compose, Material 3 Expressive `1.5.0-alpha21`, Navigation Compose |
+| UI | Jetpack Compose, Material 3 Expressive `1.5.0-alpha23`, Navigation Compose |
 | Architecture | AndroidX Lifecycle, ViewModel Compose |
 | Backend | Supabase Kotlin (Auth, PostgREST, Storage) |
 | Audio | AndroidX Media3 ExoPlayer |
 | Cast | Google Play Services Cast Framework |
+| Payments | Adyen Drop-in `5.19.0` |
+| Push & analytics | Firebase Cloud Messaging, Firebase Analytics, PostHog Android |
+| Updates | Play In-App Updates |
 | Network | OkHttp, Ktor, kotlinx-serialization |
 | Local storage | DataStore Preferences, app-private JSON cache |
-| Analytics | PostHog Android |
-| Build | AGP 9.x, Kotlin 2.3, Gradle Version Catalog |
+| Build | AGP `9.3.0-rc01`, Kotlin `2.4.0`, Gradle `9.6.1`, Version Catalog |
 
 ---
 
@@ -163,13 +189,15 @@ flowchart TB
 
 ```
 app/src/main/java/com/reyzie/hymns/
-├── MainActivity.kt          # Entry, theme, Supabase init, OAuth deeplinks
+├── MainActivity.kt          # Entry, theme, Supabase init, OAuth / donation deeplinks
+├── HymnsApplication.kt      # FCM topic subscription
 ├── cast/                    # Chromecast service & options provider
-├── data/                    # Repositories, sync, Supabase, Jira, local store
+├── carols/                  # Community Christmas carols (data, sync, UI)
+├── data/                    # Repositories, sync, Supabase, FCM, payments, Jira, local store
 ├── ui/
-│   ├── screens/             # Compose screens (Hymns, Detail, Settings, …)
+│   ├── screens/             # Compose screens (Hymns, Detail, Settings, Donations, …)
 │   ├── viewmodels/          # Shared ViewModels
-│   ├── widgets/             # Page flip, button groups, cast sheet, …
+│   ├── widgets/             # Page flip, jump-to-meter, button groups, cast sheet, …
 │   ├── motion/              # Overlay transitions, predictive back
 │   ├── navigation/          # Tab routes
 │   └── theme/               # M3 Expressive theme tokens
@@ -177,7 +205,7 @@ app/src/main/java/com/reyzie/hymns/
 
 app/src/main/assets/
 ├── changelog.json           # In-app release history
-└── content/                 # Bundled hymns, keerthane, order-of-service seed data
+└── content/                 # Bundled hymns, keerthane, M.T. hymns, order-of-service seed data
 ```
 
 ---
@@ -186,16 +214,16 @@ app/src/main/assets/
 
 ### Prerequisites
 
-- **Android Studio** Ladybug or newer (or compatible IDE)
-- **JDK 11+**
+- A recent **Android Studio** that supports **AGP 9.x**
+- **JDK 17+** (the Gradle daemon toolchain is pinned to **21**)
 - **Android SDK** with API 37 (compile) and API 36 (target)
 - A physical device or emulator running **API 26+**
 
 ### Clone & configure
 
 ```bash
-git clone <your-repo-url>
-cd CSI-Android-Native
+git clone https://github.com/CSI-Hymns-Book/CSI-Hymns-Android-Native.git
+cd CSI-Hymns-Android-Native
 ```
 
 Create `local.properties` in the project root (gitignored) with your SDK path and API keys:
@@ -216,9 +244,15 @@ JIRA_URL=https://your-domain.atlassian.net
 JIRA_EMAIL=you@example.com
 JIRA_API_TOKEN=
 JIRA_PROJECT_KEY=CSI
+
+# Adyen (optional — donations; defaults to TEST placeholders)
+ADYEN_CLIENT_KEY=
+ADYEN_ENVIRONMENT=TEST
 ```
 
-> Never commit `local.properties` or real credentials. Keys are injected at build time via `BuildConfig`.
+Firebase Cloud Messaging and Firebase Analytics use `app/google-services.json` (Google Services Gradle plugin).
+
+> Never commit `local.properties`, `keystore.properties`, or real credentials. Keys are injected at build time via `BuildConfig`.
 
 ### Build & run
 
@@ -234,7 +268,7 @@ Or open the project in Android Studio and run the **app** configuration on a dev
 ./gradlew :app:assembleRelease
 ```
 
-Configure signing in `app/build.gradle.kts` before publishing to Play Store.
+Copy `keystore.properties.example` to `keystore.properties` and fill in the Play upload keystore path and passwords. Release signing is applied automatically when that file points at a valid keystore.
 
 ---
 
@@ -245,24 +279,37 @@ The app reads `app_config` rows from Supabase at launch. Supported keys include:
 | Key | Purpose |
 |-----|---------|
 | `is_christmas_time` | Enable Christmas mode remotely |
+| `is_mangalore_hymns_enabled` | Show the Mangalore Tunes section |
 | `force_update_*` | Block old builds with update dialog |
 | `cast_enabled` | Show Cast controls |
 | `cast_app_id` / `cast_receiver_url` | Chromecast receiver |
 | `page_flip_visible` | Show Page Flip toggle in Settings |
+| `midi_hymns_ranges` / `midi_keerthanes_ranges` | Progressive MIDI rollout ranges |
+| `disable_ogg_fallback` | Disable `.ogg` fallback: `hymns`, `keerthane`, or `both` |
+| `audio_backup_url` | Alternate audio host |
+| `payments_enabled` / `is_adyen_enabled` / `is_razorpay_enabled` | Donation gateways |
+
+Authorized maintainers can also manage announcements and selected config from in-app Admin Controls. Sensitive keys (tokens, admin lists, passcodes) stay in Supabase and are not documented here.
 
 ---
 
 ## Migration from Flutter
 
-This project is a **full native rewrite**, not a Flutter embedding. Feature parity follows the Flutter **4.2.x** lineage documented in `app/src/main/assets/changelog.json`.
+This project is a **full native rewrite**, not a Flutter embedding. Feature parity follows the Flutter **4.2.x** lineage documented in `app/src/main/assets/changelog.json`. Items previously listed as missing are now in the native app:
 
-| Ported | Not yet in native |
-|--------|-------------------|
-| Hymns, Keerthane, Favorites, OOS | Jump to Meter selector |
-| Auth (Google), Custom categories | Email/password auth |
-| Christmas mode & carols | Occasion category song lists |
-| Jira tickets, Cast, Page flip | OneSignal push |
-| Offline sync, Force update | In-app Play update flow |
+| Now in native | Notes |
+|---------------|--------|
+| Hymns, Keerthane, Favorites, Order of Service | Including M.T. Hymns |
+| Auth | Google and email/password |
+| Custom categories & occasion song lists | Guest custom-category cap remains 5 |
+| Christmas mode & community carols | Lyrics and PDF contributions |
+| Jump to Meter | Also Jump to MT Tune |
+| Jira tickets, Cast, Page flip | Unchanged |
+| Offline sync, force update, Play In-App Updates | Settings + silent launch check |
+| Push notifications | Firebase Cloud Messaging (replaces OneSignal) |
+| Donations | Adyen / hosted checkout when enabled |
+
+This repository is **Android-only**. The earlier Flutter app also shipped iOS.
 
 ---
 
@@ -285,7 +332,7 @@ This project is licensed under the **Apache License 2.0** with **Custom Non-Comm
 - **Asset Protection**: All media assets, audio recordings, MIDI files, lyrics transcriptions, and database schemas are protected under this license and cannot be extracted for external commercial use.
 - **Attribution**: Original authorship credit to "Reynold / CSI Hymns Book" must be maintained in all forks and distributions.
 
-See the full [LICENSE](file:///Users/reyzie/Documents/Personal%20Projects/CSI-Hymns-Android-Native/LICENSE) file for complete details.
+See the full [LICENSE](LICENSE) file for complete details.
 
 ---
 
@@ -298,5 +345,5 @@ See the full [LICENSE](file:///Users/reyzie/Documents/Personal%20Projects/CSI-Hy
 ---
 
 <p align="center">
-  <sub>Built with care for congregational worship · Kotlin Native · v1.0</sub>
+  <sub>Built with care for congregational worship · Kotlin Native · v5.1.2</sub>
 </p>
