@@ -722,7 +722,9 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             val isKeerthane = state.isKeerthane
             val url = state.currentAudioUrl
             if (num != null && title != null) {
-                playSong(num, title, isKeerthane, url)
+                // Retry the same audio URL. Passing url as `signature` made
+                // playSong treat "https://..." as a meter and build Hymns/https:.mid.
+                playSong(num, title, isKeerthane, customAudioUrl = url)
                 return
             }
         }

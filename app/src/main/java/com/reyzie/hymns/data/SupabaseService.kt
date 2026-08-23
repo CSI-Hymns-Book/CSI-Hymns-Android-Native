@@ -213,7 +213,8 @@ class SupabaseService private constructor() {
 
     // --- Favorites ---
     
-    suspend fun fetchFavorites(): List<Map<String, Any>> = withContext(Dispatchers.IO) {
+    /** Returns null when the network/decode fails so callers can keep local data. */
+    suspend fun fetchFavorites(): List<Map<String, Any>>? = withContext(Dispatchers.IO) {
         val user = currentUser ?: return@withContext emptyList()
         try {
             val rows = client.from("favorites")
@@ -226,7 +227,7 @@ class SupabaseService private constructor() {
             }
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error fetching favorites", e)
-            emptyList()
+            null
         }
     }
 
