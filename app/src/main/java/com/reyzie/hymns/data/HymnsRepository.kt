@@ -326,15 +326,17 @@ class HymnsRepository(context: Context) {
     }
 
     suspend fun saveHymn(updated: Hymn, section: AppSection = AppSection.CSI) = withContext(Dispatchers.IO) {
-        val hymns = loadHymns(section).toMutableList()
-        val index = hymns.indexOfFirst { it.number == updated.number }
-        if (index != -1) {
-            hymns[index] = updated
-            if (section == AppSection.MT) {
-                store.writeMangaloreHymnsJson(gson.toJson(hymns))
-            } else {
-                store.writeHymnsJson(gson.toJson(hymns))
-            }
+        store.ensureSeeded()
+        val existing = if (section == AppSection.MT) {
+            store.readMangaloreHymnsJson()
+        } else {
+            store.readHymnsJson()
+        } ?: return@withContext
+        val patched = ContentJsonPatch.updateHymnInArray(existing, updated) ?: return@withContext
+        if (section == AppSection.MT) {
+            store.writeMangaloreHymnsJson(patched)
+        } else {
+            store.writeHymnsJson(patched)
         }
     }
 

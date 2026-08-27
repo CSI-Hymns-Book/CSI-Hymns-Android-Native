@@ -7,6 +7,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class FavoritesRepository private constructor(context: Context) {
@@ -19,6 +21,7 @@ class FavoritesRepository private constructor(context: Context) {
 
     private val _favoriteKeerthaneIds = MutableStateFlow<Set<Int>>(emptySet())
     val favoriteKeerthaneIds: StateFlow<Set<Int>> = _favoriteKeerthaneIds.asStateFlow()
+    private val syncMutex = Mutex()
 
     companion object {
         private const val TAG = "FavoritesRepository"
@@ -48,59 +51,77 @@ class FavoritesRepository private constructor(context: Context) {
     }
 
     suspend fun syncWithSupabase() = withContext(Dispatchers.IO) {
-        if (supabase.currentUser == null) return@withContext
+        syncMutex.withLock {
+            if (supabase.currentUser == null) return@withLock
 
-        val remoteFavorites = supabase.fetchFavorites()
-        val hymns = remoteFavorites.filter { it["item_type"] == "hymn" }
-            .mapNotNull { (it["item_number"] as? Number)?.toInt() }.toSet()
-        val keerthanes = remoteFavorites.filter { it["item_type"] == "keerthane" }
-            .mapNotNull { (it["item_number"] as? Number)?.toInt() }.toSet()
+            // null means the fetch failed — keep local stars instead of treating
+            // that as "this account has no favorites".
+            val remoteFavorites = supabase.fetchFavorites() ?: return@withLock
 
-        _favoriteHymnIds.value = hymns
-        _favoriteKeerthaneIds.value = keerthanes
+            val remote = FavoritesSync.Sets(
+                hymns = remoteFavorites.filter { it["item_type"] == "hymn" }
+                    .mapNotNull { (it["item_number"] as? Number)?.toInt() }.toSet(),
+                keerthanes = remoteFavorites.filter { it["item_type"] == "keerthane" }
+                    .mapNotNull { (it["item_number"] as? Number)?.toInt() }.toSet()
+            )
+            val local = FavoritesSync.Sets(
+                hymns = _favoriteHymnIds.value,
+                keerthanes = _favoriteKeerthaneIds.value
+            )
+            val merged = FavoritesSync.union(local, remote)
+            val toUpload = FavoritesSync.localOnly(local, remote)
 
-        prefs.edit()
-            .putStringSet("favoriteHymnIds", hymns.map { it.toString() }.toSet())
-            .putStringSet("favoriteKeerthaneIds", keerthanes.map { it.toString() }.toSet())
-            .apply()
+            if (supabase.currentUser == null) return@withLock
+
+            persistFavorites(merged)
+
+            for (id in toUpload.hymns) {
+                supabase.addFavorite(id, "hymn")
+            }
+            for (id in toUpload.keerthanes) {
+                supabase.addFavorite(id, "keerthane")
+            }
+        }
     }
 
     fun clearLocalOnSignOut() {
-        _favoriteHymnIds.value = emptySet()
-        _favoriteKeerthaneIds.value = emptySet()
-        prefs.edit()
-            .remove("favoriteHymnIds")
-            .remove("favoriteKeerthaneIds")
-            .apply()
+        persistFavorites(FavoritesSync.Sets(emptySet(), emptySet()))
     }
 
     suspend fun toggleFavorite(id: Int, isHymn: Boolean) = withContext(Dispatchers.IO) {
-        val currentSet = if (isHymn) _favoriteHymnIds.value else _favoriteKeerthaneIds.value
-        val isCurrentlyFavorite = currentSet.contains(id)
+        syncMutex.withLock {
+            val currentSet = if (isHymn) _favoriteHymnIds.value else _favoriteKeerthaneIds.value
+            val isCurrentlyFavorite = currentSet.contains(id)
+            val newSet = if (isCurrentlyFavorite) currentSet - id else currentSet + id
 
-        val newSet = if (isCurrentlyFavorite) currentSet - id else currentSet + id
-        val prefKey = if (isHymn) "favoriteHymnIds" else "favoriteKeerthaneIds"
-
-        if (isHymn) {
-            _favoriteHymnIds.value = newSet
-        } else {
-            _favoriteKeerthaneIds.value = newSet
-        }
-
-        prefs.edit()
-            .putStringSet(prefKey, newSet.map { it.toString() }.toSet())
-            .apply()
-
-        if (supabase.currentUser != null) {
-            try {
-                if (isCurrentlyFavorite) {
-                    supabase.removeFavorite(id, if (isHymn) "hymn" else "keerthane")
+            persistFavorites(
+                if (isHymn) {
+                    FavoritesSync.Sets(hymns = newSet, keerthanes = _favoriteKeerthaneIds.value)
                 } else {
-                    supabase.addFavorite(id, if (isHymn) "hymn" else "keerthane")
+                    FavoritesSync.Sets(hymns = _favoriteHymnIds.value, keerthanes = newSet)
                 }
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to sync favorite to Supabase", e)
+            )
+
+            if (supabase.currentUser != null) {
+                try {
+                    if (isCurrentlyFavorite) {
+                        supabase.removeFavorite(id, if (isHymn) "hymn" else "keerthane")
+                    } else {
+                        supabase.addFavorite(id, if (isHymn) "hymn" else "keerthane")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to sync favorite to Supabase", e)
+                }
             }
         }
+    }
+
+    private fun persistFavorites(sets: FavoritesSync.Sets) {
+        _favoriteHymnIds.value = sets.hymns
+        _favoriteKeerthaneIds.value = sets.keerthanes
+        prefs.edit()
+            .putStringSet("favoriteHymnIds", sets.hymns.map { it.toString() }.toSet())
+            .putStringSet("favoriteKeerthaneIds", sets.keerthanes.map { it.toString() }.toSet())
+            .apply()
     }
 }
