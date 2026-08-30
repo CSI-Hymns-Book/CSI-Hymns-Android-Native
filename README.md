@@ -47,7 +47,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - **Jump to Meter** (and Jump to MT Tune on Mangalore Tunes) to scroll the list instantly
 - Kannada / English lyrics toggle
 - Adjustable font size and reading progress resume
-- Favorites with cloud sync when signed in
+- Favorites with cloud sync when signed in (guest stars merge into the account on login)
 - Report lyric issues → Jira tickets; review submitted tickets (status, replies) from the sidebar
 - Acknowledgement dialog on launch when a lyric ticket is marked resolved
 - Dynamic page selection state preservation (remembers your tab choices without page resets)
@@ -85,6 +85,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - Default MIDI instrument in Settings (piano, organs, strings, bells, choir)
 - Tune selector (grid / dropdown) for multiple tune or meter variations
 - Automatic MIDI when matching files exist on GitHub; `.ogg` fallback unless disabled remotely
+- When no audio is available, users can contribute a MIDI or audio file as a Jira ticket
 - Chromecast streaming when enabled via remote config
 - High-precision playback speed control (0.5x–1.5x) using micro-intervals (+/- 0.05x) and a reset control
 - Byte-level raw MIDI tempo metadata scaling (`0xFF 0x51 0x03` modification) for smooth tempo shifts without post-synth audio distortion
@@ -155,7 +156,7 @@ flowchart TB
         SB[(Supabase)]
         GH[GitHub Content]
         FCM[Firebase Cloud Messaging]
-        Pay[Adyen / hosted checkout]
+        Pay[Adyen / Razorpay / hosted checkout]
     end
 
     MS --> Screens
@@ -213,6 +214,10 @@ app/src/main/java/com/reyzie/hymns/
 app/src/main/assets/
 ├── changelog.json           # In-app release history
 └── content/                 # Bundled hymns, keerthane, M.T. hymns, order-of-service seed data
+
+ci/                          # Jenkins helpers (version, changelog, Slack/Telegram notify)
+fastlane/                    # Google Play upload lane
+Jenkinsfile                  # Release APK + AAB pipeline
 ```
 
 ---
@@ -274,13 +279,35 @@ For Google / OAuth sign-in, register these redirect URIs in the Supabase Auth da
 
 Or open the project in Android Studio and run the **app** configuration on a device.
 
+### Tests
+
+```bash
+./gradlew :app:test
+```
+
+Unit tests cover content JSON parsing/patches, Order of Service sync payloads, favorites merge-on-login, and custom-category migration.
+
 ### Release build
 
 ```bash
 ./gradlew :app:assembleRelease
+./gradlew :app:bundleRelease
 ```
 
-Copy `keystore.properties.example` to `keystore.properties` and fill in the Play upload keystore path and passwords. Release signing is applied automatically when that file points at a valid keystore.
+Copy `keystore.properties.example` to `keystore.properties` and fill in the Play upload keystore path and passwords. Release signing is applied automatically when that file points at a valid keystore. CI builds both the APK (`assembleRelease`) and the Play App Bundle (`bundleRelease`).
+
+---
+
+## CI & Play uploads
+
+Jenkins (`Jenkinsfile`) runs on `main` and `dev`: assemble a signed release APK and AAB, verify signatures, optionally upload the AAB to Google Play via Fastlane, and notify Slack/Telegram.
+
+| Play track | Fastlane behavior |
+|------------|-------------------|
+| `open` | Open Testing (`beta`), `release_status=completed` |
+| `production` | Production **draft** (requires `CONFIRM_PRODUCTION=true`; promote in Play Console) |
+
+Ruby/Fastlane setup, helper scripts, and local metadata checks are documented in [`ci/README.md`](ci/README.md). Do not commit `keystore.properties`, keystores, or Play service-account JSON.
 
 ---
 
@@ -319,7 +346,7 @@ This project is a **full native rewrite**, not a Flutter embedding. Feature pari
 | Jira tickets, Cast, Page flip | Unchanged |
 | Offline sync, force update, Play In-App Updates | Settings + silent launch check |
 | Push notifications | Firebase Cloud Messaging (replaces OneSignal) |
-| Donations | Adyen / hosted checkout when enabled |
+| Donations | Adyen / Razorpay / hosted checkout when enabled |
 
 This repository is **Android-only**. The earlier Flutter app also shipped iOS.
 
