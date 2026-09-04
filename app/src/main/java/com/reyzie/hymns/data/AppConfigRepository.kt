@@ -38,6 +38,31 @@ data class RemoteAppConfig(
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
 
+    /** Keep previously known values when a fetch omits a key (null). Explicit false/empty still wins. */
+    fun coalesce(previous: RemoteAppConfig): RemoteAppConfig = copy(
+        isChristmasTime = isChristmasTime ?: previous.isChristmasTime,
+        forceUpdateEnabled = forceUpdateEnabled ?: previous.forceUpdateEnabled,
+        forceUpdateMinVersion = forceUpdateMinVersion ?: previous.forceUpdateMinVersion,
+        forceUpdateMinBuildNumber = forceUpdateMinBuildNumber ?: previous.forceUpdateMinBuildNumber,
+        forceUpdateMessage = forceUpdateMessage ?: previous.forceUpdateMessage,
+        forceUpdateAndroidStoreUrl = forceUpdateAndroidStoreUrl ?: previous.forceUpdateAndroidStoreUrl,
+        castEnabled = castEnabled ?: previous.castEnabled,
+        castAppId = castAppId ?: previous.castAppId,
+        castReceiverUrl = castReceiverUrl ?: previous.castReceiverUrl,
+        pageFlipVisible = pageFlipVisible ?: previous.pageFlipVisible,
+        adminEmails = adminEmails ?: previous.adminEmails,
+        githubMidiToken = githubMidiToken ?: previous.githubMidiToken,
+        isMangaloreHymnsEnabled = isMangaloreHymnsEnabled ?: previous.isMangaloreHymnsEnabled,
+        midiHymnsRanges = midiHymnsRanges ?: previous.midiHymnsRanges,
+        midiKeerthanesRanges = midiKeerthanesRanges ?: previous.midiKeerthanesRanges,
+        disableOggFallback = disableOggFallback ?: previous.disableOggFallback,
+        audioBackupUrl = audioBackupUrl ?: previous.audioBackupUrl,
+        isAdyenEnabled = isAdyenEnabled ?: previous.isAdyenEnabled,
+        isRazorpayEnabled = isRazorpayEnabled ?: previous.isRazorpayEnabled,
+        paymentsEnabled = paymentsEnabled ?: previous.paymentsEnabled,
+        masterRootPasscode = masterRootPasscode ?: previous.masterRootPasscode
+    )
+
     override fun toString(): String {
         return "RemoteAppConfig(isChristmasTime=$isChristmasTime, forceUpdateEnabled=$forceUpdateEnabled, castEnabled=$castEnabled, pageFlipVisible=$pageFlipVisible, isMangaloreHymnsEnabled=$isMangaloreHymnsEnabled, hasAdminEmails=${!adminEmails.isNullOrBlank()}, hasGithubToken=${!githubMidiToken.isNullOrBlank()}, hasMasterPasscode=${!masterRootPasscode.isNullOrBlank()})"
     }

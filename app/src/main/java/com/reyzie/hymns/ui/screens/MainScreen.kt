@@ -492,15 +492,19 @@ fun MainScreen(
     // Sync Pager with NavController for deep links or initial state
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val showingHomeChooser = (isChristmasMode && activeSection == null) ||
+        (isMangaloreHymnsEnabled && activeSection == null)
 
-    LaunchedEffect(currentRoute) {
+    LaunchedEffect(currentRoute, showingHomeChooser) {
+        if (showingHomeChooser) return@LaunchedEffect
         val index = activeScreens.indexOfFirst { it.route == currentRoute }
         if (index != -1 && index != pagerState.currentPage) {
             pagerState.animateScrollToPage(index)
         }
     }
 
-    LaunchedEffect(isChristmasMode, currentRoute) {
+    LaunchedEffect(isChristmasMode, currentRoute, showingHomeChooser) {
+        if (showingHomeChooser) return@LaunchedEffect
         val route = currentRoute ?: return@LaunchedEffect
         val routeExists = activeScreens.any { it.route == route } || route == Screen.Auth.route
         if (!routeExists) {

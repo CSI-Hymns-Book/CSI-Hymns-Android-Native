@@ -18,6 +18,7 @@ import io.github.jan.supabase.postgrest.query.filter.*
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.compose.auth.ComposeAuth
 import io.github.jan.supabase.compose.auth.composeAuth
+import io.github.jan.supabase.serializer.KotlinXSerializer
 import io.ktor.client.engine.android.Android
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -114,6 +115,14 @@ No profile picture is stored.
             supabaseUrl = url,
             supabaseKey = anonKey
         ) {
+            defaultSerializer = KotlinXSerializer(
+                Json {
+                    ignoreUnknownKeys = true
+                    encodeDefaults = true
+                    explicitNulls = false
+                    isLenient = true
+                }
+            )
             install(Auth) {
                 scheme = "com.reyzie.hymns"
                 host = "callback"
