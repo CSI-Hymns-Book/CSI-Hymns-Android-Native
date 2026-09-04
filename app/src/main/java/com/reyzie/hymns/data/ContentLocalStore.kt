@@ -25,6 +25,7 @@ class ContentLocalStore(private val context: Context) {
         copyAssetIfMissing(ASSET_HYMNS, hymnsFile)
         copyAssetIfMissing(ASSET_KEERTHANE, keerthaneFile)
         copyAssetIfMissing(ASSET_ORDER, orderOfServiceFile)
+        ensureOrderIndexFromAsset()
         if (mangaloreHymnsFile.exists() && !mangaloreHymnsFile.readText().contains("\"category\"")) {
             mangaloreHymnsFile.delete()
         }
@@ -54,8 +55,26 @@ class ContentLocalStore(private val context: Context) {
 
     fun reseedKeerthaneFromAsset(): Boolean = reseedFromAsset(ASSET_KEERTHANE, keerthaneFile)
     fun reseedHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_HYMNS, hymnsFile)
-    fun reseedMangaloreHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_MANGALORE_HYMNS, mangaloreHymnsFile)
     fun reseedOrderOfServiceFromAsset(): Boolean = reseedFromAsset(ASSET_ORDER, orderOfServiceFile)
+    fun reseedMangaloreHymnsFromAsset(): Boolean = reseedFromAsset(ASSET_MANGALORE_HYMNS, mangaloreHymnsFile)
+
+    /** If local order JSON has no `index` TOC, copy it from the asset without wiping pages. */
+    private fun ensureOrderIndexFromAsset() {
+        if (!orderOfServiceFile.exists() || orderOfServiceFile.length() == 0L) return
+        val local = orderOfServiceFile.readText()
+        if (local.contains("\"index\"")) return
+        try {
+            val assetJson = context.assets.open(ASSET_ORDER).bufferedReader().use { it.readText() }
+            val assetObj = org.json.JSONObject(assetJson)
+            if (!assetObj.has("index")) return
+            val localObj = org.json.JSONObject(local)
+            localObj.put("index", assetObj.getJSONArray("index"))
+            orderOfServiceFile.writeText(localObj.toString(2))
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not merge order-of-service index from asset", e)
+            reseedOrderOfServiceFromAsset()
+        }
+    }
 
     fun hasHymns(): Boolean = hymnsFile.exists() && hymnsFile.length() > 0
     fun hasKeerthanes(): Boolean = keerthaneFile.exists() && keerthaneFile.length() > 0

@@ -32,6 +32,7 @@ class HymnsFirebaseMessagingService : FirebaseMessagingService() {
         const val ACTION_NOTIFICATION_RECEIVED = "com.reyzie.hymns.ACTION_NOTIFICATION_RECEIVED"
 
         fun fetchAndSyncToken(context: Context) {
+            if (!ConsentManager.pushConsent.value) return
             try {
                 FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
                     if (task.isSuccessful) {
@@ -60,6 +61,7 @@ class HymnsFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         fun subscribeToDefaultTopics(context: Context? = null) {
+            if (!ConsentManager.pushConsent.value) return
             context?.let { fetchAndSyncToken(it) }
             try {
                 val fcm = FirebaseMessaging.getInstance()
@@ -70,7 +72,20 @@ class HymnsFirebaseMessagingService : FirebaseMessagingService() {
             }
         }
 
+        fun optOutPush() {
+            try {
+                val fcm = FirebaseMessaging.getInstance()
+                fcm.unsubscribeFromTopic("all_users")
+                fcm.unsubscribeFromTopic("announcements")
+                fcm.unsubscribeFromTopic("kannada_hymns")
+                fcm.unsubscribeFromTopic("english_hymns")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error opting out of FCM topics", e)
+            }
+        }
+
         fun syncUserLanguageTopics(isKannada: Boolean = true, isEnglish: Boolean = true) {
+            if (!ConsentManager.pushConsent.value) return
             try {
                 val fcm = FirebaseMessaging.getInstance()
                 if (isKannada) fcm.subscribeToTopic("kannada_hymns") else fcm.unsubscribeFromTopic("kannada_hymns")
@@ -90,11 +105,14 @@ class HymnsFirebaseMessagingService : FirebaseMessagingService() {
             .putString(PREF_FCM_TOKEN, token)
             .apply()
 
-        subscribeToDefaultTopics(this)
+        if (ConsentManager.pushConsent.value) {
+            subscribeToDefaultTopics(this)
+        }
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
+        if (!ConsentManager.pushConsent.value) return
         Log.d(TAG, "From: ${remoteMessage.from}")
 
         val title = remoteMessage.notification?.title 

@@ -174,6 +174,7 @@ fun MainScreen(
     val authViewModel: com.reyzie.hymns.ui.viewmodels.AuthViewModel = viewModel()
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
     val isLoggedIn = sessionStatus is io.github.jan.supabase.auth.status.SessionStatus.Authenticated
+    val accountBlockedMessage by authViewModel.accountBlockedMessage.collectAsState()
     
     val remoteConfig by settingsViewModel.remoteAppConfig.collectAsState()
     val isMangaloreHymnsEnabled = remoteConfig.isMangaloreHymnsEnabled == true
@@ -229,6 +230,8 @@ fun MainScreen(
     var showKeerthanesFromChristmas by rememberSaveable { mutableStateOf(false) }
     var selectedCommonCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
+    var showPrivacyCentre by rememberSaveable { mutableStateOf(false) }
+    var privacyCentreHasNested by rememberSaveable { mutableStateOf(false) }
     var showChangelog by rememberSaveable { mutableStateOf(false) }
     var showAboutApp by rememberSaveable { mutableStateOf(false) }
     var showDonationOverlay by rememberSaveable { mutableStateOf(false) }
@@ -236,6 +239,14 @@ fun MainScreen(
     var showMenuShowcase by rememberSaveable { mutableStateOf(false) }
     var showAuthOverlay by rememberSaveable { mutableStateOf(false) }
     var homeSettled by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(accountBlockedMessage, showAuthOverlay) {
+        val message = accountBlockedMessage ?: return@LaunchedEffect
+        if (!showAuthOverlay) {
+            android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+            authViewModel.consumeAccountBlockedMessage()
+        }
+    }
 
     LaunchedEffect(Unit) {
         OnboardingPrefs.migrateFromLegacy(context)
@@ -279,6 +290,7 @@ fun MainScreen(
         showChristmasCarols,
         selectedCommonCategory,
         showPrivacyPolicy,
+        showPrivacyCentre,
         showAboutApp,
         showProfileEdit,
         showChangelog,
@@ -297,6 +309,7 @@ fun MainScreen(
             showChristmasCarols ||
             selectedCommonCategory != null ||
             showPrivacyPolicy ||
+            showPrivacyCentre ||
             showAboutApp ||
             showProfileEdit ||
             showChangelog ||
@@ -308,18 +321,14 @@ fun MainScreen(
         }
     }
 
+    val hasRequiredConsent by ConsentManager.hasValidRequiredConsent.collectAsState()
+    if (!hasRequiredConsent) {
+        ConsentGateScreen()
+        return
+    }
+
     if (showOnboarding) {
-        OnboardingScreen(
-            onDone = { showOnboarding = false },
-            onOpenPrivacyPolicy = { showPrivacyPolicy = true }
-        )
-        if (showPrivacyPolicy) {
-            PredictiveExpressiveBackHandler(
-                enabled = true,
-                onBack = { showPrivacyPolicy = false }
-            )
-            PrivacyPolicyScreen(onBackClick = { showPrivacyPolicy = false })
-        }
+        OnboardingScreen(onDone = { showOnboarding = false })
         return
     }
 
@@ -457,7 +466,7 @@ fun MainScreen(
 
     val pagerState = rememberPagerState(pageCount = { activeScreens.size })
 
-    val isStackedOverlayOpen = showProfileEdit || showPrivacyPolicy || showChangelog || showAboutApp ||
+    val isStackedOverlayOpen = showProfileEdit || showPrivacyPolicy || showPrivacyCentre || showChangelog || showAboutApp ||
         showPraiseApp || showTickets || showAboutDeveloper || showRecentSongs ||
         showChristmasCarols || showHymnsFromChristmas || showMtHymnsFromChristmas || showKeerthanesFromChristmas ||
         selectedCommonCategory != null || pickSongsForCategory != null || selectedCategory != null ||
@@ -766,11 +775,12 @@ fun MainScreen(
 
             ExpressiveOverlayScreen(
                 item = showSettings.takeIf { it },
-                onDismiss = { showSettings = false }
+                onDismiss = { showSettings = false },
+                backEnabled = !isStackedOverlayOpen
             ) {
                 SettingsScreen(
                     onNavigateUp = { showSettings = false },
-                    onPrivacyPolicyClick = { showPrivacyPolicy = true },
+                    onPrivacyCentreClick = { showPrivacyCentre = true },
                     onChangelogClick = { showChangelog = true },
                     onAboutAppClick = { showAboutApp = true },
                     onSignInClick = {
@@ -779,7 +789,8 @@ fun MainScreen(
                     },
                     onDonateClick = {
                         showDonationOverlay = true
-                    }
+                    },
+                    onProfileClick = { showProfileEdit = true }
                 )
             }
 
@@ -801,6 +812,7 @@ fun MainScreen(
                     onBackClick = { showProfileEdit = false },
                     onAccountDeleted = {
                         showProfileEdit = false
+                        showSettings = false
                         showAuthOverlay = true
                     }
                 )
@@ -813,6 +825,23 @@ fun MainScreen(
                 AuthScreen(
                     onAuthComplete = { showAuthOverlay = false },
                     onBackClick = { showAuthOverlay = false }
+                )
+            }
+
+            ExpressiveOverlayScreen(
+                visible = showPrivacyCentre,
+                onDismiss = {
+                    showPrivacyCentre = false
+                    privacyCentreHasNested = false
+                },
+                backEnabled = !privacyCentreHasNested
+            ) {
+                PrivacyCentreScreen(
+                    onBackClick = {
+                        showPrivacyCentre = false
+                        privacyCentreHasNested = false
+                    },
+                    onNestedChanged = { privacyCentreHasNested = it }
                 )
             }
 

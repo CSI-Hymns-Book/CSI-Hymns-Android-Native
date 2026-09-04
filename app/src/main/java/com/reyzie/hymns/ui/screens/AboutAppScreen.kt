@@ -32,6 +32,15 @@ fun AboutAppScreen(
     onPrivacyPolicyClick: () -> Unit
 ) {
     val context = LocalContext.current
+    var openDocument by remember { mutableStateOf<com.reyzie.hymns.data.LegalDocumentKind?>(null) }
+
+    if (openDocument != null) {
+        LegalDocumentScreen(
+            kind = openDocument!!,
+            onBackClick = { openDocument = null }
+        )
+        return
+    }
 
     fun launchUrl(url: String) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -196,7 +205,7 @@ fun AboutAppScreen(
                         modifier = Modifier.weight(1f)
                     )
                     ExpressiveActionButton(
-                        onClick = onPrivacyPolicyClick,
+                        onClick = { openDocument = com.reyzie.hymns.data.LegalDocumentKind.PRIVACY },
                         icon = Icons.Default.Policy,
                         label = "Privacy Policy",
                         modifier = Modifier.weight(1f)

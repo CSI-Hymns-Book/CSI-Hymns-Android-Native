@@ -160,6 +160,7 @@ fun <T> ExpressiveOverlayScreen(
     item: T?,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    backEnabled: Boolean = true,
     content: @Composable (T) -> Unit
 ) {
     var displayed by remember { mutableStateOf<T?>(item) }
@@ -196,7 +197,7 @@ fun <T> ExpressiveOverlayScreen(
 
     if (displayed != null) {
         PredictiveExpressiveBackHandler(
-            enabled = show,
+            enabled = show && backEnabled,
             onBack = {
                 visible = false
                 onDismiss()
@@ -231,12 +232,14 @@ fun ExpressiveOverlayScreen(
     visible: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    backEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     ExpressiveOverlayScreen(
         item = visible.takeIf { it },
         onDismiss = onDismiss,
-        modifier = modifier
+        modifier = modifier,
+        backEnabled = backEnabled
     ) {
         content()
     }

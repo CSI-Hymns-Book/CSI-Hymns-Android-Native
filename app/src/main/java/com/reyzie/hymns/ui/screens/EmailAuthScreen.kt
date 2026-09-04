@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
-import io.github.jan.supabase.auth.status.SessionStatus
 
 private enum class EmailAuthMode { SignIn, SignUp, Reset }
 
@@ -33,7 +32,8 @@ fun EmailAuthScreen(
     onAuthComplete: () -> Unit,
     onBackClick: () -> Unit,
 ) {
-    val sessionStatus by viewModel.sessionStatus.collectAsState()
+    val sessionVerified by viewModel.sessionVerified.collectAsState()
+    val accountBlockedMessage by viewModel.accountBlockedMessage.collectAsState()
     var mode by remember { mutableStateOf(EmailAuthMode.SignIn) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -41,12 +41,31 @@ fun EmailAuthScreen(
     var showPassword by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var acceptPrivacy by remember { mutableStateOf(false) }
+    var acceptTerms by remember { mutableStateOf(false) }
+    var openDocument by remember { mutableStateOf<com.reyzie.hymns.data.LegalDocumentKind?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(sessionStatus) {
-        if (sessionStatus is SessionStatus.Authenticated) {
+    if (openDocument != null) {
+        LegalDocumentScreen(
+            kind = openDocument!!,
+            onBackClick = { openDocument = null }
+        )
+        return
+    }
+
+    LaunchedEffect(sessionVerified) {
+        if (sessionVerified) {
             isLoading = false
             onAuthComplete()
+        }
+    }
+
+    LaunchedEffect(accountBlockedMessage) {
+        accountBlockedMessage?.let {
+            isLoading = false
+            message = it
+            viewModel.consumeAccountBlockedMessage()
         }
     }
 
@@ -82,6 +101,10 @@ fun EmailAuthScreen(
                 }
                 if (password != confirmPassword) {
                     message = "Passwords do not match"
+                    return
+                }
+                if (!acceptPrivacy || !acceptTerms) {
+                    message = "Please accept the Privacy Policy and Terms of Use"
                     return
                 }
                 viewModel.signUpWithEmail(
@@ -199,10 +222,34 @@ fun EmailAuthScreen(
                     )
                 }
 
+                if (mode == EmailAuthMode.SignUp) {
+                    ConsentCheckRow(
+                        checked = acceptPrivacy,
+                        title = "I consent to processing of my account data as described in the Privacy Policy.",
+                        onToggle = { acceptPrivacy = !acceptPrivacy },
+                        dark = false
+                    )
+                    ConsentCheckRow(
+                        checked = acceptTerms,
+                        title = "I accept the Terms of Use.",
+                        onToggle = { acceptTerms = !acceptTerms },
+                        dark = false
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        TextButton(onClick = { openDocument = com.reyzie.hymns.data.LegalDocumentKind.PRIVACY }) {
+                            Text("Privacy Policy")
+                        }
+                        TextButton(onClick = { openDocument = com.reyzie.hymns.data.LegalDocumentKind.TERMS }) {
+                            Text("Terms of Use")
+                        }
+                    }
+                }
+
                 Button(
                     onClick = { submit() },
                     enabled = !isLoading && email.isNotBlank() &&
-                        (mode == EmailAuthMode.Reset || password.isNotBlank()),
+                        (mode == EmailAuthMode.Reset || password.isNotBlank()) &&
+                        (mode != EmailAuthMode.SignUp || (acceptPrivacy && acceptTerms)),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(

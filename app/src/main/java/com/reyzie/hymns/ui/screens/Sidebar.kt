@@ -153,7 +153,7 @@ fun Sidebar(
                     )
                     SidebarDrawerItem(
                         icon = Icons.Outlined.Edit,
-                        label = "Edit profile",
+                        label = "Profile",
                         onClick = {
                             HapticFeedbackManager.smoothClick(context)
                             onCloseDrawer()
