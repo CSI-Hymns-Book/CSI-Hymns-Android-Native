@@ -34,14 +34,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshAppConfig() {
         viewModelScope.launch {
+            val previous = _remoteAppConfig.value
+            val previousFingerprint = com.reyzie.hymns.data.MidiFileCache.configFingerprint(previous)
             try {
-                val remote = appConfigRepository.fetchRemoteConfig()
+                val remote = appConfigRepository.fetchRemoteConfig().coalesce(previous)
+                val newFingerprint = com.reyzie.hymns.data.MidiFileCache.configFingerprint(remote)
+                if (newFingerprint != previousFingerprint) {
+                    com.reyzie.hymns.data.MidiFileCache.getInstance(getApplication()).invalidateAll()
+                    com.reyzie.hymns.data.HymnsRepository(getApplication()).invalidateMidiFileNameCache()
+                }
                 _remoteAppConfig.value = remote
                 CastService.getInstance().applyRemoteConfig(getApplication(), remote)
                 applyChristmasFromRemote(remote.isChristmasTime)
             } catch (e: Exception) {
                 android.util.Log.e("SettingsViewModel", "Error fetching app_config, falling back to local/cached", e)
-                val fallback = appConfigRepository.getCachedRemoteConfig()
+                val fallback = appConfigRepository.getCachedRemoteConfig().coalesce(previous)
                 _remoteAppConfig.value = fallback
                 loadLocalChristmasMode()
             }

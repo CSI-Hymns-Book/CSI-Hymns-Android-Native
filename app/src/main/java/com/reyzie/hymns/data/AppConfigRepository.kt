@@ -38,6 +38,31 @@ data class RemoteAppConfig(
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
     val parsedMidiKeerthanes: Set<Int> by lazy { parseRanges(midiKeerthanesRanges) }
 
+    /** Keep previously known values when a fetch omits a key (null). Explicit false/empty still wins. */
+    fun coalesce(previous: RemoteAppConfig): RemoteAppConfig = copy(
+        isChristmasTime = isChristmasTime ?: previous.isChristmasTime,
+        forceUpdateEnabled = forceUpdateEnabled ?: previous.forceUpdateEnabled,
+        forceUpdateMinVersion = forceUpdateMinVersion ?: previous.forceUpdateMinVersion,
+        forceUpdateMinBuildNumber = forceUpdateMinBuildNumber ?: previous.forceUpdateMinBuildNumber,
+        forceUpdateMessage = forceUpdateMessage ?: previous.forceUpdateMessage,
+        forceUpdateAndroidStoreUrl = forceUpdateAndroidStoreUrl ?: previous.forceUpdateAndroidStoreUrl,
+        castEnabled = castEnabled ?: previous.castEnabled,
+        castAppId = castAppId ?: previous.castAppId,
+        castReceiverUrl = castReceiverUrl ?: previous.castReceiverUrl,
+        pageFlipVisible = pageFlipVisible ?: previous.pageFlipVisible,
+        adminEmails = adminEmails ?: previous.adminEmails,
+        githubMidiToken = githubMidiToken ?: previous.githubMidiToken,
+        isMangaloreHymnsEnabled = isMangaloreHymnsEnabled ?: previous.isMangaloreHymnsEnabled,
+        midiHymnsRanges = midiHymnsRanges ?: previous.midiHymnsRanges,
+        midiKeerthanesRanges = midiKeerthanesRanges ?: previous.midiKeerthanesRanges,
+        disableOggFallback = disableOggFallback ?: previous.disableOggFallback,
+        audioBackupUrl = audioBackupUrl ?: previous.audioBackupUrl,
+        isAdyenEnabled = isAdyenEnabled ?: previous.isAdyenEnabled,
+        isRazorpayEnabled = isRazorpayEnabled ?: previous.isRazorpayEnabled,
+        paymentsEnabled = paymentsEnabled ?: previous.paymentsEnabled,
+        masterRootPasscode = masterRootPasscode ?: previous.masterRootPasscode
+    )
+
     override fun toString(): String {
         return "RemoteAppConfig(isChristmasTime=$isChristmasTime, forceUpdateEnabled=$forceUpdateEnabled, castEnabled=$castEnabled, pageFlipVisible=$pageFlipVisible, isMangaloreHymnsEnabled=$isMangaloreHymnsEnabled, hasAdminEmails=${!adminEmails.isNullOrBlank()}, hasGithubToken=${!githubMidiToken.isNullOrBlank()}, hasMasterPasscode=${!masterRootPasscode.isNullOrBlank()})"
     }
@@ -159,7 +184,8 @@ class AppConfigRepository(
             castAppId = raw[AppConfigKeys.CAST_APP_ID]?.trim()?.takeIf { it.isNotEmpty() },
             castReceiverUrl = raw[AppConfigKeys.CAST_RECEIVER_URL]?.trim()?.takeIf { it.isNotEmpty() },
             pageFlipVisible = appConfigService.parseBoolean(raw[AppConfigKeys.PAGE_FLIP_VISIBLE]),
-            adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]?.trim()?.takeIf { it.isNotEmpty() },
+            adminEmails = raw[AppConfigKeys.ADMIN_EMAILS]
+                ?.let { AdminPrefs.prettifyAdminEmailsConfig(it).takeIf { pretty -> pretty.isNotEmpty() } },
             githubMidiToken = (raw[AppConfigKeys.GITHUB_MIDI_TOKEN] ?: raw[AppConfigKeys.GITHUB_TOKEN])?.trim()?.takeIf { it.isNotEmpty() },
             isMangaloreHymnsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_MANGALORE_HYMNS_ENABLED]),
             midiHymnsRanges = raw[AppConfigKeys.MIDI_HYMNS_RANGES]?.trim(),
@@ -312,10 +338,33 @@ class AppConfigRepository(
                 null -> JsonNull
                 is Boolean -> JsonPrimitive(value)
                 is Number -> JsonPrimitive(value)
-                else -> JsonPrimitive(value.toString())
+                is JsonElement -> value
+                else -> toJsonbValue(key, value.toString())
             }
             appConfigService.update(key, jsonValue)
         }
+    }
+
+    /**
+     * Store structured JSON as a real jsonb object/array (not a JSON string with "\n").
+     * Plain text keys remain json strings.
+     */
+    private fun toJsonbValue(key: String, raw: String): JsonElement {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return JsonNull
+
+        val preferStructured = key == AppConfigKeys.ADMIN_EMAILS ||
+            trimmed.startsWith("{") ||
+            trimmed.startsWith("[")
+
+        if (preferStructured) {
+            val normalized = AdminPrefs.normalizeAdminEmailsRaw(trimmed)
+            runCatching { Json.parseToJsonElement(normalized) }
+                .getOrNull()
+                ?.takeIf { it is JsonObject || it is JsonArray }
+                ?.let { return it }
+        }
+        return JsonPrimitive(trimmed)
     }
 
     fun clearOverrides() {

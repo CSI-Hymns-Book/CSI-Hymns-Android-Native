@@ -57,7 +57,7 @@ object AdminPrefs {
 
     fun parseAdminRoles(adminEmailsConfig: String?): Map<String, Set<AdminRole>> {
         if (adminEmailsConfig.isNullOrBlank()) return emptyMap()
-        val raw = adminEmailsConfig.trim()
+        val raw = normalizeAdminEmailsRaw(adminEmailsConfig)
         val resultMap = mutableMapOf<String, MutableSet<AdminRole>>()
 
         try {
@@ -65,20 +65,23 @@ object AdminPrefs {
                 val jsonObject = org.json.JSONObject(raw)
                 val keys = jsonObject.keys()
                 while (keys.hasNext()) {
-                    val email = keys.next().lowercase().trim()
+                    val originalEmail = keys.next()
+                    val email = originalEmail.lowercase().trim()
                     val roleSet = mutableSetOf<AdminRole>()
-                    val value = jsonObject.opt(email)
-                    if (value is org.json.JSONArray) {
-                        for (i in 0 until value.length()) {
-                            val roleStr = value.optString(i)
-                            AdminRole.fromKey(roleStr)?.let { roleSet.add(it) }
+                    when (val value = jsonObject.opt(originalEmail)) {
+                        is org.json.JSONArray -> {
+                            for (i in 0 until value.length()) {
+                                val roleStr = value.optString(i)
+                                AdminRole.fromKey(roleStr)?.let { roleSet.add(it) }
+                            }
                         }
-                    } else if (value is String) {
-                        val roleStr = value.lowercase().trim()
-                        if (roleStr == "admin" || roleStr == "all") {
-                            roleSet.add(AdminRole.ADMIN)
-                        } else {
-                            AdminRole.fromKey(roleStr)?.let { roleSet.add(it) }
+                        is String -> {
+                            val roleStr = value.lowercase().trim()
+                            if (roleStr == "admin" || roleStr == "all") {
+                                roleSet.add(AdminRole.ADMIN)
+                            } else {
+                                AdminRole.fromKey(roleStr)?.let { roleSet.add(it) }
+                            }
                         }
                     }
                     if (roleSet.isNotEmpty()) {
@@ -99,6 +102,45 @@ object AdminPrefs {
             resultMap[email] = mutableSetOf(AdminRole.ADMIN)
         }
         return resultMap
+    }
+
+    /**
+     * Normalize legacy DB values where admin_emails was stored as a JSON **string**
+     * (with escaped \\n) instead of a jsonb object.
+     */
+    fun normalizeAdminEmailsRaw(raw: String): String {
+        var s = raw.trim()
+        if (s.isEmpty()) return s
+
+        // Unwrap jsonb string wrapping: "\"{ ... }\""
+        if (s.startsWith("\"") && s.endsWith("\"")) {
+            runCatching {
+                val unquoted = org.json.JSONTokener(s).nextValue()
+                if (unquoted is String) s = unquoted.trim()
+            }
+        }
+
+        // Literal backslash-n sequences from bad saves (not real newlines).
+        if (s.contains("\\n") && !s.contains('\n')) {
+            s = s.replace("\\n", "\n").replace("\\\"", "\"")
+        }
+
+        return s.trim()
+    }
+
+    /** Pretty-print admin email JSON for the App Config editor. */
+    fun prettifyAdminEmailsConfig(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        val normalized = normalizeAdminEmailsRaw(raw)
+        return try {
+            when {
+                normalized.startsWith("{") -> org.json.JSONObject(normalized).toString(2)
+                normalized.startsWith("[") -> org.json.JSONArray(normalized).toString(2)
+                else -> normalized
+            }
+        } catch (_: Exception) {
+            normalized
+        }
     }
 
     fun hasRole(

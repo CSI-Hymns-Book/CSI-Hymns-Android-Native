@@ -19,15 +19,16 @@ object AnalyticsService {
     private var appVersion: String = "Unknown"
     private var buildNumber: String = "Unknown"
 
+    private var applicationRef: Application? = null
+
     fun init(application: Application) {
+        applicationRef = application
         try {
             firebaseAnalytics = FirebaseAnalytics.getInstance(application)
+            firebaseAnalytics?.setAnalyticsCollectionEnabled(ConsentManager.analyticsConsent.value)
         } catch (e: Exception) {
             Log.w(TAG, "Firebase Analytics unavailable (google-services.json may not be added yet)")
         }
-
-        val apiKey = BuildConfig.POSTHOG_API_KEY
-        val host = BuildConfig.POSTHOG_HOST
 
         try {
             val pInfo = application.packageManager.getPackageInfo(application.packageName, 0)
@@ -41,35 +42,66 @@ object AnalyticsService {
             e.printStackTrace()
         }
 
-        if (apiKey.isNotEmpty() && apiKey != "YOUR_POSTHOG_API_KEY") {
-            try {
-                val config = PostHogAndroidConfig(
-                    apiKey = apiKey,
-                    host = host
-                ).apply {
-                    captureApplicationLifecycleEvents = true
-                    captureScreenViews = true
-                    preloadFeatureFlags = false
-                    sendFeatureFlagEvent = false
-                    sessionReplay = true
-                    sessionReplayConfig.maskAllTextInputs = false
-                    sessionReplayConfig.maskAllImages = false
-                    sessionReplayConfig.screenshot = true
-                    sessionReplayConfig.sampleRate = 1.0
-                }
-
-                PostHogAndroid.setup(application, config)
-                isInitialized = true
-                Log.i(TAG, "PostHog ready ($host, v$appVersion+$buildNumber)")
-            } catch (e: Exception) {
-                Log.e(TAG, "Error setting up PostHog", e)
-            }
+        if (ConsentManager.analyticsConsent.value) {
+            setupPostHog(application)
         } else {
+            Log.i(TAG, "PostHog deferred until analytics consent")
+        }
+    }
+
+    fun applyAnalyticsConsent(enabled: Boolean) {
+        try {
+            firebaseAnalytics?.setAnalyticsCollectionEnabled(enabled)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not toggle Firebase Analytics collection", e)
+        }
+        if (enabled) {
+            applicationRef?.let { setupPostHog(it) }
+        } else if (isInitialized) {
+            try {
+                PostHog.reset()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error resetting PostHog", e)
+            }
+            isInitialized = false
+            lastIdentifiedUserId = null
+        }
+    }
+
+    private fun setupPostHog(application: Application) {
+        if (isInitialized) return
+        val apiKey = BuildConfig.POSTHOG_API_KEY
+        val host = BuildConfig.POSTHOG_HOST
+        if (apiKey.isEmpty() || apiKey == "YOUR_POSTHOG_API_KEY") {
             Log.w(TAG, "PostHog API Key is missing or default. PostHog tracking disabled.")
+            return
+        }
+        try {
+            val config = PostHogAndroidConfig(
+                apiKey = apiKey,
+                host = host
+            ).apply {
+                captureApplicationLifecycleEvents = true
+                captureScreenViews = true
+                preloadFeatureFlags = false
+                sendFeatureFlagEvent = false
+                sessionReplay = true
+                sessionReplayConfig.maskAllTextInputs = false
+                sessionReplayConfig.maskAllImages = false
+                sessionReplayConfig.screenshot = true
+                sessionReplayConfig.sampleRate = 1.0
+            }
+
+            PostHogAndroid.setup(application, config)
+            isInitialized = true
+            Log.i(TAG, "PostHog ready ($host, v$appVersion+$buildNumber)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up PostHog", e)
         }
     }
 
     fun syncAuthIdentity(userId: String?, authProvider: String? = null) {
+        if (!ConsentManager.analyticsConsent.value) return
         try {
             firebaseAnalytics?.setUserId(userId)
 
@@ -98,6 +130,7 @@ object AnalyticsService {
     }
 
     fun capture(eventName: String, properties: Map<String, Any>? = null) {
+        if (!ConsentManager.analyticsConsent.value) return
         val finalProps = mutableMapOf<String, Any>(
             "app_name" to "csi_hymns",
             "app_version" to appVersion,
@@ -140,6 +173,7 @@ object AnalyticsService {
     }
 
     fun screen(screenName: String, properties: Map<String, Any>? = null) {
+        if (!ConsentManager.analyticsConsent.value) return
         // 1. Log to Firebase Analytics
         try {
             firebaseAnalytics?.let { fa ->

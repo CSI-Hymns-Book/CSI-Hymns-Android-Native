@@ -1,0 +1,38 @@
+# frozen_string_literal: true
+
+default_platform(:android)
+
+platform :android do
+  desc "Upload release AAB to Google Play"
+  lane :deploy do
+    track = ENV.fetch("PLAY_TRACK", "beta")
+    aab_path = ENV.fetch("AAB_PATH", "app/build/outputs/bundle/release/app-release.aab")
+    changelog_text = ""
+    release_notes_path = File.expand_path("../ci/changelog_release.txt", __dir__)
+    if File.exist?(release_notes_path)
+      changelog_text = File.read(release_notes_path).strip
+    end
+
+    # Production stays draft so it never goes live at 100% from CI.
+    # Open/beta testing can complete immediately.
+    release_status = track == "production" ? "draft" : "completed"
+
+    upload_params = {
+      track: track,
+      aab: aab_path,
+      skip_upload_apk: true,
+      skip_upload_metadata: changelog_text.empty?,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      release_status: release_status
+    }
+
+    unless changelog_text.empty?
+      upload_params[:version_name] = ENV.fetch("VERSION_NAME", nil)
+      upload_params[:changelog] = { "en-US" => changelog_text }
+    end
+
+    upload_to_play_store(**upload_params)
+    UI.important("Uploaded to #{track} with release_status=#{release_status}")
+  end
+end

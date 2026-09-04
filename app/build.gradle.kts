@@ -139,6 +139,7 @@ dependencies {
     implementation("com.posthog:posthog-android:3.53.2")
     implementation(libs.coil.compose)
     testImplementation(libs.junit)
+    testImplementation("org.json:json:20240303")
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -155,5 +156,17 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEa
             "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
             "-opt-in=androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
         )
+    }
+}
+
+// CI: expose versionName / versionCode without grepping build files.
+val ciVersionName = android.defaultConfig.versionName.orEmpty()
+val ciVersionCode = android.defaultConfig.versionCode ?: 0
+tasks.register("printCiVersion") {
+    group = "ci"
+    description = "Print VERSION_NAME and VERSION_CODE for Jenkins / CI scripts"
+    doLast {
+        println("VERSION_NAME=$ciVersionName")
+        println("VERSION_CODE=$ciVersionCode")
     }
 }

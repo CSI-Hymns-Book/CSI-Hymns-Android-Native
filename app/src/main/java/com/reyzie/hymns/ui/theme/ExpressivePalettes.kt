@@ -120,6 +120,16 @@ object ExpressivePalettes {
             seed = Color(0xFF607D8B),
             tertiary = Color(0xFFFF7043),
             tertiaryContainer = Color(0xFFFFCCBC)
+        ),
+        0xFF00BFA5.toInt() to pair(
+            seed = Color(0xFF00BFA5),
+            tertiary = Color(0xFF5E35B1),
+            tertiaryContainer = Color(0xFFD1C4E9)
+        ),
+        0xFF7C4DFF.toInt() to pair(
+            seed = Color(0xFF7C4DFF),
+            tertiary = Color(0xFF00897B),
+            tertiaryContainer = Color(0xFFB2DFDB)
         )
     )
 

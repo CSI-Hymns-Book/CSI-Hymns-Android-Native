@@ -36,7 +36,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 | **Cloud-backed** | Supabase auth, favorites, custom categories, remote `app_config` |
 | **Audio & Cast** | Media3 ExoPlayer + MIDI playback (transpose, SATB routing, tune selector) and Google Cast |
 | **Notifications** | Firebase Cloud Messaging with in-app broadcasts and version-targeted announcements |
-| **Community** | Jira lyric correction tickets, Christmas carol contributions, optional donations |
+| **Community** | Jira lyric tickets (report, inbox, replies), Christmas carol contributions, optional donations |
 
 ---
 
@@ -47,8 +47,9 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - **Jump to Meter** (and Jump to MT Tune on Mangalore Tunes) to scroll the list instantly
 - Kannada / English lyrics toggle
 - Adjustable font size and reading progress resume
-- Favorites with cloud sync when signed in
-- Report lyric issues → Jira tickets
+- Favorites with cloud sync when signed in (guest stars merge into the account on login)
+- Report lyric issues → Jira tickets; review submitted tickets (status, replies) from the sidebar
+- Acknowledgement dialog on launch when a lyric ticket is marked resolved
 - Dynamic page selection state preservation (remembers your tab choices without page resets)
 
 ### Mangalore Tunes (M.T.)
@@ -60,6 +61,8 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - **Scroll mode** — classic vertical reading
 - **Page Flip mode** — finger-driven 3D page curl with dynamic pagination
 - Remote flag to show/hide Page Flip in settings
+- **Hide/Show Controls** on hymn detail for distraction-free reading (persists across songs and orientation)
+- Landscape: lyrics stay full-height with a collapsible right-side controls panel; controls also collapse automatically when playback starts unless you expand them again
 
 ### Order of Service
 - Bilingual card grid (Regular & Festival)
@@ -71,15 +74,18 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 - Add/remove hymns and keerthanes from collections
 
 ### Christmas Mode
-- Festive theming, snowfall landing screen
+- Festive theming and a snowfall landing screen with cards for hymns, keerthane, community carols, and M.T. (when enabled)
+- The Keerthane tab is omitted from the bottom bar during Christmas; it remains reachable from the landing screen
 - Community Christmas carols (lyrics or PDF)
 - Authenticated users can contribute carols
 
 ### Audio & Cast
-- Built-in expressive audio player (play, seek, speed, loop)
+- Built-in expressive audio player (play, seek, speed, loop); playback pauses when the screen turns off
 - MIDI playback with live transpose and independent SATB instrument routing
+- Default MIDI instrument in Settings (piano, organs, strings, bells, choir)
 - Tune selector (grid / dropdown) for multiple tune or meter variations
 - Automatic MIDI when matching files exist on GitHub; `.ogg` fallback unless disabled remotely
+- When no audio is available, users can contribute a MIDI or audio file as a Jira ticket
 - Chromecast streaming when enabled via remote config
 - High-precision playback speed control (0.5x–1.5x) using micro-intervals (+/- 0.05x) and a reset control
 - Byte-level raw MIDI tempo metadata scaling (`0xFF 0x51 0x03` modification) for smooth tempo shifts without post-synth audio distortion
@@ -97,8 +103,10 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 ### Account & Settings
 - Google Sign-In and email/password (sign in, sign up, reset) via Supabase
+- Edit profile when signed in
 - Light / Dark / System theme, AMOLED black, 22 accent colors
 - Force-update gate, Play In-App Updates from Settings, changelog, privacy policy, onboarding
+- Sidebar link to **Worship Companion**, a separate praise-and-worship lyrics app
 - Safe navigation drawer Sign-In triggers and crash-free dynamic `AuthScreen` stacked overlays
 - Optimized class-level Proguard rules for serialization and model parsing, enabling full R8 code shrinking and memory reductions
 
@@ -148,7 +156,7 @@ flowchart TB
         SB[(Supabase)]
         GH[GitHub Content]
         FCM[Firebase Cloud Messaging]
-        Pay[Adyen / hosted checkout]
+        Pay[Adyen / Razorpay / hosted checkout]
     end
 
     MS --> Screens
@@ -206,6 +214,10 @@ app/src/main/java/com/reyzie/hymns/
 app/src/main/assets/
 ├── changelog.json           # In-app release history
 └── content/                 # Bundled hymns, keerthane, M.T. hymns, order-of-service seed data
+
+ci/                          # Jenkins helpers (version, changelog, Slack/Telegram notify)
+fastlane/                    # Google Play upload lane
+Jenkinsfile                  # Release APK + AAB pipeline
 ```
 
 ---
@@ -252,6 +264,11 @@ ADYEN_ENVIRONMENT=TEST
 
 Firebase Cloud Messaging and Firebase Analytics use `app/google-services.json` (Google Services Gradle plugin).
 
+For Google / OAuth sign-in, register these redirect URIs in the Supabase Auth dashboard (both are declared in `AndroidManifest.xml`):
+
+- `com.reyzie.hymns://callback`
+- `io.supabase.flutter://callback` (legacy Flutter scheme, still accepted)
+
 > Never commit `local.properties`, `keystore.properties`, or real credentials. Keys are injected at build time via `BuildConfig`.
 
 ### Build & run
@@ -262,13 +279,35 @@ Firebase Cloud Messaging and Firebase Analytics use `app/google-services.json` (
 
 Or open the project in Android Studio and run the **app** configuration on a device.
 
+### Tests
+
+```bash
+./gradlew :app:test
+```
+
+Unit tests cover content JSON parsing/patches, Order of Service sync payloads, favorites merge-on-login, and custom-category migration.
+
 ### Release build
 
 ```bash
 ./gradlew :app:assembleRelease
+./gradlew :app:bundleRelease
 ```
 
-Copy `keystore.properties.example` to `keystore.properties` and fill in the Play upload keystore path and passwords. Release signing is applied automatically when that file points at a valid keystore.
+Copy `keystore.properties.example` to `keystore.properties` and fill in the Play upload keystore path and passwords. Release signing is applied automatically when that file points at a valid keystore. CI builds both the APK (`assembleRelease`) and the Play App Bundle (`bundleRelease`).
+
+---
+
+## CI & Play uploads
+
+Jenkins (`Jenkinsfile`) runs on `main` and `dev`: assemble a signed release APK and AAB, verify signatures, optionally upload the AAB to Google Play via Fastlane, and notify Slack/Telegram.
+
+| Play track | Fastlane behavior |
+|------------|-------------------|
+| `open` | Open Testing (`beta`), `release_status=completed` |
+| `production` | Production **draft** (requires `CONFIRM_PRODUCTION=true`; promote in Play Console) |
+
+Ruby/Fastlane setup, helper scripts, and local metadata checks are documented in [`ci/README.md`](ci/README.md). Do not commit `keystore.properties`, keystores, or Play service-account JSON.
 
 ---
 
@@ -307,7 +346,7 @@ This project is a **full native rewrite**, not a Flutter embedding. Feature pari
 | Jira tickets, Cast, Page flip | Unchanged |
 | Offline sync, force update, Play In-App Updates | Settings + silent launch check |
 | Push notifications | Firebase Cloud Messaging (replaces OneSignal) |
-| Donations | Adyen / hosted checkout when enabled |
+| Donations | Adyen / Razorpay / hosted checkout when enabled |
 
 This repository is **Android-only**. The earlier Flutter app also shipped iOS.
 

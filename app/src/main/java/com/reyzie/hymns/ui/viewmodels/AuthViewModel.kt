@@ -3,14 +3,22 @@ package com.reyzie.hymns.ui.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.reyzie.hymns.data.SupabaseService
+import com.reyzie.hymns.data.ConsentManager
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class AuthViewModel : ViewModel() {
+    companion object {
+        const val ACCOUNT_DEACTIVATED_MESSAGE =
+            "This account has been deactivated. Contact support if you need help."
+    }
+
     private val supabaseService = SupabaseService.getInstance()
 
     val sessionStatus: StateFlow<SessionStatus> = supabaseService.authStream
@@ -20,33 +28,54 @@ class AuthViewModel : ViewModel() {
             initialValue = SessionStatus.NotAuthenticated(isSignOut = false)
         )
 
+    private val _accountBlockedMessage = MutableStateFlow<String?>(null)
+    val accountBlockedMessage: StateFlow<String?> = _accountBlockedMessage.asStateFlow()
+
+    private val _sessionVerified = MutableStateFlow(false)
+    val sessionVerified: StateFlow<Boolean> = _sessionVerified.asStateFlow()
+
+    fun consumeAccountBlockedMessage() {
+        _accountBlockedMessage.value = null
+    }
+
     init {
         viewModelScope.launch {
             sessionStatus.collect { status ->
                 if (status is SessionStatus.Authenticated) {
+                    _sessionVerified.value = false
                     syncProfileAndPrivacy()
-                    val user = status.session.user
-                    com.reyzie.hymns.data.AnalyticsService.syncAuthIdentity(user?.id)
                 } else if (status is SessionStatus.NotAuthenticated) {
+                    _sessionVerified.value = false
                     com.reyzie.hymns.data.AnalyticsService.syncAuthIdentity(null)
                 }
             }
         }
     }
 
-    private fun syncProfileAndPrivacy() {
-        viewModelScope.launch {
-            // Get name if available from metadata or provider
-            val user = supabaseService.currentUser
-            val name = user?.userMetadata?.get("full_name")?.toString() 
-                ?: user?.userMetadata?.get("name")?.toString()
-            
+    private suspend fun syncProfileAndPrivacy() {
+        try {
+            val user = supabaseService.currentUser ?: return
+            if (supabaseService.isAccountDeleted()) {
+                supabaseService.signOut()
+                _accountBlockedMessage.value = ACCOUNT_DEACTIVATED_MESSAGE
+                return
+            }
+            val name = user.userMetadata?.get("full_name")?.toString()
+                ?: user.userMetadata?.get("name")?.toString()
+
             if (name != null) {
                 supabaseService.upsertProfile(name)
             }
-            
-            // Sync privacy choice from local prefs would go here
-            // supabaseService.syncPrivacyPolicyFromLocalPrefs()
+
+            ConsentManager.syncToProfile()
+            com.reyzie.hymns.data.AnalyticsService.syncAuthIdentity(user.id)
+            if (supabaseService.currentUser != null) {
+                _sessionVerified.value = true
+            }
+        } catch (_: Exception) {
+            if (supabaseService.currentUser != null) {
+                _sessionVerified.value = true
+            }
         }
     }
 
@@ -106,6 +135,11 @@ class AuthViewModel : ViewModel() {
             try {
                 onStart()
                 supabaseService.signInWithEmail(email.trim(), password)
+                if (supabaseService.isAccountDeleted()) {
+                    supabaseService.signOut()
+                    onError(ACCOUNT_DEACTIVATED_MESSAGE)
+                    return@launch
+                }
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.localizedMessage ?: "Sign in failed")

@@ -13,6 +13,7 @@ data class ContentSyncResult(
     val keerthanesUpdated: Boolean = false,
     val orderUpdated: Boolean = false,
     val mangaloreUpdated: Boolean = false,
+    val skippedUnchanged: Boolean = false,
     val errorMessage: String? = null
 ) {
     val anyUpdated: Boolean get() = hymnsUpdated || keerthanesUpdated || orderUpdated || mangaloreUpdated
@@ -43,17 +44,33 @@ class ContentSyncManager(context: Context) {
         if (!force && !intervalElapsed && !staleLaunch) {
             return@withContext ContentSyncResult()
         }
-        syncAll()
+        syncAll(force = force)
     }
 
-    suspend fun syncAll(): ContentSyncResult = withContext(Dispatchers.IO) {
+    /**
+     * Sync vault JSON into [ContentLocalStore].
+     * When [force] is false and the vault commit SHA matches the last successful sync SHA
+     * (and local files exist), downloads are skipped.
+     */
+    suspend fun syncAll(force: Boolean = false): ContentSyncResult = withContext(Dispatchers.IO) {
+        val sha = com.reyzie.hymns.utils.GitHubUrlResolver.getLatestCommitSha(appContext)
+        val storedSha = prefs.getString(KEY_VAULT_SHA, null)
+        val hasLocalContent = store.hasHymns() && store.hasKeerthanes() &&
+            store.hasOrderOfService() && store.hasMangaloreHymns()
+
+        if (!force && !sha.isNullOrBlank() && sha == storedSha && hasLocalContent) {
+            Log.d(TAG, "Vault SHA unchanged ($sha); skipping content downloads")
+            prefs.edit().putLong(KEY_LAST_SYNC, System.currentTimeMillis()).apply()
+            return@withContext ContentSyncResult(skippedUnchanged = true)
+        }
+
         var hymnsUpdated = false
         var keerthanesUpdated = false
         var orderUpdated = false
         var mangaloreUpdated = false
         var lastError: String? = null
 
-        fetchUrl(AppConstants.HYMNS_DATA_URL)?.let { body ->
+        fetchUrl(AppConstants.HYMNS_DATA_URL, sha)?.let { body ->
             if (ContentJsonParser.parseHymns(body) != null) {
                 store.writeHymnsJson(body)
                 prefs.edit().putLong(KEY_LAST_HYMNS_SYNC, System.currentTimeMillis()).apply()
@@ -65,7 +82,7 @@ class ContentSyncManager(context: Context) {
             lastError = ContentErrorMessages.forThrowable(null, store.hasHymns())
         }
 
-        fetchUrl(AppConstants.KEERTHANE_DATA_URL)?.let { body ->
+        fetchUrl(AppConstants.KEERTHANE_DATA_URL, sha)?.let { body ->
             if (ContentJsonParser.parseKeerthanes(body) != null) {
                 store.writeKeerthaneJson(body)
                 prefs.edit().putLong(KEY_LAST_KEERTHANE_SYNC, System.currentTimeMillis()).apply()
@@ -79,17 +96,21 @@ class ContentSyncManager(context: Context) {
             }
         }
 
-        fetchUrl(AppConstants.ORDER_OF_SERVICE_DATA_URL)?.let { body ->
-            store.writeOrderOfServiceJson(body)
-            prefs.edit().putLong(KEY_LAST_ORDER_SYNC, System.currentTimeMillis()).apply()
-            orderUpdated = true
+        fetchUrl(AppConstants.ORDER_OF_SERVICE_DATA_URL, sha)?.let { body ->
+            if (OrderOfServiceJson.isValid(body)) {
+                store.writeOrderOfServiceJson(body)
+                prefs.edit().putLong(KEY_LAST_ORDER_SYNC, System.currentTimeMillis()).apply()
+                orderUpdated = true
+            } else {
+                Log.w(TAG, "Skipped invalid order-of-service download")
+            }
         } ?: run {
             if (lastError == null) {
                 lastError = ContentErrorMessages.forThrowable(null, store.hasOrderOfService())
             }
         }
 
-        fetchUrl(AppConstants.MANGALORE_HYMNS_DATA_URL)?.let { body ->
+        fetchUrl(AppConstants.MANGALORE_HYMNS_DATA_URL, sha)?.let { body ->
             if (ContentJsonParser.parseHymns(body) != null) {
                 store.writeMangaloreHymnsJson(body)
                 prefs.edit().putLong(KEY_LAST_MANGALORE_SYNC, System.currentTimeMillis()).apply()
@@ -104,7 +125,11 @@ class ContentSyncManager(context: Context) {
         }
 
         if (hymnsUpdated || keerthanesUpdated || orderUpdated || mangaloreUpdated) {
-            prefs.edit().putLong(KEY_LAST_SYNC, System.currentTimeMillis()).apply()
+            val editor = prefs.edit().putLong(KEY_LAST_SYNC, System.currentTimeMillis())
+            if (!sha.isNullOrBlank()) {
+                editor.putString(KEY_VAULT_SHA, sha)
+            }
+            editor.apply()
             lastError = null
             ContentUpdateBus.notifyFrom(
                 ContentSyncResult(hymnsUpdated, keerthanesUpdated, orderUpdated, mangaloreUpdated)
@@ -120,14 +145,19 @@ class ContentSyncManager(context: Context) {
         )
     }
 
+    /** Clear stored vault SHA so the next sync re-downloads (e.g. after admin lyric push). */
+    fun invalidateVaultSha() {
+        prefs.edit().remove(KEY_VAULT_SHA).apply()
+        Log.d(TAG, "Invalidated stored vault SHA")
+    }
+
     private fun recordAppOpen() {
         val now = System.currentTimeMillis()
         prefs.edit().putLong(KEY_LAST_APP_OPEN, now).apply()
     }
 
-    private suspend fun fetchUrl(url: String): String? {
+    private suspend fun fetchUrl(url: String, sha: String?): String? {
         return try {
-            val sha = com.reyzie.hymns.utils.GitHubUrlResolver.getLatestCommitSha(appContext)
             val resolvedUrl = com.reyzie.hymns.utils.GitHubUrlResolver.resolveRawUrl(url, sha)
             val request = Request.Builder()
                 .url(resolvedUrl)
@@ -157,6 +187,7 @@ class ContentSyncManager(context: Context) {
         private const val KEY_LAST_KEERTHANE_SYNC = "lastKeerthaneSync"
         private const val KEY_LAST_ORDER_SYNC = "lastOrderSync"
         private const val KEY_LAST_MANGALORE_SYNC = "lastMangaloreSync"
+        private const val KEY_VAULT_SHA = "vaultCommitSha"
         val SYNC_INTERVAL_MS: Long = TimeUnit.DAYS.toMillis(3)
         val STALE_LAUNCH_MS: Long = TimeUnit.DAYS.toMillis(7)
     }

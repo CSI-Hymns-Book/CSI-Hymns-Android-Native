@@ -722,7 +722,9 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             val isKeerthane = state.isKeerthane
             val url = state.currentAudioUrl
             if (num != null && title != null) {
-                playSong(num, title, isKeerthane, url)
+                // Retry the same audio URL. Passing url as `signature` made
+                // playSong treat "https://..." as a meter and build Hymns/https:.mid.
+                playSong(num, title, isKeerthane, customAudioUrl = url)
                 return
             }
         }
@@ -984,6 +986,14 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun downloadMidiBytes(targetUrl: String, rawToken: String? = null): ByteArray = withContext(Dispatchers.IO) {
+        val midiCache = com.reyzie.hymns.data.MidiFileCache.getInstance(getApplication())
+        val config = appConfigRepository.getCachedRemoteConfig()
+        val fingerprint = com.reyzie.hymns.data.MidiFileCache.configFingerprint(config)
+
+        midiCache.getIfFresh(targetUrl, fingerprint)?.let { entry ->
+            return@withContext entry.bytes
+        }
+
         var token = rawToken?.replace("[", "")?.replace("]", "")?.replace("\"", "")?.replace("'", "")?.trim()
         if (token == "null") token = null
         
@@ -1068,6 +1078,10 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         if (result != null) {
+            val freshFingerprint = com.reyzie.hymns.data.MidiFileCache.configFingerprint(
+                appConfigRepository.getCachedRemoteConfig()
+            )
+            midiCache.put(targetUrl, result, freshFingerprint)
             return@withContext result
         }
 
