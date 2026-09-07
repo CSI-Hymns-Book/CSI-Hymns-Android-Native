@@ -202,55 +202,34 @@ class AppConfigRepository(
             prefs?.edit()?.putString("cached_master_root_passcode", remoteConfig.masterRootPasscode)?.apply()
         }
 
-        // Cache remote values locally
-        prefs?.edit()?.apply {
-            if (remoteConfig.isChristmasTime != null) putBoolean("is_christmas_time_cached", remoteConfig.isChristmasTime)
-            if (remoteConfig.forceUpdateEnabled != null) putBoolean("force_update_enabled_cached", remoteConfig.forceUpdateEnabled)
-            putString("force_update_min_version_cached", remoteConfig.forceUpdateMinVersion)
-            putLong("force_update_min_build_number_cached", remoteConfig.forceUpdateMinBuildNumber ?: 0L)
-            putString("force_update_message_cached", remoteConfig.forceUpdateMessage)
-            putString("force_update_android_store_url_cached", remoteConfig.forceUpdateAndroidStoreUrl)
-            if (remoteConfig.castEnabled != null) putBoolean("cast_enabled_cached", remoteConfig.castEnabled)
-            putString("cast_app_id_cached", remoteConfig.castAppId)
-            putString("cast_receiver_url_cached", remoteConfig.castReceiverUrl)
-            if (remoteConfig.pageFlipVisible != null) putBoolean("page_flip_visible_cached", remoteConfig.pageFlipVisible)
-            putString("admin_emails_cached", remoteConfig.adminEmails)
-            putString("github_midi_token_cached", remoteConfig.githubMidiToken)
-            putString("github_token_cached", remoteConfig.githubMidiToken)
-            if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean("is_mangalore_hymns_enabled_cached", remoteConfig.isMangaloreHymnsEnabled)
-            putString("midi_hymns_ranges_cached", remoteConfig.midiHymnsRanges)
-            putString("midi_keerthanes_ranges_cached", remoteConfig.midiKeerthanesRanges)
-            if (remoteConfig.disableOggFallback != null) putString("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
-            if (remoteConfig.audioBackupUrl != null) putString("audio_backup_url_cached", remoteConfig.audioBackupUrl)
-            if (remoteConfig.isAdyenEnabled != null) putBoolean("is_adyen_enabled_cached", remoteConfig.isAdyenEnabled)
-            if (remoteConfig.paymentsEnabled != null) putBoolean("payments_enabled_cached", remoteConfig.paymentsEnabled)
-            
-            // Legacy / flutter compatibility
-            if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
-            if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean(PREF_MANGALORE_REMOTE, remoteConfig.isMangaloreHymnsEnabled)
-            apply()
-        }
+        // Only persist keys the fetch actually returned. putString(key, null) deletes
+        // the key, so writing omitted fields used to wipe MIDI tokens, admin emails,
+        // and force-update thresholds after a failed or partial app_config fetch.
+        persistFetchedConfig(remoteConfig)
+        val merged = remoteConfig.coalesce(readCachedRemoteConfig())
 
         Log.d(
             "AppConfigRepository",
-            "Loaded app_config: christmas=${remoteConfig.isChristmasTime}, mangalore=${remoteConfig.isMangaloreHymnsEnabled}, cast=${remoteConfig.castEnabled}, pageFlipVisible=${remoteConfig.pageFlipVisible}, hasAdminEmails=${!remoteConfig.adminEmails.isNullOrBlank()}, hasGithubToken=${remoteConfig.githubToken != null}"
+            "Loaded app_config: christmas=${merged.isChristmasTime}, mangalore=${merged.isMangaloreHymnsEnabled}, cast=${merged.castEnabled}, pageFlipVisible=${merged.pageFlipVisible}, hasAdminEmails=${!merged.adminEmails.isNullOrBlank()}, hasGithubToken=${merged.githubToken != null}"
         )
 
-        return applyLocalOverrides(remoteConfig)
+        return applyLocalOverrides(merged)
     }
 
-    fun getCachedRemoteConfig(): RemoteAppConfig {
-        val cached = RemoteAppConfig(
+    fun getCachedRemoteConfig(): RemoteAppConfig = applyLocalOverrides(readCachedRemoteConfig())
+
+    private fun readCachedRemoteConfig(): RemoteAppConfig {
+        return RemoteAppConfig(
             isChristmasTime = if (prefs?.contains("is_christmas_time_cached") == true) prefs.getBoolean("is_christmas_time_cached", false) else cachedChristmasRemote(),
-            forceUpdateEnabled = prefs?.getBoolean("force_update_enabled_cached", false),
+            forceUpdateEnabled = if (prefs?.contains("force_update_enabled_cached") == true) prefs.getBoolean("force_update_enabled_cached", false) else null,
             forceUpdateMinVersion = prefs?.getString("force_update_min_version_cached", null),
             forceUpdateMinBuildNumber = prefs?.getLong("force_update_min_build_number_cached", 0L)?.takeIf { it > 0 },
             forceUpdateMessage = prefs?.getString("force_update_message_cached", null),
             forceUpdateAndroidStoreUrl = prefs?.getString("force_update_android_store_url_cached", null),
-            castEnabled = prefs?.getBoolean("cast_enabled_cached", false),
+            castEnabled = if (prefs?.contains("cast_enabled_cached") == true) prefs.getBoolean("cast_enabled_cached", false) else null,
             castAppId = prefs?.getString("cast_app_id_cached", null),
             castReceiverUrl = prefs?.getString("cast_receiver_url_cached", null),
-            pageFlipVisible = prefs?.getBoolean("page_flip_visible_cached", false),
+            pageFlipVisible = if (prefs?.contains("page_flip_visible_cached") == true) prefs.getBoolean("page_flip_visible_cached", false) else null,
             adminEmails = prefs?.getString("admin_emails_cached", null),
             githubMidiToken = prefs?.getString("github_midi_token_cached", null) ?: prefs?.getString("github_token_cached", null),
             isMangaloreHymnsEnabled = if (prefs?.contains("is_mangalore_hymns_enabled_cached") == true) prefs.getBoolean("is_mangalore_hymns_enabled_cached", false) else cachedMangaloreRemote(),
@@ -259,9 +238,42 @@ class AppConfigRepository(
             disableOggFallback = prefs?.getString("disable_ogg_fallback_cached", null),
             audioBackupUrl = prefs?.getString("audio_backup_url_cached", null),
             isAdyenEnabled = if (prefs?.contains("is_adyen_enabled_cached") == true) prefs.getBoolean("is_adyen_enabled_cached", false) else null,
-            paymentsEnabled = if (prefs?.contains("payments_enabled_cached") == true) prefs.getBoolean("payments_enabled_cached", false) else null
+            isRazorpayEnabled = if (prefs?.contains("is_razorpay_enabled_cached") == true) prefs.getBoolean("is_razorpay_enabled_cached", false) else null,
+            paymentsEnabled = if (prefs?.contains("payments_enabled_cached") == true) prefs.getBoolean("payments_enabled_cached", false) else null,
+            masterRootPasscode = prefs?.getString("cached_master_root_passcode", null)
         )
-        return applyLocalOverrides(cached)
+    }
+
+    private fun persistFetchedConfig(remoteConfig: RemoteAppConfig) {
+        prefs?.edit()?.apply {
+            if (remoteConfig.isChristmasTime != null) putBoolean("is_christmas_time_cached", remoteConfig.isChristmasTime)
+            if (remoteConfig.forceUpdateEnabled != null) putBoolean("force_update_enabled_cached", remoteConfig.forceUpdateEnabled)
+            if (remoteConfig.forceUpdateMinVersion != null) putString("force_update_min_version_cached", remoteConfig.forceUpdateMinVersion)
+            if (remoteConfig.forceUpdateMinBuildNumber != null) putLong("force_update_min_build_number_cached", remoteConfig.forceUpdateMinBuildNumber)
+            if (remoteConfig.forceUpdateMessage != null) putString("force_update_message_cached", remoteConfig.forceUpdateMessage)
+            if (remoteConfig.forceUpdateAndroidStoreUrl != null) putString("force_update_android_store_url_cached", remoteConfig.forceUpdateAndroidStoreUrl)
+            if (remoteConfig.castEnabled != null) putBoolean("cast_enabled_cached", remoteConfig.castEnabled)
+            if (remoteConfig.castAppId != null) putString("cast_app_id_cached", remoteConfig.castAppId)
+            if (remoteConfig.castReceiverUrl != null) putString("cast_receiver_url_cached", remoteConfig.castReceiverUrl)
+            if (remoteConfig.pageFlipVisible != null) putBoolean("page_flip_visible_cached", remoteConfig.pageFlipVisible)
+            if (remoteConfig.adminEmails != null) putString("admin_emails_cached", remoteConfig.adminEmails)
+            if (remoteConfig.githubMidiToken != null) {
+                putString("github_midi_token_cached", remoteConfig.githubMidiToken)
+                putString("github_token_cached", remoteConfig.githubMidiToken)
+            }
+            if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean("is_mangalore_hymns_enabled_cached", remoteConfig.isMangaloreHymnsEnabled)
+            if (remoteConfig.midiHymnsRanges != null) putString("midi_hymns_ranges_cached", remoteConfig.midiHymnsRanges)
+            if (remoteConfig.midiKeerthanesRanges != null) putString("midi_keerthanes_ranges_cached", remoteConfig.midiKeerthanesRanges)
+            if (remoteConfig.disableOggFallback != null) putString("disable_ogg_fallback_cached", remoteConfig.disableOggFallback)
+            if (remoteConfig.audioBackupUrl != null) putString("audio_backup_url_cached", remoteConfig.audioBackupUrl)
+            if (remoteConfig.isAdyenEnabled != null) putBoolean("is_adyen_enabled_cached", remoteConfig.isAdyenEnabled)
+            if (remoteConfig.isRazorpayEnabled != null) putBoolean("is_razorpay_enabled_cached", remoteConfig.isRazorpayEnabled)
+            if (remoteConfig.paymentsEnabled != null) putBoolean("payments_enabled_cached", remoteConfig.paymentsEnabled)
+
+            if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
+            if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean(PREF_MANGALORE_REMOTE, remoteConfig.isMangaloreHymnsEnabled)
+            apply()
+        }
     }
 
     fun isLocalOverridesEnabled(): Boolean {
@@ -311,7 +323,9 @@ class AppConfigRepository(
             } else config.isAdyenEnabled,
             paymentsEnabled = if (prefs?.contains("app_config_override_payments_enabled") == true) {
                 prefs.getBoolean("app_config_override_payments_enabled", false)
-            } else config.paymentsEnabled
+            } else config.paymentsEnabled,
+            isRazorpayEnabled = config.isRazorpayEnabled,
+            masterRootPasscode = config.masterRootPasscode
         )
         return overridden
     }
