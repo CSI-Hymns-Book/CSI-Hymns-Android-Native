@@ -36,6 +36,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 | **Cloud-backed** | Supabase auth, favorites, custom categories, remote `app_config` |
 | **Audio & Cast** | Media3 ExoPlayer + MIDI playback (transpose, SATB routing, tune selector) and Google Cast |
 | **Notifications** | Firebase Cloud Messaging with in-app broadcasts and version-targeted announcements |
+| **Privacy** | Required in-app Privacy Policy & Terms (English / Kannada) before use; Settings → Privacy Centre for optional analytics, push, and withdrawal |
 | **Community** | Jira lyric tickets (report, inbox, replies), Christmas carol contributions, optional donations |
 
 ---
@@ -55,7 +56,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 ### Mangalore Tunes (M.T.)
 - Dedicated M.T. Hymns section (enabled via remote `is_mangalore_hymns_enabled`)
 - Lyrics, search, categories, and favorites for the M.T. book
-- Section selector to switch between CSI Hymns & Keerthanes and M.T. Hymns
+- **Choose Hymn Book** home chooser (CSI Hymns / Keerthanes / Order of Service vs M.T. Hymns); the app stays on that screen until you pick a book
 
 ### Lyrics experience
 - **Scroll mode** — classic vertical reading
@@ -66,7 +67,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 ### Order of Service
 - Bilingual card grid (Regular & Festival)
-- Full-screen reader with jump-to-page navigation
+- Full-screen reader with jump-to-page navigation and a tappable table of contents (headings show page numbers)
 
 ### Categories & Collections
 - Recent songs, occasion category song lists, and custom collections
@@ -93,7 +94,7 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 ### Notifications & announcements
 - Firebase Cloud Messaging for push notifications (image-capable BigPicture style)
-- Runtime notification permission on Android 13+
+- Runtime notification permission on Android 13+; push is also an optional consent in Privacy Centre
 - In-app broadcasts, including version-targeted announcements
 
 ### Donations
@@ -103,9 +104,11 @@ This repository is the **Kotlin / Jetpack Compose** native rewrite of the origin
 
 ### Account & Settings
 - Google Sign-In and email/password (sign in, sign up, reset) via Supabase
-- Edit profile when signed in
-- Light / Dark / System theme, AMOLED black, 22 accent colors
-- Force-update gate, Play In-App Updates from Settings, changelog, privacy policy, onboarding
+- Required consent gate: agree to the in-app Privacy Policy and Terms of Use (English or Kannada) before the hymn book opens; shown again after a policy version change
+- **Privacy Centre** (Settings): legal documents, optional product analytics and push, withdraw consent
+- Edit profile when signed in (display name, download a zip of stored account data, or deactivate)
+- Light / Dark / System theme, AMOLED black, 24 accent colors
+- Force-update gate, Play In-App Updates from Settings, changelog, first-run onboarding
 - Sidebar link to **Worship Companion**, a separate praise-and-worship lyrics app
 - Safe navigation drawer Sign-In triggers and crash-free dynamic `AuthScreen` stacked overlays
 - Optimized class-level Proguard rules for serialization and model parsing, enabling full R8 code shrinking and memory reductions
@@ -189,7 +192,7 @@ flowchart TB
 | Updates | Play In-App Updates |
 | Network | OkHttp, Ktor, kotlinx-serialization |
 | Local storage | DataStore Preferences, app-private JSON cache |
-| Build | AGP `9.3.0-rc01`, Kotlin `2.4.0`, Gradle `9.6.1`, Version Catalog |
+| Build | AGP `9.3.1`, Kotlin `2.4.0`, Gradle `9.6.1`, Version Catalog |
 
 ---
 
@@ -198,12 +201,12 @@ flowchart TB
 ```
 app/src/main/java/com/reyzie/hymns/
 ├── MainActivity.kt          # Entry, theme, Supabase init, OAuth / donation deeplinks
-├── HymnsApplication.kt      # FCM topic subscription
+├── HymnsApplication.kt      # Process start; consent init
 ├── cast/                    # Chromecast service & options provider
 ├── carols/                  # Community Christmas carols (data, sync, UI)
 ├── data/                    # Repositories, sync, Supabase, FCM, payments, Jira, local store
 ├── ui/
-│   ├── screens/             # Compose screens (Hymns, Detail, Settings, Donations, …)
+│   ├── screens/             # Compose screens (Hymns, Detail, Settings, Consent, Privacy Centre, Donations, …)
 │   ├── viewmodels/          # Shared ViewModels
 │   ├── widgets/             # Page flip, jump-to-meter, button groups, cast sheet, …
 │   ├── motion/              # Overlay transitions, predictive back
@@ -285,7 +288,7 @@ Or open the project in Android Studio and run the **app** configuration on a dev
 ./gradlew :app:test
 ```
 
-Unit tests cover content JSON parsing/patches, Order of Service sync payloads, favorites merge-on-login, and custom-category migration.
+Unit tests cover content JSON parsing/patches, Order of Service sync payloads, favorites merge-on-login, custom-category migration, and remote `app_config` cache coalescing.
 
 ### Release build
 
@@ -313,7 +316,7 @@ Ruby/Fastlane setup, helper scripts, and local metadata checks are documented in
 
 ## Remote configuration
 
-The app reads `app_config` rows from Supabase at launch. Supported keys include:
+The app reads `app_config` rows from Supabase at launch. Last-known flag values stay cached locally if a fetch fails or omits keys. Supported keys include:
 
 | Key | Purpose |
 |-----|---------|
