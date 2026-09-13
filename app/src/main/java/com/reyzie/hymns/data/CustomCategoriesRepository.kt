@@ -209,14 +209,18 @@ class CustomCategoriesRepository(private val context: Context) {
             return
         }
         
+        // Reuse a same-named remote folder so a retry after a failed song
+        // insert does not create a second empty category.
+        val remoteByName = CustomCategoryMigration.remoteIdsByName(supabase.fetchCustomCategories()).toMutableMap()
         val idMap = mutableMapOf<Int, Int>()
         for (cat in localCats) {
-            val newId = supabase.createCustomCategory(cat.name)
+            val newId = remoteByName[cat.name] ?: supabase.createCustomCategory(cat.name)
             if (newId != null) {
                 idMap[cat.id] = newId
+                remoteByName[cat.name] = newId
             }
         }
-        
+
         for (song in localSongs.filter { it.deleted == 0 }) {
             val remoteCatId = idMap[song.categoryId]
             if (remoteCatId != null) {
@@ -224,12 +228,21 @@ class CustomCategoriesRepository(private val context: Context) {
             }
         }
 
-        // Only drop local rows whose category was created remotely. A failed
-        // createCustomCategory used to wipe everything, permanently losing folders.
+        // Only drop songs that are actually present remotely. addSongToCategory
+        // swallows network/RLS failures, so treating "category created" as
+        // "songs uploaded" used to delete guest playlists on sign-in.
+        val confirmedSongs = mutableSetOf<CustomCategoryMigration.SongIdentity>()
+        for ((localId, remoteId) in idMap) {
+            confirmedSongs += CustomCategoryMigration.identitiesFromRemoteRows(
+                localCategoryId = localId,
+                remoteRows = supabase.fetchSongsInCategory(remoteId)
+            )
+        }
         val remainder = CustomCategoryMigration.remainingLocal(
             localCats = localCats,
             localSongs = localSongs,
-            migratedLocalIds = idMap.keys
+            createdRemoteIds = idMap.keys,
+            confirmedMigratedSongs = confirmedSongs
         )
         saveCategories(remainder.categories)
         prefs.edit().putString(LOCAL_CAT_SONGS_KEY, gson.toJson(remainder.songs)).apply()
