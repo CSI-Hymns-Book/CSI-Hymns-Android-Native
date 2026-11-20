@@ -288,7 +288,7 @@ Or open the project in Android Studio and run the **app** configuration on a dev
 ./gradlew :app:test
 ```
 
-Unit tests cover content JSON parsing/patches, Order of Service sync payloads, favorites merge-on-login, and custom-category migration.
+Unit tests cover content JSON parsing/patches, Order of Service sync payloads, favorites merge-on-login, custom-category migration, and remote `app_config` cache coalescing.
 
 ### Release build
 
@@ -316,7 +316,7 @@ Ruby/Fastlane setup, helper scripts, and local metadata checks are documented in
 
 ## Remote configuration
 
-The app reads `app_config` rows from Supabase at launch. Supported keys include:
+The app reads `app_config` rows from Supabase at launch. Last-known flag values stay cached locally if a fetch fails or omits keys. Supported keys include:
 
 | Key | Purpose |
 |-----|---------|
