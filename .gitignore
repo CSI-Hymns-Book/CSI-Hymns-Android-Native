@@ -52,3 +52,5 @@ temp/
 
 # Compiled files
 *.class
+# brag launch-video output (generated, not part of the app)
+brag-output/
