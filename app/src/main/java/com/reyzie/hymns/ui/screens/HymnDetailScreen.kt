@@ -74,6 +74,7 @@ import kotlin.math.sin
 import android.widget.Toast
 import com.reyzie.hymns.data.JiraService
 import com.reyzie.hymns.data.TicketsRepository
+import com.reyzie.hymns.data.LyricsTicketType
 import androidx.activity.compose.rememberLauncherForActivityResult
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -309,7 +310,7 @@ fun HymnDetailScreen(
                 .fillMaxSize()
         ) {
             SongInfoBanner(
-                songTypeLabel = if (isKeerthane) "Keerthane" else "Hymn",
+                songTypeLabel = LyricsTicketType.forSong(isKeerthane = isKeerthane, isMt = isMt),
                 number = hymn.number,
                 title = hymn.title,
                 subtitle = if (isKeerthane) {
@@ -961,7 +962,7 @@ fun HymnDetailScreen(
         
         if (showReportDialog) {
             ReportIssueDialog(
-                songType = if (isKeerthane) "Keerthane" else "Hymn",
+                songType = LyricsTicketType.forSong(isKeerthane = isKeerthane, isMt = isMt),
                 songNumber = hymn.number,
                 songTitle = hymn.title,
                 onDismiss = { showReportDialog = false }
