@@ -172,7 +172,7 @@ fun ConsentPolicyPage(
                 if (kannada) {
                     "CSI Hymns ಭಾರತ ಸರ್ಕಾರದ ದತ್ತಾಂಶ ಸಂರಕ್ಷಣಾ ಕಾನೂನುಗಳನ್ನು ಪಾಲಿಸುತ್ತದೆ. ನಿಮ್ಮ ಮಾಹಿತಿಯನ್ನು ಸುರಕ್ಷಿತವಾಗಿ ಇರಿಸಲಾಗುತ್ತದೆ."
                 } else {
-                    "CSI Hymns complies with Indian government data protection laws. Your information is kept safe and secure."
+                    "CSI Hymns complies with Local Government Data Protection Laws. Your information is kept safe and secure."
                 },
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color.White.copy(alpha = 0.86f),
