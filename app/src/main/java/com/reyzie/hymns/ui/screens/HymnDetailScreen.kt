@@ -61,6 +61,7 @@ import com.reyzie.hymns.cast.SongCastRequest
 import com.reyzie.hymns.ui.motion.expressiveAudioPlayerEnter
 import com.reyzie.hymns.ui.motion.expressiveAudioPlayerExit
 import com.reyzie.hymns.ui.widgets.CastControlSheet
+import com.reyzie.hymns.ui.widgets.FreeShowExportSheet
 import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
@@ -73,8 +74,8 @@ import kotlinx.coroutines.flow.first
 import kotlin.math.sin
 import android.widget.Toast
 import com.reyzie.hymns.data.JiraService
-import com.reyzie.hymns.data.TicketsRepository
 import com.reyzie.hymns.data.LyricsTicketType
+import com.reyzie.hymns.data.TicketsRepository
 import androidx.activity.compose.rememberLauncherForActivityResult
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +114,8 @@ fun HymnDetailScreen(
     
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
     val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.TUNE_METER_VIEW)
+    val isSuperAdmin = com.reyzie.hymns.data.AdminPrefs.hasAnyAdminRole(context, currentUserEmail, remoteAppConfig.adminEmails)
+    val isPresenterModeEnabled = isSuperAdmin && (remoteAppConfig.presenterModeEnabled == true || prefs.getBoolean("presenter_mode_enabled", false))
     
     val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
@@ -199,8 +202,32 @@ fun HymnDetailScreen(
     }
     val isSameSong = audioState.currentAudioUrl == targetAudioUrl
     var showCastSheet by remember { mutableStateOf(false) }
+    var showFreeShowSheet by remember { mutableStateOf(false) }
+    var isPresenterFabVisible by remember { mutableStateOf(true) }
+    var lastPresenterInteractionTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(scrollState.isScrollInProgress) {
+        if (scrollState.isScrollInProgress) {
+            lastPresenterInteractionTime = System.currentTimeMillis()
+            isPresenterFabVisible = true
+        }
+    }
+
+    LaunchedEffect(lastPresenterInteractionTime) {
+        isPresenterFabVisible = true
+        delay(3200)
+        isPresenterFabVisible = false
+    }
     
     var showReportDialog by remember { mutableStateOf(false) }
+
+    if (showFreeShowSheet && isPresenterModeEnabled) {
+        FreeShowExportSheet(
+            hymn = hymn,
+            isKeerthane = isKeerthane,
+            onDismiss = { showFreeShowSheet = false }
+        )
+    }
 
     if (showCastSheet && castEnabled) {
         val streamUrl = targetAudioUrl
@@ -389,7 +416,13 @@ fun HymnDetailScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .verticalScroll(scrollState)
-                                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                                    .padding(horizontal = 20.dp, vertical = 12.dp)
+                                    .clickable(
+                                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        lastPresenterInteractionTime = System.currentTimeMillis()
+                                    },
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
@@ -400,7 +433,44 @@ fun HymnDetailScreen(
                                     textAlign = TextAlign.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                Spacer(modifier = Modifier.height(32.dp))
+                                Spacer(modifier = Modifier.height(84.dp))
+                            }
+                        }
+
+                        // Floating Presenter Button in bottom right
+                        if (isPresenterModeEnabled) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(end = 16.dp, bottom = 16.dp)
+                            ) {
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = isPresenterFabVisible,
+                                    enter = fadeIn(animationSpec = tween(300)) + scaleIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+                                    exit = fadeOut(animationSpec = tween(250)) + scaleOut(animationSpec = tween(200))
+                                ) {
+                                    FloatingActionButton(
+                                        onClick = {
+                                            HapticFeedbackManager.smoothClick(context)
+                                            lastPresenterInteractionTime = System.currentTimeMillis()
+                                            showFreeShowSheet = true
+                                        },
+                                        modifier = Modifier.size(46.dp),
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        shape = RoundedCornerShape(14.dp),
+                                        elevation = FloatingActionButtonDefaults.elevation(
+                                            defaultElevation = 4.dp,
+                                            pressedElevation = 8.dp
+                                        )
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CoPresent,
+                                            contentDescription = "Project Slides (FreeShow)",
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -925,7 +995,13 @@ fun HymnDetailScreen(
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .verticalScroll(scrollState)
-                                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                                        .clickable(
+                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                            indication = null
+                                        ) {
+                                            lastPresenterInteractionTime = System.currentTimeMillis()
+                                        },
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     Text(
@@ -936,7 +1012,44 @@ fun HymnDetailScreen(
                                         textAlign = TextAlign.Center,
                                         modifier = Modifier.fillMaxWidth()
                                     )
-                                    Spacer(modifier = Modifier.height(32.dp))
+                                    Spacer(modifier = Modifier.height(84.dp))
+                                }
+                            }
+
+                            // Floating Presenter Button in bottom right
+                            if (isPresenterModeEnabled) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(end = 16.dp, bottom = 16.dp)
+                                ) {
+                                    androidx.compose.animation.AnimatedVisibility(
+                                        visible = isPresenterFabVisible,
+                                        enter = fadeIn(animationSpec = tween(300)) + scaleIn(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)),
+                                        exit = fadeOut(animationSpec = tween(250)) + scaleOut(animationSpec = tween(200))
+                                    ) {
+                                        FloatingActionButton(
+                                            onClick = {
+                                                HapticFeedbackManager.smoothClick(context)
+                                                lastPresenterInteractionTime = System.currentTimeMillis()
+                                                showFreeShowSheet = true
+                                            },
+                                            modifier = Modifier.size(46.dp),
+                                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            shape = RoundedCornerShape(14.dp),
+                                            elevation = FloatingActionButtonDefaults.elevation(
+                                                defaultElevation = 4.dp,
+                                                pressedElevation = 8.dp
+                                            )
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CoPresent,
+                                                contentDescription = "Project Slides (FreeShow)",
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
