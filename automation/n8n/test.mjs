@@ -360,6 +360,17 @@ test('sdk: generated workflow code embeds every code node and no secrets', async
   assert.ok(!sdk.match(/ghp_|sk-ant|ATATT/));
 });
 
+test('sdk: every node that a code node reads by name exists in the generated workflow', async () => {
+  const sdk = generate();
+  const files = ['01-parse-ticket.js', '02-route.js', '04-decide.js', '05-whitelist-update.js', '06-patch-lyrics.js', '07-comment.js', '08-push-payload.js'];
+  const referenced = new Set();
+  for (const file of files) {
+    for (const match of readFileSync(join(here, 'code', file), 'utf8').matchAll(/\$\('([^']+)'\)/g)) referenced.add(match[1]);
+  }
+  const missing = [...referenced].filter((name) => !sdk.includes(`name: "${name}"`) && !sdk.includes(`name: '${name}'`));
+  assert.deepEqual(missing, []);
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try {

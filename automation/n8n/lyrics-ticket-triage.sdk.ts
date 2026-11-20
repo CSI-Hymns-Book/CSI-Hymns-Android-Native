@@ -42,6 +42,13 @@ const getVault = node({
   output: [{ data: '[]' }],
 });
 
+const getMtVault = node({
+  type: 'n8n-nodes-base.httpRequest',
+  version: 4.5,
+  config: { name: "Get M.T. vault file", parameters: { method: "GET", url: expr("https://raw.githubusercontent.com/{{ $(\"Config\").first().json.vaultRepo }}/{{ $(\"Config\").first().json.vaultBranch }}/{{ $(\"Config\").first().json.books[\"M.T. Hymn\"].file }}"), options: { response: { response: { neverError: false, responseFormat: "text" } } } } },
+  output: [{ data: '[]' }],
+});
+
 const getPageIndex = node({
   type: 'n8n-nodes-base.httpRequest',
   version: 4.5,
@@ -254,6 +261,7 @@ export default workflow('csi-lyrics-ticket-triage', 'CSI Hymns - lyrics ticket t
   .to(isLyrics
     .onTrue(getWhitelist
       .to(getVault)
+      .to(getMtVault)
       .to(getPageIndex)
       .to(route)
       .to(routeSwitch

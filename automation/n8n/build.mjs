@@ -128,6 +128,11 @@ export function generate() {
     format: 'text',
     sample: `[{ data: '[]' }]`,
   });
+  http('getMtVault', 'Get M.T. vault file', {
+    url: raw(`{{ ${cfg('books')}["M.T. Hymn"].file }}`),
+    format: 'text',
+    sample: `[{ data: '[]' }]`,
+  });
   http('getPageIndex', 'Get page index', { url: expr_raw(`{{ ${cfg('imageBaseUrl')} }}/{{ ${cfg('pageIndexFile')} }}`), format: 'text', neverError: true, sample: `[{ data: '{}' }]` });
   code('route', 'Route', '02-route.js', SAMPLE.route);
   switchNode('routeSwitch', 'Route switch', '$json.route', ['check', 'whitelisted-blank'], 'human');
@@ -232,6 +237,7 @@ export function generate() {
   .to(isLyrics
     .onTrue(getWhitelist
       .to(getVault)
+      .to(getMtVault)
       .to(getPageIndex)
       .to(route)
       .to(routeSwitch
