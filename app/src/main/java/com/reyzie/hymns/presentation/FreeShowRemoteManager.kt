@@ -290,7 +290,7 @@ object FreeShowRemoteManager {
 
             // Socket.io Connect ACK (40) -> Send ACCESS auth packet
             message.startsWith("40") -> {
-                Log.i(TAG, "Socket.io connected, sending ACCESS passcode ($pendingPassword)")
+                Log.i(TAG, "Socket.io connected, sending ACCESS passcode")
                 val authPacket = createRemotePacket("ACCESS", pendingPassword)
                 webSocket.send("42$authPacket")
             }

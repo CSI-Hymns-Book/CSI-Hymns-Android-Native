@@ -149,6 +149,27 @@ class FreeShowFormatterTest {
     }
 
     @Test
+    fun bilingualModePairsEachVerseWithItsOwnEnglishStanza() {
+        val slides = FreeShowFormatter.parseSlides(
+            number = 214,
+            title = "Aacharisu Vishraantidinavannu",
+            isKeerthane = true,
+            kannadaLyrics = sampleKannadaKeerthane,
+            englishLyrics = sampleEnglishKeerthane,
+            mode = LyricsLanguageMode.BILINGUAL,
+            includeCreditSlide = false
+        )
+
+        assertEquals(listOf("Chorus", "Verse 1", "Verse 2"), slides.map { it.group })
+        assertTrue(slides[1].content.contains("ಕಾರುಣ್ಯ"))
+        assertTrue(slides[1].content.contains("Kaarunya"))
+        assertTrue(!slides[1].content.contains("Aacharisu"))
+        assertTrue(slides[2].content.contains("ಗುರುರಾಯ"))
+        assertTrue(slides[2].content.contains("Gururaayanee"))
+        assertTrue(!slides[2].content.contains("Kaarunya"))
+    }
+
+    @Test
     fun formatsFreeShowProjectDataValidly() {
         val slides = FreeShowFormatter.parseSlides(
             number = 214,

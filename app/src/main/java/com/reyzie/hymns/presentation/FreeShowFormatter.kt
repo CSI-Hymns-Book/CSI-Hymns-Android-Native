@@ -127,11 +127,15 @@ object FreeShowFormatter {
                 slides += PresentationSlide(group = "Chorus", content = text)
             }
 
+            // The secondary (English) list has the same layout as the primary one, so verse `idx`
+            // sits after the chorus paragraphs that came before the first numbered stanza.
+            val secondaryVerseOffset = chorusParagraphs.size
             verseParagraphs.forEachIndexed { idx, stanza ->
                 val match = NUMBERED_STANZA_REGEX.find(stanza.lineSequence().firstOrNull() ?: "")
                 val verseNum = match?.groupValues?.getOrNull(1)?.toIntOrNull() ?: (idx + 1)
-                val text = if (secondaryParagraphs != null && idx < secondaryParagraphs.size) {
-                    combineBilingual(stanza, secondaryParagraphs[idx])
+                val secondaryIndex = secondaryVerseOffset + idx
+                val text = if (secondaryParagraphs != null && secondaryIndex < secondaryParagraphs.size) {
+                    combineBilingual(stanza, secondaryParagraphs[secondaryIndex])
                 } else {
                     stanza
                 }
