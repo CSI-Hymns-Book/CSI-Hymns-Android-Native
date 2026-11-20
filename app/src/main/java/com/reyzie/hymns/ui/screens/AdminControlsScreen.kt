@@ -52,7 +52,8 @@ enum class AdminTab {
     Main,
     Lyrics,
     Announcements,
-    AppConfig
+    AppConfig,
+    FreeShowAnalytics
 }
 
 enum class LyricSongType {
@@ -80,6 +81,7 @@ fun AdminControlsScreen(
     val hasLyrics = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.LYRICS)
     val hasAnnouncements = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.PR_MANAGER)
     val hasAppConfig = AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.APP_CONFIG)
+    val hasFreeShowAnalytics = hasAppConfig || hasLyrics || AdminPrefs.isSudoAdminEnabled(context) || AdminPrefs.hasRole(context, currentUserEmail, remoteConfig.adminEmails, AdminPrefs.AdminRole.ADMIN)
 
     var currentTab by remember { mutableStateOf(AdminTab.Main) }
 
@@ -108,6 +110,7 @@ fun AdminControlsScreen(
                     hasLyrics = hasLyrics,
                     hasAnnouncements = hasAnnouncements,
                     hasAppConfig = hasAppConfig,
+                    hasFreeShowAnalytics = hasFreeShowAnalytics,
                     onSelectTab = { currentTab = it }
                 )
             }
@@ -139,6 +142,15 @@ fun AdminControlsScreen(
                 AppConfigManagerPanel(onBackClick = { currentTab = AdminTab.Main })
             }
         }
+
+        if (hasFreeShowAnalytics) {
+            ExpressiveOverlayScreen(
+                visible = currentTab == AdminTab.FreeShowAnalytics,
+                onDismiss = { currentTab = AdminTab.Main }
+            ) {
+                FreeShowAnalyticsPanel(onBackClick = { currentTab = AdminTab.Main })
+            }
+        }
     }
 }
 
@@ -147,6 +159,7 @@ private fun AdminMenuSelection(
     hasLyrics: Boolean,
     hasAnnouncements: Boolean,
     hasAppConfig: Boolean,
+    hasFreeShowAnalytics: Boolean = false,
     onSelectTab: (AdminTab) -> Unit
 ) {
     val context = LocalContext.current
@@ -305,6 +318,57 @@ private fun AdminMenuSelection(
                             text = "Toggle dynamic feature switches, API parameters & remote app configuration.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (hasFreeShowAnalytics) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .clickable {
+                        HapticFeedbackManager.smoothClick(context)
+                        onSelectTab(AdminTab.FreeShowAnalytics)
+                    },
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(60.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.ShowChart,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text(
+                            text = "FreeShow Analytics",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Real-time daily download stats, popular songs leaderboard & presentation metrics.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                         )
                     }
                 }
@@ -1621,6 +1685,15 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
             }
 
             item {
+                ConfigSwitchRow(
+                    label = "Presenter Mode (FreeShow Export)",
+                    subtitle = "Enable church presentation slides & FreeShow export (Admin only).",
+                    checked = remoteConfig.presenterModeEnabled == true,
+                    onCheckedChange = { saveValue(AppConfigKeys.PRESENTER_MODE_ENABLED, it) }
+                )
+            }
+
+            item {
                 ConfigTextField(
                     label = "MIDI Hymns Ranges",
                     subtitle = "Gradually migrate hymns to .mid format (e.g. 1-10, 15, 20-30).",
@@ -2064,6 +2137,476 @@ private fun ExpandedJsonEditorDialog(
                         Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Save & Apply")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FreeShowAnalyticsPanel(onBackClick: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var downloads by remember { mutableStateOf<List<com.reyzie.hymns.data.FreeShowDownloadRow>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var selectedFilter by remember { mutableStateOf("all") } // "all", "30d", "7d", "today"
+
+    fun loadData() {
+        scope.launch {
+            isLoading = true
+            downloads = com.reyzie.hymns.data.SupabaseService.getInstance().fetchFreeShowDownloads(limitCount = 1000)
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadData()
+    }
+
+    val todayStr = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())
+    }
+
+    val filteredDownloads = remember(downloads, selectedFilter, todayStr) {
+        when (selectedFilter) {
+            "today" -> downloads.filter { (it.downloadedAt?.take(10)) == todayStr }
+            "7d" -> {
+                val cal = java.util.Calendar.getInstance()
+                cal.add(java.util.Calendar.DAY_OF_YEAR, -7)
+                val cutoff = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
+                downloads.filter { (it.downloadedAt?.take(10) ?: "") >= cutoff }
+            }
+            "30d" -> {
+                val cal = java.util.Calendar.getInstance()
+                cal.add(java.util.Calendar.DAY_OF_YEAR, -30)
+                val cutoff = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(cal.time)
+                downloads.filter { (it.downloadedAt?.take(10) ?: "") >= cutoff }
+            }
+            else -> downloads
+        }
+    }
+
+    val dailyCounts = remember(filteredDownloads) {
+        filteredDownloads.groupBy { it.downloadedAt?.take(10) ?: "Unknown" }
+            .mapValues { it.value.size }
+            .toList()
+            .sortedByDescending { it.first }
+    }
+
+    val maxDailyCount = remember(dailyCounts) {
+        dailyCounts.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
+    }
+
+    val topSongs = remember(filteredDownloads) {
+        filteredDownloads.filter { !it.songTitle.isNullOrBlank() }
+            .groupBy {
+                val cat = it.category?.lowercase() ?: "song"
+                val num = it.songNumber ?: 0
+                "$cat:$num:${it.songTitle}"
+            }
+            .map { (key, list) ->
+                val parts = key.split(":")
+                val cat = parts.getOrNull(0) ?: "song"
+                val num = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                val title = parts.drop(2).joinToString(":")
+                Triple(cat, num, title) to list.size
+            }
+            .sortedByDescending { it.second }
+            .take(15)
+    }
+
+    val totalCount = filteredDownloads.size
+    val todayCount = downloads.count { (it.downloadedAt?.take(10)) == todayStr }
+    val sundayBundlesCount = filteredDownloads.count { it.downloadType == "setlist" }
+    val androidCount = filteredDownloads.count { it.source.equals("android", ignoreCase = true) }
+    val webCount = filteredDownloads.count { it.source.equals("web", ignoreCase = true) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("FreeShow Analytics", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            "Live presentation download statistics",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        onBackClick()
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        HapticFeedbackManager.smoothClick(context)
+                        loadData()
+                    }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (isLoading && downloads.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ExpressiveCircularProgress()
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Timeframe Filter Chips
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            "all" to "All Time",
+                            "30d" to "30 Days",
+                            "7d" to "7 Days",
+                            "today" to "Today"
+                        ).forEach { (key, label) ->
+                            val isSelected = selectedFilter == key
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    HapticFeedbackManager.smoothClick(context)
+                                    selectedFilter = key
+                                },
+                                label = { Text(label, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+
+                    // Key Metric Cards (2x2 Grid)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Total Downloads", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("$totalCount", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("in selected period", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.65f))
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Today", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.75f))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("$todayCount", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(todayStr, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.65f))
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Sunday Bundles", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("$sundayBundlesCount", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Multi-song packs", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.65f))
+                                }
+                            }
+
+                            Card(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Source Split", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f))
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text("$androidCount / $webCount", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("Android / Web", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f))
+                                }
+                            }
+                        }
+                    }
+
+                    // Daily Downloads Trend Section
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Downloads by Day",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (dailyCounts.isEmpty()) {
+                                Text(
+                                    "No downloads logged yet for this period.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                dailyCounts.take(14).forEach { (dayString, count) ->
+                                    val isToday = dayString == todayStr
+                                    val ratio = count.toFloat() / maxDailyCount.toFloat()
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (isToday) "$dayString (Today)" else dayString,
+                                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 13.sp
+                                            )
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isToday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                                            ) {
+                                                Text(
+                                                    text = "$count ${if (count == 1) "download" else "downloads"}",
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = if (isToday) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        LinearProgressIndicator(
+                                            progress = { ratio.coerceIn(0.05f, 1f) },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                            color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Top Downloaded Songs Leaderboard
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Stars, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Top Downloaded Songs",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (topSongs.isEmpty()) {
+                                Text(
+                                    "No song downloads recorded in this timeframe.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                topSongs.forEachIndexed { index, (triple, count) ->
+                                    val (cat, num, title) = triple
+                                    val catLabel = when (cat) {
+                                        "keerthane" -> "Keerthane"
+                                        "mt" -> "M.T."
+                                        else -> "Hymn"
+                                    }
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = if (index < 3) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    "#${index + 1}",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = if (index < 3) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.width(10.dp))
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "$catLabel $num — $title",
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                text = "$count",
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Recent Downloads Feed
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    "Recent Activity Log",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            if (filteredDownloads.isEmpty()) {
+                                Text(
+                                    "No activity to display.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                filteredDownloads.take(15).forEach { row ->
+                                    val dateDisplay = row.downloadedAt?.replace("T", " ")?.take(16) ?: "Just now"
+                                    val isSetlist = row.downloadType == "setlist"
+                                    val title = if (isSetlist) "Sunday Service Bundle" else (row.songTitle ?: "Custom Slide Deck")
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = title,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Text(dateDisplay, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text("•", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(row.source.uppercase(), fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (isSetlist) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+                                        ) {
+                                            Text(
+                                                text = if (isSetlist) "SETLIST" else (row.language?.uppercase() ?: ".PROJECT"),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSetlist) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

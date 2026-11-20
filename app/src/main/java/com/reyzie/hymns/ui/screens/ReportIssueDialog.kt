@@ -17,7 +17,8 @@ fun ReportIssueDialog(
     songType: String,
     songNumber: Int,
     songTitle: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    displayName: String = "$songType $songNumber"
 ) {
     var description by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
@@ -33,7 +34,7 @@ fun ReportIssueDialog(
         text = {
             Column {
                 Text(
-                    text = "Reporting issue for $songType $songNumber",
+                    text = "Reporting issue for $displayName",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -1,5 +1,20 @@
 [
     {
+        "title": "Privacy Centre, FCM Push, Offline Favorites & Order of Service Polish 🛡️✨",
+        "version": "5.2.0",
+        "date": "23-09-2026",
+        "changes": [
+            "NEW In-App Privacy Centre & Consent Gate — transparent privacy controls, DPDP data protection compliance, and in-app legal document viewing",
+            "NEW Firebase Cloud Messaging (FCM) — reliable push notifications with rich BigPictureStyle image banners and runtime permissions",
+            "NEW Seamless Favorites Merge on Login — local and guest starred hymns automatically merge with your account upon signing in",
+            "NEW Selectable Order of Service Index — tap directly on liturgy headings and page numbers to jump straight to worship sections",
+            "NEW Smart Media Controls & Auto-Pause — distraction-free lyrics with auto-collapsing playback controls and screen-off auto-pause",
+            "Audio & Content Resiliency — retained M.T. author and audio attributes during lyric edits, safe on-disk MIDI caching, and resilient sync validation",
+            "Security & Diagnostics — redacted sensitive tokens and credentials from logs, with dual PostHog and Firebase Analytics integration",
+            "Thank you for using CSI Hymns! Report any issues from the app or Settings"
+        ]
+    },
+    {
         "title": "Realtime MIDI Transpose, SATB Routing & Audio Polish 🎵🙏",
         "version": "5.1.2",
         "date": "26-07-2026",

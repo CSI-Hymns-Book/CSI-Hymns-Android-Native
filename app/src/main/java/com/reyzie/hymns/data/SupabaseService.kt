@@ -14,6 +14,7 @@ import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.rpc
 import io.github.jan.supabase.postgrest.query.Columns
+import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.postgrest.query.filter.*
 import io.github.jan.supabase.storage.Storage
 import io.github.jan.supabase.compose.auth.ComposeAuth
@@ -74,6 +75,20 @@ data class PaymentGatewayRow(
     @SerialName("is_enabled") val isEnabled: Boolean = false,
     @SerialName("icon_type") val iconType: String? = null,
     val config: JsonElement? = null
+)
+
+@Serializable
+data class FreeShowDownloadRow(
+    val id: Long? = null,
+    @SerialName("downloaded_at") val downloadedAt: String? = null,
+    @SerialName("download_type") val downloadType: String = "single",
+    val category: String? = null,
+    @SerialName("song_number") val songNumber: Int? = null,
+    @SerialName("song_title") val songTitle: String? = null,
+    val language: String? = null,
+    @SerialName("slide_count") val slideCount: Int = 0,
+    val source: String = "android",
+    val metadata: JsonElement? = null
 )
 
 class SupabaseService private constructor() {
@@ -589,6 +604,50 @@ No profile picture is stored.
             Log.i("SupabaseService", "Successfully updated payment_gateways name=$gatewayName to is_enabled=$isEnabled")
         } catch (e: Exception) {
             Log.e("SupabaseService", "Error updating payment_gateways name=$gatewayName", e)
+        }
+    }
+
+    suspend fun logFreeShowDownload(
+        downloadType: String,
+        category: String?,
+        songNumber: Int?,
+        songTitle: String?,
+        language: String?,
+        slideCount: Int = 0,
+        source: String = "android",
+        metadata: JsonElement? = null
+    ): Unit = withContext(Dispatchers.IO) {
+        try {
+            if (!isInitialized) return@withContext
+            val row = buildJsonObject {
+                put("download_type", downloadType)
+                if (category != null) put("category", category)
+                if (songNumber != null) put("song_number", songNumber)
+                if (songTitle != null) put("song_title", songTitle)
+                if (language != null) put("language", language)
+                put("slide_count", slideCount)
+                put("source", source)
+                if (metadata != null) put("metadata", metadata)
+            }
+            client.from("freeshow_downloads").insert(row)
+            Log.i("SupabaseService", "Logged FreeShow download: $downloadType - $songTitle ($source)")
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error logging FreeShow download", e)
+        }
+    }
+
+    suspend fun fetchFreeShowDownloads(limitCount: Long = 500): List<FreeShowDownloadRow> = withContext(Dispatchers.IO) {
+        try {
+            if (!isInitialized) return@withContext emptyList()
+            client.from("freeshow_downloads")
+                .select {
+                    order("downloaded_at", Order.DESCENDING)
+                    limit(limitCount)
+                }
+                .decodeList<FreeShowDownloadRow>()
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error fetching FreeShow downloads", e)
+            emptyList()
         }
     }
 

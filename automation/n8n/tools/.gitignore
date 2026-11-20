@@ -1,0 +1,2 @@
+# OCR results are cached here so re-running the tools only reads new or changed page images.
+.ocr-cache/

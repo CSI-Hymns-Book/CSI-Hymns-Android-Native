@@ -38,6 +38,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Remove
@@ -77,6 +78,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.reyzie.hymns.data.ContentUpdateBus
+import com.reyzie.hymns.data.LyricsTicketType
 import com.reyzie.hymns.data.OrderIndexEntry
 import com.reyzie.hymns.data.OrderOfServiceLoadResult
 import com.reyzie.hymns.data.OrderOfServiceRepository
@@ -117,6 +119,7 @@ fun OrderOfServiceReaderScreen(
     var serviceFontSize by remember { mutableStateOf(prefs.getInt("global_service_font_size", 18)) }
 
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showReportDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     fun applyLoad(result: OrderOfServiceLoadResult, isInitial: Boolean = false) {
@@ -180,6 +183,19 @@ fun OrderOfServiceReaderScreen(
     val headerTitle = if (type == "regular") "Regular Sunday Order" else "Festival Order"
     val landingTitle = if (type == "festival") "Habbada Aaradhana Krama" else "Huduvada Aaradhana Krama"
 
+    if (showReportDialog) {
+        val reportedPage = pages.getOrNull(pagerState.currentPage)
+        if (reportedPage != null) {
+            ReportIssueDialog(
+                songType = LyricsTicketType.forOrderOfService(type),
+                songNumber = reportedPage.pageNo,
+                songTitle = reportedPage.title?.trim().orEmpty().ifEmpty { headerTitle },
+                onDismiss = { showReportDialog = false },
+                displayName = LyricsTicketType.orderOfServiceLabel(type, reportedPage.pageNo)
+            )
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -208,6 +224,13 @@ fun OrderOfServiceReaderScreen(
                 },
                 actions = {
                     if (hasSelectedPage && pages.isNotEmpty()) {
+                        IconButton(onClick = {
+                            HapticFeedbackManager.smoothClick(context)
+                            showReportDialog = true
+                        }) {
+                            Icon(Icons.Default.BugReport, contentDescription = "Report an issue with this page")
+                        }
+
                         IconButton(onClick = {
                             HapticFeedbackManager.smoothClick(context)
                             val newSize = (serviceFontSize - 2).coerceAtLeast(14)
