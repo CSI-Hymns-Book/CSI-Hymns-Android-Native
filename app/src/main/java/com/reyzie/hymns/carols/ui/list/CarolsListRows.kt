@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -141,17 +143,22 @@ fun ChurchListCard(
     songCount: Int,
     pdfCount: Int,
     canDelete: Boolean,
+    isDefault: Boolean,
     onTap: () -> Unit,
+    onToggleDefault: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val palette = rememberChristmasPalette()
     ChristmasSongRow(
-        label = churchCountLabel(songCount, pdfCount),
+        label = if (isDefault) "Default · ${churchCountLabel(songCount, pdfCount)}" else churchCountLabel(songCount, pdfCount),
         title = church.name,
         subtitle = church.description?.takeIf { it.isNotBlank() },
         badgeBackground = Color.Transparent,
         onClick = onTap,
-        trailing = { p -> if (canDelete) DeleteButton("Delete ${church.name}", p, onDelete) else Chevron(p) },
+        trailing = { p ->
+            DefaultChurchButton(church.name, isDefault, p, onToggleDefault)
+            if (canDelete) DeleteButton("Delete ${church.name}", p, onDelete) else Chevron(p)
+        },
     ) { ChurchAvatar(church.name, palette) }
 }
 
@@ -324,6 +331,18 @@ fun CarolsShimmer() {
                     ),
             )
         }
+    }
+}
+
+/** Pin that makes a church the one partner apps open straight to. */
+@Composable
+private fun DefaultChurchButton(churchName: String, isDefault: Boolean, palette: ChristmasPalette, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            if (isDefault) Icons.Filled.PushPin else Icons.Outlined.PushPin,
+            contentDescription = if (isDefault) "Default church: $churchName. Tap to clear" else "Set $churchName as the default church",
+            tint = if (isDefault) palette.gold else palette.inkMuted,
+        )
     }
 }
 

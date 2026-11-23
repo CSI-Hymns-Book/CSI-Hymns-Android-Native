@@ -37,6 +37,16 @@ class SnowHapticsTest {
     }
 
     @Test
+    fun `slide ticks stop after a burst instead of buzzing on`() {
+        val throttle = SlideHapticThrottle(minGapMillis = 100, maxTicksPerWindow = 3, windowMillis = 2_000)
+
+        val fired = (0 until 12).count { throttle.tryFire(nowMillis = 1_000L + it * 150L) }
+
+        assertEquals(3, fired)
+        assertTrue(throttle.tryFire(nowMillis = 9_000))
+    }
+
+    @Test
     fun `slide ticks are spaced out`() {
         val throttle = SlideHapticThrottle(minGapMillis = 140)
 

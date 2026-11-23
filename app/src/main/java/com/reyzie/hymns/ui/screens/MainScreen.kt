@@ -228,9 +228,25 @@ fun MainScreen(
     var showAboutDeveloper by rememberSaveable { mutableStateOf(false) }
     var showRecentSongs by rememberSaveable { mutableStateOf(false) }
     var showChristmasCarols by rememberSaveable { mutableStateOf(false) }
+    // A partner app (such as YKC One) asked to open the Carols church list.
+    val carolOpenRequest by com.reyzie.hymns.interop.CarolHandoff.openRequest.collectAsState()
+    var handledCarolRequest by rememberSaveable { mutableStateOf(0) }
     var showHymnsFromChristmas by rememberSaveable { mutableStateOf(false) }
     var showMtHymnsFromChristmas by rememberSaveable { mutableStateOf(false) }
     var showKeerthanesFromChristmas by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(carolOpenRequest) {
+        if (carolOpenRequest > handledCarolRequest) {
+            handledCarolRequest = carolOpenRequest
+            // Close anything that would sit on top of Carols, then show it.
+            selectedHymn = null
+            selectedKeerthane = null
+            selectedReaderType = null
+            showSettings = false
+            showChristmasCarols = true
+        }
+    }
+
     var selectedCommonCategory by rememberSaveable { mutableStateOf<String?>(null) }
     var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
     var showPrivacyCentre by rememberSaveable { mutableStateOf(false) }

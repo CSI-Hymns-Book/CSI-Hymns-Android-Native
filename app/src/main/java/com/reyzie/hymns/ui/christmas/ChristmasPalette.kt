@@ -79,7 +79,7 @@ val ChristmasNightPalette = ChristmasPalette(
     capSnow = Color(0xFFEEF3FC),
     capShadow = Color.Black.copy(alpha = 0.35f),
     hollyLeaf = Color(0xFF4FAE74),
-    emojiAlpha = 0.42f,
+    emojiAlpha = 0.28f,
 )
 
 val ChristmasDawnPalette = ChristmasPalette(
@@ -109,7 +109,7 @@ val ChristmasDawnPalette = ChristmasPalette(
     capSnow = Color.White,
     capShadow = Color(0xFF3C5582).copy(alpha = 0.3f),
     hollyLeaf = Color(0xFF2F8A55),
-    emojiAlpha = 0.55f,
+    emojiAlpha = 0.38f,
 )
 
 /** Background luminance below this counts as a dark theme. */

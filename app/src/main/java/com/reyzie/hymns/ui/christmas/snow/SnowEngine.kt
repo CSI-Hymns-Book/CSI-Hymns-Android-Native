@@ -19,7 +19,7 @@ enum class SnowLayer(
 ) {
     FAR(70, 0.6f, 1.1f, 12f, 20f, 0.22f, 0.40f, 0.35f, isFlake = false),
     MID(46, 1.1f, 1.9f, 22f, 34f, 0.35f, 0.55f, 0.65f, isFlake = false),
-    NEAR(24, 5f, 8.5f, 38f, 56f, 0.50f, 0.85f, 1f, isFlake = true),
+    NEAR(24, 3.6f, 6.2f, 38f, 56f, 0.40f, 0.70f, 1f, isFlake = true),
 }
 
 /** A card top that falling snow can land on, in pixels relative to the snow layer. */

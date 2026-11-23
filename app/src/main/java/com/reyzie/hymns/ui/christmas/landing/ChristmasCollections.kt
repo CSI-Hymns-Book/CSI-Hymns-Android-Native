@@ -222,7 +222,9 @@ private fun CarolsCard(palette: ChristmasPalette, index: Int, animate: Boolean, 
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        BobbingStave(palette.gold, Modifier.size(width = 52.dp, height = 34.dp), animate)
+        // A lighter gold in the dark theme, so the notes and staff stay clear on the dark red card.
+        val staveInk = if (palette.isNight) Color(0xFFFFE3A6) else palette.gold
+        BobbingStave(staveInk, Modifier.size(width = 52.dp, height = 34.dp), animate)
     }
 }
 

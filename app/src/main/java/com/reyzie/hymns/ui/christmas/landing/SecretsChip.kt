@@ -13,6 +13,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -60,7 +64,28 @@ fun SecretsChip(palette: ChristmasPalette, found: Set<ChristmasSecret>, onClick:
 
 /** Lists every secret: found ones show how to trigger them, the rest stay a mystery. */
 @Composable
-fun SecretsDialog(palette: ChristmasPalette, found: Set<ChristmasSecret>, onDismiss: () -> Unit) {
+fun SecretsDialog(
+    palette: ChristmasPalette,
+    found: Set<ChristmasSecret>,
+    onDismiss: () -> Unit,
+    onReset: () -> Unit,
+) {
+    var confirmReset by remember { mutableStateOf(false) }
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            title = { Text("Reset all secrets?") },
+            text = { Text("You'll forget the ${found.size} secret${if (found.size == 1) "" else "s"} you found and can discover them all again.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmReset = false
+                    onReset()
+                    onDismiss()
+                }) { Text("Reset") }
+            },
+            dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
+        )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Secrets in this season", fontFamily = ChristmasDisplayFont) },
@@ -86,5 +111,10 @@ fun SecretsDialog(palette: ChristmasPalette, found: Set<ChristmasSecret>, onDism
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Got it") } },
+        dismissButton = if (found.isNotEmpty()) {
+            { TextButton(onClick = { confirmReset = true }) { Text("Reset secrets") } }
+        } else {
+            null
+        },
     )
 }

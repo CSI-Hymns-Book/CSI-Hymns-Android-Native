@@ -186,7 +186,7 @@ fun BobbingStave(tint: Color, modifier: Modifier, animate: Boolean) {
     Canvas(modifier) {
         scale(size.width / 104f, size.height / 58f, pivot = Offset.Zero) {
             listOf(14f, 22f, 30f, 38f, 46f).forEach { y ->
-                drawLine(tint.copy(alpha = 0.45f), Offset(0f, y), Offset(104f, y), 1f)
+                drawLine(tint.copy(alpha = 0.65f), Offset(0f, y), Offset(104f, y), 1.3f)
             }
             listOf(Triple(24f, 38f, 0f), Triple(52f, 30f, 0.13f), Triple(80f, 22f, 0.27f)).forEachIndexed { i, (x, y, delay) ->
                 val bob = -3f * (0.5f - 0.5f * cos((loop.value - delay) * 2 * PI.toFloat()))

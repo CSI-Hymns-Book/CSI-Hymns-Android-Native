@@ -1,5 +1,6 @@
 package com.reyzie.hymns.carols.ui.list
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,6 +55,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.carols.data.local.CarolReaderStore
+import com.reyzie.hymns.interop.CarolHandoff
+import com.reyzie.hymns.interop.ReturnToCallerChip
 import com.reyzie.hymns.carols.data.model.CarolChurch
 import com.reyzie.hymns.carols.data.model.CarolPdf
 import com.reyzie.hymns.carols.data.model.CarolSong
@@ -104,6 +107,9 @@ fun CommunityCarolsScreen(
     val sortOrder by viewModel.sortOrder.collectAsState()
     val favouriteIds by store.favourites.collectAsState()
     val recentIds by store.recents.collectAsState()
+    val defaultChurchId by store.defaultChurchId.collectAsState()
+    val handoffPending by CarolHandoff.selectionPending.collectAsState()
+    val handoffRequest by CarolHandoff.openRequest.collectAsState()
 
     var showCreateChurch by rememberSaveable { mutableStateOf(false) }
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
@@ -113,9 +119,19 @@ fun CommunityCarolsScreen(
     var openSongId by rememberSaveable { mutableStateOf<String?>(null) }
     var openPdfId by rememberSaveable { mutableStateOf<String?>(null) }
 
+    // The view model outlives this screen, so start each visit on the church list.
+    var started by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
+        if (!started) {
+            viewModel.setSelectedChurch(null)
+            started = true
+        }
         viewModel.ensureLocalLoaded()
         viewModel.refreshIfNeeded()
+    }
+    // Back inside a church returns to the church list instead of leaving Carols.
+    BackHandler(enabled = activeChurch != null && openSongId == null && openPdfId == null) {
+        viewModel.setSelectedChurch(null)
     }
     LaunchedEffect(error) {
         error?.let {
@@ -124,7 +140,28 @@ fun CommunityCarolsScreen(
         }
     }
 
-    val filteredChurches = remember(churches, songs, pdfs, query) { viewModel.filteredChurches(churches, songs, pdfs) }
+    // A partner app asked for Carols: go to the default church if one is set, else the church list.
+    // A new request also closes any song that was open.
+    var handledRequest by rememberSaveable { mutableStateOf(0) }
+    LaunchedEffect(handoffRequest) {
+        if (handoffRequest > handledRequest) {
+            handledRequest = handoffRequest
+            openSongId = null
+            openPdfId = null
+        }
+    }
+    LaunchedEffect(handoffPending, churches, isInitialLoading, defaultChurchId) {
+        if (!handoffPending) return@LaunchedEffect
+        if (churches.isEmpty() && isInitialLoading) return@LaunchedEffect // wait for the list to load
+        viewModel.setSelectedChurch(null)
+        defaultChurchId?.takeIf { id -> churches.any { it.id == id } }?.let(viewModel::setSelectedChurch)
+        CarolHandoff.selectionHandled()
+    }
+
+    // The default church comes first in the list.
+    val filteredChurches = remember(churches, songs, pdfs, query, defaultChurchId) {
+        viewModel.filteredChurches(churches, songs, pdfs).sortedByDescending { it.id == defaultChurchId }
+    }
     val churchSongs = remember(selectedChurchId, songs, query, sortOrder) {
         selectedChurchId?.let { viewModel.filteredSongs(it) }.orEmpty()
     }
@@ -151,6 +188,8 @@ fun CommunityCarolsScreen(
             favouriteSongs = if (query.isBlank()) favouriteSongs else emptyList(),
             recentSongs = if (query.isBlank()) recentSongs else emptyList(),
             favouriteIds = favouriteIds,
+            defaultChurchId = defaultChurchId,
+            onToggleDefault = { store.toggleDefaultChurch(it.id) },
             emptyState = {
                 EmptyChurchesState(syncHint, viewModel.isAuthenticated, onRefresh = { viewModel.refresh(force = true) })
             },
@@ -336,6 +375,7 @@ private fun CarolsHeader(
 ) {
     val context = LocalContext.current
     val palette = rememberChristmasPalette()
+    ReturnToCallerChip(Modifier.padding(start = 16.dp, top = 4.dp, bottom = 2.dp))
     CarolsSearchField(
         query = query,
         onQueryChange = onQueryChange,
@@ -397,6 +437,8 @@ private fun CarolsListPane(
     favouriteSongs: List<CarolSong>,
     recentSongs: List<CarolSong>,
     favouriteIds: Set<String>,
+    defaultChurchId: String?,
+    onToggleDefault: (CarolChurch) -> Unit,
     emptyState: @Composable () -> Unit,
     churchStats: (String) -> Pair<Int, Int>,
     viewModel: CommunityCarolsViewModel,
@@ -418,7 +460,9 @@ private fun CarolsListPane(
                         songCount = songCount,
                         pdfCount = pdfCount,
                         canDelete = viewModel.canDeleteChurch(church),
+                        isDefault = church.id == defaultChurchId,
                         onTap = { onOpenChurch(church) },
+                        onToggleDefault = { onToggleDefault(church) },
                         onDelete = { onDeleteChurch(church) },
                     )
                 }

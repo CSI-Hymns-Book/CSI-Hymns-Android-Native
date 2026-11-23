@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
+        <!-- Lets this app see only partner apps that declare a "return to caller" screen -->
+        <intent>
+            <action android:name="com.reyzie.hymns.action.RETURN_TO_CALLER" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
@@ -72,6 +76,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="io.supabase.flutter" android:host="callback" />
+            </intent-filter>
+
+            <!-- Partner apps (see CarolInterop) open the Carols church list with csihymns://carols.
+                 No BROWSABLE category, so web pages cannot trigger it; only apps on the allowlist are obeyed. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="csihymns" android:host="carols" />
             </intent-filter>
 
             <!-- Donation Result Deep Links (Custom Scheme & Web URL) -->

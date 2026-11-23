@@ -25,6 +25,11 @@ class CarolReaderStore private constructor(context: Context) {
     /** IDs of songs opened most recently, newest first. */
     val recents: StateFlow<List<String>> = _recents.asStateFlow()
 
+    private val _defaultChurchId = MutableStateFlow(prefs.getString(KEY_DEFAULT_CHURCH, null))
+
+    /** The church that opens straight away when a partner app launches Carols, or null for the list. */
+    val defaultChurchId: StateFlow<String?> = _defaultChurchId.asStateFlow()
+
     /** Lyric size multiplier, between [CarolTextScale.MIN] and [CarolTextScale.MAX]. */
     val textScale: StateFlow<Float> = _textScale.asStateFlow()
 
@@ -33,6 +38,13 @@ class CarolReaderStore private constructor(context: Context) {
         val updated = if (songId in current) current - songId else current + songId
         _favourites.value = updated
         prefs.edit().putStringSet(KEY_FAVOURITES, updated).apply()
+    }
+
+    /** Makes [churchId] the default, or clears the default if it already is. */
+    fun toggleDefaultChurch(churchId: String) {
+        val updated = if (_defaultChurchId.value == churchId) null else churchId
+        _defaultChurchId.value = updated
+        prefs.edit().putString(KEY_DEFAULT_CHURCH, updated).apply()
     }
 
     fun markViewed(songId: String) {
@@ -52,6 +64,7 @@ class CarolReaderStore private constructor(context: Context) {
         private const val KEY_FAVOURITES = "favourite_song_ids"
         private const val KEY_RECENTS = "recent_song_ids"
         private const val KEY_TEXT_SCALE = "text_scale"
+        private const val KEY_DEFAULT_CHURCH = "default_church_id"
 
         @Volatile
         private var instance: CarolReaderStore? = null

@@ -94,6 +94,7 @@ class MainActivity : ComponentActivity() {
         
         // Handle incoming deep links for OAuth redirects
         supabase.client.handleDeeplinks(intent)
+        com.reyzie.hymns.interop.CarolHandoff.handle(this, intent)
 
         lifecycleScope.launch {
             InAppUpdateManager.checkSilentlyOnLaunch(this@MainActivity)
@@ -129,6 +130,7 @@ class MainActivity : ComponentActivity() {
                     easterEggsEnabled = christmasEasterEggs,
                     foundSecrets = christmasSecretsFound,
                     onSecretFound = settingsViewModel::addChristmasSecret,
+                    onSecretsReset = settingsViewModel::resetChristmasSecrets,
                 )
                 CompositionLocalProvider(LocalChristmasAmbience provides christmasAmbience.takeIf { isChristmasMode }) {
                     Box(
@@ -158,6 +160,7 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         // Handle incoming deep links for OAuth redirects on existing activity
         SupabaseService.getInstance().client.handleDeeplinks(intent)
+        com.reyzie.hymns.interop.CarolHandoff.handle(this, intent)
     }
 
     private fun maybeRequestNotificationPermissionOnSecondLaunch() {

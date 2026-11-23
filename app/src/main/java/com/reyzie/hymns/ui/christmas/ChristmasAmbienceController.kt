@@ -3,6 +3,7 @@ package com.reyzie.hymns.ui.christmas
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -59,6 +60,9 @@ class ChristmasAmbienceController internal constructor(
     /** Called the first time each secret is found, so it can be saved. */
     internal var onSecretFound: (ChristmasSecret) -> Unit = {}
 
+    /** Called when the user resets all secrets, so the saved copy can be cleared. */
+    internal var onSecretsReset: () -> Unit = {}
+
     /** Called when the snow does something the phone should vibrate for. */
     internal var onHaptic: (SnowHapticEvent) -> Unit = {}
     private val slideThrottle = SlideHapticThrottle(SLIDE_HAPTIC_GAP_MILLIS)
@@ -82,6 +86,9 @@ class ChristmasAmbienceController internal constructor(
     /** Goes up by one on every shake; snow caps watch it to know when to fall off. */
     var shakeGeneration by mutableIntStateOf(0)
         private set
+
+    /** True while a dark sky is drawn behind the snow (the home in light mode), so Santa uses his night look. */
+    var darkSkyBehind by mutableStateOf(false)
 
     /** Snow opacity multiplier, eased toward [DIMMED_ALPHA] while a reading screen is open. */
     var snowAlpha by mutableFloatStateOf(1f)
@@ -210,6 +217,13 @@ class ChristmasAmbienceController internal constructor(
         return true
     }
 
+    /** Forgets every found secret (the saved copy is cleared by [onSecretsReset]). */
+    fun resetSecrets() {
+        foundSecrets = emptySet()
+        onSecretsReset()
+        showToast("Secrets reset · find them all again")
+    }
+
     fun showToast(text: String) {
         nextToastId += 1
         toast = ChristmasToast(nextToastId, text)
@@ -318,6 +332,7 @@ fun rememberChristmasAmbienceController(
     easterEggsEnabled: Boolean,
     foundSecrets: Set<ChristmasSecret>,
     onSecretFound: (ChristmasSecret) -> Unit,
+    onSecretsReset: () -> Unit,
 ): ChristmasAmbienceController {
     val context = LocalContext.current
     val controller = remember {
@@ -337,10 +352,12 @@ fun rememberChristmasAmbienceController(
     SideEffect {
         controller.level = level
         controller.easterEggsEnabled = easterEggsEnabled
-        controller.foundSecrets = controller.foundSecrets + foundSecrets
         controller.onSecretFound = onSecretFound
+        controller.onSecretsReset = onSecretsReset
         controller.onHaptic = { event -> HapticFeedbackManager.snow(context, event) }
     }
+    // The saved list is the source of truth; follow it whenever it changes (including a reset).
+    LaunchedEffect(foundSecrets) { controller.foundSecrets = foundSecrets }
     return controller
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.SideEffect
+import com.reyzie.hymns.ui.christmas.ChristmasStatusBar
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -322,11 +323,12 @@ fun CSIHymnsBookTheme(
     }).withExpressiveSurfaceTones(darkTheme).withReadableContrast(darkTheme)
 
     val view = LocalView.current
+    val whiteStatusIcons = ChristmasStatusBar.forceLightIcons
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             val controller = WindowCompat.getInsetsController(window, view)
-            controller.isAppearanceLightStatusBars = !darkTheme
+            controller.isAppearanceLightStatusBars = !darkTheme && !whiteStatusIcons
             controller.isAppearanceLightNavigationBars = !darkTheme
         }
     }

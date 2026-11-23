@@ -19,8 +19,8 @@ enum class ChristmasEffectsLevel(
         description = "No snow or moving effects",
     ),
     GENTLE(
-        snowDensity = 0.5f,
-        emojiCount = 5,
+        snowDensity = 0.3f,
+        emojiCount = 2,
         label = "Gentle",
         description = "Light snowfall, snow piles on cards, tilt, shake and Santa",
     );

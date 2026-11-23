@@ -103,7 +103,7 @@ fun ChristmasSnowfall(controller: ChristmasAmbienceController, modifier: Modifie
         if (controller.easterEggsEnabled) {
             drawEmojis(engine, emojiImages, level.emojiCount, palette.emojiAlpha * alpha)
         }
-        controller.santaPose()?.let { drawSanta(it, controller.clockSeconds, palette.isNight, alpha.coerceAtLeast(SANTA_MIN_ALPHA)) }
+        controller.santaPose()?.let { drawSanta(it, controller.clockSeconds, palette.isNight || controller.darkSkyBehind, alpha.coerceAtLeast(SANTA_MIN_ALPHA)) }
         drawChristmasEffects(controller.effects, giftImage)
     }
 }
@@ -150,7 +150,7 @@ private fun DrawScope.drawEmojis(engine: SnowEngine, images: List<ImageBitmap>, 
  * bitmaps with alpha each frame is far cheaper than a translucent layer over the screen.
  */
 private fun TextMeasurer.renderEmoji(emoji: String, density: Density): ImageBitmap {
-    val layout = measure(emoji, TextStyle(fontSize = 18.sp), density = density)
+    val layout = measure(emoji, TextStyle(fontSize = 14.sp), density = density)
     val image = ImageBitmap(layout.size.width.coerceAtLeast(1), layout.size.height.coerceAtLeast(1))
     CanvasDrawScope().draw(density, LayoutDirection.Ltr, Canvas(image), Size(image.width.toFloat(), image.height.toFloat())) {
         drawText(layout)

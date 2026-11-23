@@ -5,9 +5,11 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.view.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -24,9 +26,10 @@ private const val NANOS_PER_MILLI = 1_000_000L
 fun ChristmasDeviceMotion(controller: ChristmasAmbienceController) {
     if (controller.effectiveLevel == ChristmasEffectsLevel.OFF) return
     val context = LocalContext.current
+    val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(controller, lifecycleOwner) {
+    DisposableEffect(controller, lifecycleOwner, view) {
         val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
             ?: return@DisposableEffect onDispose { }
         val gravity = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
@@ -36,10 +39,12 @@ fun ChristmasDeviceMotion(controller: ChristmasAmbienceController) {
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 val (x, y, z) = Triple(event.values[0], event.values[1], event.values[2])
+                // Tilt is measured against the screen, so landscape does not count as tilted.
+                val (screenX, screenY) = toScreenFrame(x, y, view.display?.rotation ?: Surface.ROTATION_0)
                 when (event.sensor.type) {
-                    Sensor.TYPE_GRAVITY -> controller.setDeviceTilt(rollDegrees(x, y, z))
+                    Sensor.TYPE_GRAVITY -> controller.setDeviceTilt(rollDegrees(screenX, screenY, z))
                     Sensor.TYPE_ACCELEROMETER -> {
-                        if (gravity == null) controller.setDeviceTilt(rollDegrees(x, y, z))
+                        if (gravity == null) controller.setDeviceTilt(rollDegrees(screenX, screenY, z))
                         if (shakeDetector.onAcceleration(x, y, z, event.timestamp / NANOS_PER_MILLI)) {
                             controller.shake()
                         }

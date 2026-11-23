@@ -24,6 +24,35 @@ class MotionMathTest {
     }
 
     @Test
+    fun `portrait reading is unchanged`() {
+        assertEquals(0f to 9.81f, toScreenFrame(0f, 9.81f, 0))
+    }
+
+    @Test
+    fun `phone held upright in landscape is not tilted`() {
+        // Rotated either way, gravity lies along the phone's long side, which is the screen's up.
+        val (leftX, leftY) = toScreenFrame(9.81f, 0f, 1)
+        val (rightX, rightY) = toScreenFrame(-9.81f, 0f, 3)
+
+        assertEquals(0f, rollDegrees(leftX, leftY, 0f), 0.01f)
+        assertEquals(0f, rollDegrees(rightX, rightY, 0f), 0.01f)
+    }
+
+    @Test
+    fun `tilting the screen right edge down in landscape slides snow right`() {
+        val (x, y) = toScreenFrame(5f, 5f, 1)
+
+        assertTrue(rollDegrees(x, y, 0f) > 0f)
+    }
+
+    @Test
+    fun `upside down portrait is not tilted`() {
+        val (x, y) = toScreenFrame(0f, -9.81f, 2)
+
+        assertEquals(0f, rollDegrees(x, y, 0f), 0.01f)
+    }
+
+    @Test
     fun `resting phone is not a shake`() {
         assertFalse(ShakeDetector().onAcceleration(0f, 9.81f, 0f, 0L))
     }

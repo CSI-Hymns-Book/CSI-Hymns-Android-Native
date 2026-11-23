@@ -40,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -67,6 +68,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.ui.christmas.ChristmasDisplayFont
 import com.reyzie.hymns.ui.christmas.ChristmasEffectsLevel
+import com.reyzie.hymns.ui.christmas.ChristmasNightPalette
+import com.reyzie.hymns.ui.christmas.ChristmasStatusBar
 import com.reyzie.hymns.ui.christmas.ChristmasMotion
 import com.reyzie.hymns.ui.christmas.ChristmasPalette
 import com.reyzie.hymns.ui.christmas.LocalChristmasAmbience
@@ -182,6 +185,7 @@ fun ChristmasLandingScreen(
     val eggs = remember { HeroEggState(ChristmasCalendar.moment(today)) }
     val actions = ChristmasCollectionActions(onOpenHymns, onOpenKeerthanes, onOpenCarols, onOpenMtHymns)
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    NightSkyOverHome(isActive = isVisible, needsLightIcons = !palette.isNight)
 
     Box(
         modifier = Modifier
@@ -190,7 +194,7 @@ fun ChristmasLandingScreen(
     ) {
         if (isLandscape) {
             Row(Modifier.fillMaxSize()) {
-                ChristmasHero(palette, animate, today, eggs, onMenuClick, Modifier.weight(1f).fillMaxHeight())
+                ChristmasHero(ChristmasNightPalette, animate, today, eggs, onMenuClick, Modifier.weight(1f).fillMaxHeight())
                 CollectionsSection(
                     palette = palette,
                     animate = animate,
@@ -236,7 +240,7 @@ private fun PortraitHome(
         val heroHeight = (maxHeight - collectionsHeight - CHIP_BLOCK_DP.dp - navBar).coerceIn(HERO_MIN_DP.dp, HERO_MAX_DP.dp)
         val scroll = rememberScrollState()
         Column(Modifier.fillMaxSize().verticalScroll(scroll, enabled = scroll.maxValue > 0)) {
-            ChristmasHero(palette, animate, today, eggs, onMenuClick, Modifier.fillMaxWidth().height(heroHeight))
+            ChristmasHero(ChristmasNightPalette, animate, today, eggs, onMenuClick, Modifier.fillMaxWidth().height(heroHeight))
             CollectionsSection(
                 palette = palette,
                 animate = animate,
@@ -261,7 +265,14 @@ private fun PortraitHome(
                     .padding(bottom = CHIP_BOTTOM_GAP_DP.dp)
                     .christmasEntrance(EntranceOrder.FIRST_CARD + 4, animate),
             )
-            if (showSecrets) SecretsDialog(palette, found, onDismiss = { showSecrets = false })
+            if (showSecrets) {
+                SecretsDialog(
+                    palette = palette,
+                    found = found,
+                    onDismiss = { showSecrets = false },
+                    onReset = { ambience.resetSecrets() },
+                )
+            }
         }
     }
 }
@@ -556,5 +567,25 @@ private fun CollectionsSection(
             actions = actions,
             firstIndex = EntranceOrder.FIRST_CARD,
         )
+    }
+}
+
+/**
+ * The home's sky is always a dark night, even when the phone is in light mode. While the
+ * home is showing in light mode this switches the status-bar icons to white so the clock
+ * and battery stay readable on the dark sky, and tells the snowfall layer (which draws
+ * Santa) that a dark sky is behind it. Both are put back when the home is covered or left.
+ */
+@Composable
+private fun NightSkyOverHome(isActive: Boolean, needsLightIcons: Boolean) {
+    val ambience = LocalChristmasAmbience.current
+    DisposableEffect(isActive, needsLightIcons, ambience) {
+        if (!isActive || !needsLightIcons) return@DisposableEffect onDispose {}
+        ChristmasStatusBar.forceLightIcons = true
+        ambience?.darkSkyBehind = true
+        onDispose {
+            ChristmasStatusBar.forceLightIcons = false
+            ambience?.darkSkyBehind = false
+        }
     }
 }

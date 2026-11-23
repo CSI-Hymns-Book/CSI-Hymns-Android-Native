@@ -60,13 +60,29 @@ object SnowHaptics {
     }
 }
 
-/** Lets a slide tick through at most once every [minGapMillis], so sliding feels like a trickle. */
-class SlideHapticThrottle(private val minGapMillis: Long) {
-    private var lastMillis = Long.MIN_VALUE
+/**
+ * Lets a slide tick through at most once every [minGapMillis], so sliding feels like a
+ * trickle, and at most [maxTicksPerWindow] within any [windowMillis]. The second limit is a
+ * safety net: whatever sets the snow sliding, the motor never buzzes on and on.
+ */
+class SlideHapticThrottle(
+    private val minGapMillis: Long,
+    private val maxTicksPerWindow: Int = DEFAULT_MAX_TICKS,
+    private val windowMillis: Long = DEFAULT_WINDOW_MILLIS,
+) {
+    private val recent = ArrayDeque<Long>()
 
     fun tryFire(nowMillis: Long): Boolean {
-        if (lastMillis != Long.MIN_VALUE && nowMillis - lastMillis < minGapMillis) return false
-        lastMillis = nowMillis
+        while (recent.isNotEmpty() && nowMillis - recent.first() >= windowMillis) recent.removeFirst()
+        val last = recent.lastOrNull()
+        if (last != null && nowMillis - last < minGapMillis) return false
+        if (recent.size >= maxTicksPerWindow) return false
+        recent.addLast(nowMillis)
         return true
+    }
+
+    private companion object {
+        const val DEFAULT_MAX_TICKS = 5
+        const val DEFAULT_WINDOW_MILLIS = 4_000L
     }
 }

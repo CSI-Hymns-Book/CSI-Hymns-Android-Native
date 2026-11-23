@@ -142,6 +142,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         _christmasSecretsFound.value = updated
     }
 
+    /** Forgets every easter egg found so far, so they can all be discovered again. */
+    fun resetChristmasSecrets() {
+        prefs.edit().remove(KEY_CHRISTMAS_SECRETS).apply()
+        _christmasSecretsFound.value = emptySet()
+    }
+
     fun setChristmasEffects(level: ChristmasEffectsLevel) {
         prefs.edit().putString(KEY_CHRISTMAS_EFFECTS, level.name).apply()
         _christmasEffects.value = level

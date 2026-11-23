@@ -44,6 +44,7 @@ import com.reyzie.hymns.carols.domain.CarolTextScale
 import com.reyzie.hymns.carols.domain.carolShareText
 import com.reyzie.hymns.carols.domain.splitBilingualLyrics
 import com.reyzie.hymns.carols.domain.splitStanzas
+import com.reyzie.hymns.interop.ReturnToCallerChip
 import com.reyzie.hymns.ui.christmas.ChristmasPalette
 import com.reyzie.hymns.ui.christmas.DimChristmasSnow
 import com.reyzie.hymns.ui.christmas.lists.christmasReaderFrame
@@ -114,15 +115,21 @@ fun CarolSongDetailScreen(
                 }
                 if (pages.size > 1) {
                     Text(
-                        "${pager.currentPage + 1} of ${pages.size}  ·  swipe for the next carol",
+                        "${pager.currentPage + 1} of ${pages.size}  ·  swipe",
                         color = palette.inkMuted,
                         fontSize = 12.sp,
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
+                            .align(Alignment.BottomStart)
                             .navigationBarsPadding()
-                            .padding(bottom = 12.dp),
+                            .padding(start = 20.dp, bottom = 22.dp),
                     )
                 }
+                ReturnToCallerChip(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .navigationBarsPadding()
+                        .padding(end = 16.dp, bottom = 12.dp),
+                )
             }
         }
         if (presenting) {
