@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reyzie.hymns.ui.theme.contentOn
+import com.reyzie.hymns.ui.christmas.ChristmasEffectsLevel
+import com.reyzie.hymns.ui.christmas.eggs.ChristmasSecret
 import com.reyzie.hymns.ui.viewmodels.SettingsViewModel
 import com.reyzie.hymns.ui.viewmodels.ThemeMode
 import com.reyzie.hymns.ui.viewmodels.AuthViewModel
@@ -36,6 +38,7 @@ import com.reyzie.hymns.ui.widgets.GroupButtonVariant
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import io.github.jan.supabase.auth.status.SessionStatus
+import com.reyzie.hymns.data.CacheCleaner
 
 @Composable
 fun SettingsScreen(
@@ -59,6 +62,14 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     var showMidiInstrumentDialog by remember { mutableStateOf(false) }
     val midiInstrument by viewModel.midiInstrument.collectAsState()
+    var showChristmasEffectsDialog by remember { mutableStateOf(false) }
+    val settingsContext = LocalContext.current
+    var showClearCacheDialog by remember { mutableStateOf(false) }
+    var cacheSizeBytes by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(showClearCacheDialog) { cacheSizeBytes = CacheCleaner.sizeBytes(settingsContext) }
+    val christmasEffects by viewModel.christmasEffects.collectAsState()
+    val christmasEasterEggs by viewModel.christmasEasterEggs.collectAsState()
+    val christmasSecretsFound by viewModel.christmasSecretsFound.collectAsState()
     
     val sessionStatus by authViewModel.sessionStatus.collectAsState()
     val user = (sessionStatus as? SessionStatus.Authenticated)?.session?.user
@@ -230,6 +241,21 @@ fun SettingsScreen(
                     checked = isChristmasMode,
                     onCheckedChange = { viewModel.setChristmasMode(it) }
                 )
+                if (isChristmasMode) {
+                    SettingsActionTile(
+                        title = "Snow & effects",
+                        subtitle = "${christmasEffects.label} · ${christmasEffects.description}",
+                        icon = Icons.Default.AutoAwesome,
+                        onClick = { showChristmasEffectsDialog = true }
+                    )
+                    SettingsSwitchTile(
+                        title = "Easter eggs",
+                        subtitle = "Hidden Christmas surprises · ${christmasSecretsFound.size} of ${ChristmasSecret.entries.size} found",
+                        icon = Icons.Default.Celebration,
+                        checked = christmasEasterEggs,
+                        onCheckedChange = { viewModel.setChristmasEasterEggs(it) }
+                    )
+                }
             }
 
             SettingsSectionHeader(title = "Audio", icon = Icons.Default.VolumeUp)
@@ -315,6 +341,17 @@ fun SettingsScreen(
                 }
             }
 
+            SettingsSectionHeader(title = "Storage", icon = Icons.Default.Storage)
+            SettingsExpressiveCard {
+                SettingsActionTile(
+                    title = "Clear all cache",
+                    subtitle = cacheSizeBytes?.let { "${CacheCleaner.format(it)} of downloaded tunes and temporary files" }
+                        ?: "Downloaded tunes and temporary files",
+                    icon = Icons.Default.DeleteSweep,
+                    onClick = { showClearCacheDialog = true }
+                )
+            }
+
             SettingsSectionHeader(title = "Information", icon = Icons.Default.Info)
             SettingsExpressiveCard {
                 SettingsActionTile(
@@ -381,6 +418,39 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.height(48.dp))
         }
+    }
+
+    if (showClearCacheDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheDialog = false },
+            title = { Text("Clear all cache?") },
+            text = {
+                Text("This removes downloaded MIDI tunes and temporary files so they download fresh next time. Your favourites, settings, sign-in and saved songs stay.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearCacheDialog = false
+                    scope.launch {
+                        val freed = CacheCleaner.clearAll(settingsContext)
+                        cacheSizeBytes = 0L
+                        android.widget.Toast.makeText(settingsContext, "Cache cleared · freed ${CacheCleaner.format(freed)}", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }) { Text("Clear") }
+            },
+            dismissButton = { TextButton(onClick = { showClearCacheDialog = false }) { Text("Cancel") } },
+        )
+    }
+
+    if (showChristmasEffectsDialog) {
+        ChristmasEffectsDialog(
+            selected = christmasEffects,
+            onSelect = {
+                HapticFeedbackManager.smoothClick(context)
+                viewModel.setChristmasEffects(it)
+                showChristmasEffectsDialog = false
+            },
+            onDismiss = { showChristmasEffectsDialog = false }
+        )
     }
 
     if (showMidiInstrumentDialog) {
@@ -593,3 +663,43 @@ fun SettingsListTile(
     iconBackground: Color = MaterialTheme.colorScheme.primaryContainer,
     textColor: Color = MaterialTheme.colorScheme.onSurface
 ) = SettingsActionTile(title, subtitle, icon, leadingContent, onClick, trailingContent, iconTint, iconBackground, textColor)
+
+@Composable
+private fun ChristmasEffectsDialog(
+    selected: ChristmasEffectsLevel,
+    onSelect: (ChristmasEffectsLevel) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Snow & effects", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ChristmasEffectsLevel.entries.forEach { level ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable { onSelect(level) }
+                            .padding(vertical = 12.dp, horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = selected == level, onClick = { onSelect(level) })
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(text = level.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = level.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}

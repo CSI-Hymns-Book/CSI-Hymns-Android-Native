@@ -8,6 +8,8 @@ import com.reyzie.hymns.carols.data.repository.CarolsRepository
 import com.reyzie.hymns.cast.CastService
 import com.reyzie.hymns.data.AppConfigRepository
 import com.reyzie.hymns.data.RemoteAppConfig
+import com.reyzie.hymns.ui.christmas.ChristmasEffectsLevel
+import com.reyzie.hymns.ui.christmas.eggs.ChristmasSecret
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -120,6 +122,36 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _isChristmasMode = MutableStateFlow(prefs.getBoolean("christmas_mode", false))
     val isChristmasMode: StateFlow<Boolean> = _isChristmasMode.asStateFlow()
 
+    private val _christmasEffects = MutableStateFlow(
+        ChristmasEffectsLevel.fromKey(prefs.getString(KEY_CHRISTMAS_EFFECTS, null))
+    )
+    val christmasEffects: StateFlow<ChristmasEffectsLevel> = _christmasEffects.asStateFlow()
+
+    private val _christmasEasterEggs = MutableStateFlow(prefs.getBoolean(KEY_CHRISTMAS_EASTER_EGGS, true))
+    val christmasEasterEggs: StateFlow<Boolean> = _christmasEasterEggs.asStateFlow()
+
+    private val _christmasSecretsFound = MutableStateFlow(
+        ChristmasSecret.fromStored(prefs.getStringSet(KEY_CHRISTMAS_SECRETS, emptySet()).orEmpty())
+    )
+    val christmasSecretsFound: StateFlow<Set<ChristmasSecret>> = _christmasSecretsFound.asStateFlow()
+
+    fun addChristmasSecret(secret: ChristmasSecret) {
+        val updated = _christmasSecretsFound.value + secret
+        if (updated == _christmasSecretsFound.value) return
+        prefs.edit().putStringSet(KEY_CHRISTMAS_SECRETS, updated.map { it.name }.toSet()).apply()
+        _christmasSecretsFound.value = updated
+    }
+
+    fun setChristmasEffects(level: ChristmasEffectsLevel) {
+        prefs.edit().putString(KEY_CHRISTMAS_EFFECTS, level.name).apply()
+        _christmasEffects.value = level
+    }
+
+    fun setChristmasEasterEggs(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_CHRISTMAS_EASTER_EGGS, enabled).apply()
+        _christmasEasterEggs.value = enabled
+    }
+
     private val _privacyAccepted = MutableStateFlow(prefs.getInt("privacy_accepted", -1))
     val privacyAccepted: StateFlow<Int> = _privacyAccepted.asStateFlow()
 
@@ -192,5 +224,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     fun onMidiInstrumentChanged(instrument: Int) {
         _midiInstrument.value = instrument
         prefs.edit().putInt("midi_instrument", instrument).apply()
+    }
+
+    private companion object {
+        const val KEY_CHRISTMAS_EFFECTS = "christmas_effects"
+        const val KEY_CHRISTMAS_EASTER_EGGS = "christmas_easter_eggs"
+        const val KEY_CHRISTMAS_SECRETS = "christmas_secrets_found"
     }
 }

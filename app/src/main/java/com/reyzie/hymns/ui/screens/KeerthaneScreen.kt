@@ -35,6 +35,14 @@ import com.reyzie.hymns.ui.widgets.SyncStatusDialog
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import com.reyzie.hymns.ui.christmas.landing.StarLanternIcon
+import com.reyzie.hymns.ui.christmas.lists.CHRISTMAS_FIELD_CORNER_DP
+import com.reyzie.hymns.ui.christmas.lists.ChristmasFieldShape
+import com.reyzie.hymns.ui.christmas.lists.ChristmasListBackdrop
+import com.reyzie.hymns.ui.christmas.lists.ChristmasSongRow
+import com.reyzie.hymns.ui.christmas.lists.christmasGlass
+import com.reyzie.hymns.ui.christmas.lists.isChristmasLook
+import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
 import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,7 +72,10 @@ fun KeerthaneScreen(
 
     val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
+    val christmasLook = isChristmasLook()
+    ChristmasListBackdrop {
     Scaffold(
+        containerColor = if (christmasLook) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -92,11 +103,12 @@ fun KeerthaneScreen(
                 if (!isLandscape) {
                     // Modern Search Bar (Portrait Static)
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        color = if (christmasLook) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
                         shape = RoundedCornerShape(28.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .then(if (christmasLook) Modifier.christmasGlass(ChristmasFieldShape, CHRISTMAS_FIELD_CORNER_DP, high = true) else Modifier)
                     ) {
                         TextField(
                             value = searchQuery,
@@ -186,11 +198,12 @@ fun KeerthaneScreen(
                         }
                         item {
                             Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                color = if (christmasLook) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
                                 shape = RoundedCornerShape(28.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp)
+                                    .then(if (christmasLook) Modifier.christmasGlass(ChristmasFieldShape, CHRISTMAS_FIELD_CORNER_DP, high = true) else Modifier)
                             ) {
                                 TextField(
                                     value = searchQuery,
@@ -286,6 +299,8 @@ fun KeerthaneScreen(
         }
     }
 
+    }
+
     SyncStatusDialog(
         syncState = syncState,
         onDismiss = { viewModel.dismissSyncDialog() }
@@ -294,6 +309,17 @@ fun KeerthaneScreen(
 
 @Composable
 fun KeerthaneListTile(keerthane: Keerthane, onClick: () -> Unit) {
+    if (isChristmasLook()) {
+        val palette = rememberChristmasPalette()
+        ChristmasSongRow(
+            label = "Keerthane ${keerthane.number}",
+            title = keerthane.title,
+            subtitle = keerthane.signature.takeIf { it.isNotEmpty() },
+            badgeBackground = palette.iceBackground,
+            onClick = onClick,
+        ) { StarLanternIcon(palette.ice, 32.dp, animate = false) }
+        return
+    }
     val context = LocalContext.current
     Card(
         modifier = Modifier

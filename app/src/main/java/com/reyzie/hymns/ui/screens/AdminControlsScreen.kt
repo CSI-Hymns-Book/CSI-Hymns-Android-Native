@@ -1714,6 +1714,15 @@ private fun AppConfigManagerPanel(onBackClick: () -> Unit) {
             }
 
             item {
+                ForceMidiRefreshCard(
+                    onPush = {
+                        // A new version number makes every device drop its saved tunes and tune list.
+                        saveValue(AppConfigKeys.MIDI_REFRESH_VERSION, System.currentTimeMillis().toString())
+                    },
+                )
+            }
+
+            item {
                 Text(
                     text = "Google Cast Configuration",
                     style = MaterialTheme.typography.titleMedium,
@@ -2611,5 +2620,43 @@ private fun FreeShowAnalyticsPanel(onBackClick: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** Admin action: make every device re-download MIDI tunes so newly added files show up. */
+@Composable
+private fun ForceMidiRefreshCard(onPush: () -> Unit) {
+    val context = LocalContext.current
+    var confirm by remember { mutableStateOf(false) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("Force push MIDI updates", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(
+                "Made a change in the MIDI repo? This makes every device clear its saved tunes and tune list the next time it opens the app, so new and changed files appear automatically.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+            Button(onClick = {
+                HapticFeedbackManager.smoothClick(context)
+                confirm = true
+            }) { Text("Push MIDI refresh to all devices") }
+        }
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("Push MIDI refresh?") },
+            text = { Text("Every device will re-download MIDI tunes the next time it connects. This is safe, but uses a little data.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirm = false
+                    onPush()
+                }) { Text("Push") }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel") } },
+        )
     }
 }

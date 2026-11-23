@@ -246,45 +246,51 @@ fun CSIHymnsBookTheme(
     val colorScheme = when {
         // 0. Christmas override
         isChristmasMode -> {
+            // Matches ChristmasNightPalette / ChristmasDawnPalette so every screen
+            // (lists, readers, dialogs) shares the candlelit Christmas look.
             if (darkTheme) {
                 darkColorScheme(
-                    primary = Color(0xFFDC143C), // Crimson / Candy Cane Red
-                    onPrimary = Color(0xFFFFFFFF),
-                    primaryContainer = Color(0xFF8B0000),
-                    onPrimaryContainer = Color(0xFFFFDAD6),
-                    secondary = Color(0xFF228B22), // Forest Green
-                    onSecondary = Color(0xFFFFFFFF),
-                    secondaryContainer = Color(0xFF005300),
-                    onSecondaryContainer = Color(0xFFB8FFA9),
-                    tertiary = Color(0xFFFFD700), // Gold
-                    onTertiary = Color(0xFF3A3000),
-                    background = Color(0xFF0F0F1A), // Deep Christmas Night
-                    onBackground = Color(0xFFE2E2E9),
-                    surface = Color(0xFF1A1A2E),
-                    onSurface = Color(0xFFE2E2E9),
-                    surfaceVariant = Color(0xFF16213E),
-                    onSurfaceVariant = Color(0xFFC3C7CF),
-                    outline = Color(0xFF8D9199)
+                    primary = Color(0xFFE9C27B), // Candle gold
+                    onPrimary = Color(0xFF2A1D05),
+                    primaryContainer = Color(0xFF4A3816),
+                    onPrimaryContainer = Color(0xFFFFE9C2),
+                    secondary = Color(0xFF8FD3AA), // Pine
+                    onSecondary = Color(0xFF00391E),
+                    secondaryContainer = Color(0xFF1D4A33),
+                    onSecondaryContainer = Color(0xFFB8F0CC),
+                    tertiary = Color(0xFFD6493D), // Holly red
+                    onTertiary = Color(0xFFFFFFFF),
+                    tertiaryContainer = Color(0xFF5C1834),
+                    onTertiaryContainer = Color(0xFFFFD9D3),
+                    background = Color(0xFF0E1124), // Christmas night
+                    onBackground = Color(0xFFF5EFE4),
+                    surface = Color(0xFF121733),
+                    onSurface = Color(0xFFF5EFE4),
+                    surfaceVariant = Color(0xFF1E2544),
+                    onSurfaceVariant = Color(0xFFD6CFC2),
+                    outline = Color(0xFF8C8577)
                 )
             } else {
                 lightColorScheme(
-                    primary = Color(0xFFB22222), // Deep Red
+                    primary = Color(0xFF9C6A17), // Candle gold
                     onPrimary = Color(0xFFFFFFFF),
-                    primaryContainer = Color(0xFFFFDAD6),
-                    onPrimaryContainer = Color(0xFF410002),
-                    secondary = Color(0xFF228B22), // Forest Green
+                    primaryContainer = Color(0xFFFFE6BC),
+                    onPrimaryContainer = Color(0xFF3A2600),
+                    secondary = Color(0xFF2D7A4F), // Pine
                     onSecondary = Color(0xFFFFFFFF),
-                    secondaryContainer = Color(0xFFB8FFA9),
-                    onSecondaryContainer = Color(0xFF002200),
-                    tertiary = Color(0xFFDAA520), // Goldenrod
+                    secondaryContainer = Color(0xFFC6EED4),
+                    onSecondaryContainer = Color(0xFF002111),
+                    tertiary = Color(0xFFB5362C), // Holly red
                     onTertiary = Color(0xFFFFFFFF),
-                    background = Color(0xFFFFF8F0), // Warm white
-                    onBackground = Color(0xFF1A1A1A),
-                    surface = Color(0xFFFFFAFA), // Snow
-                    onSurface = Color(0xFF1A1A1A),
-                    surfaceVariant = Color(0xFFF5F5F5),
-                    onSurfaceVariant = Color(0xFF43474E),
-                    outline = Color(0xFF74777F)
+                    tertiaryContainer = Color(0xFFFFDAD5),
+                    onTertiaryContainer = Color(0xFF410002),
+                    background = Color(0xFFF1F4F9), // Frosty dawn
+                    onBackground = Color(0xFF17203A),
+                    surface = Color(0xFFF8FAFD),
+                    onSurface = Color(0xFF17203A),
+                    surfaceVariant = Color(0xFFE1E8F2),
+                    onSurfaceVariant = Color(0xFF44506B),
+                    outline = Color(0xFF74809A)
                 )
             }
         }

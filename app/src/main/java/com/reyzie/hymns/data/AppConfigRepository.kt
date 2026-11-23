@@ -33,7 +33,9 @@ data class RemoteAppConfig(
     val isRazorpayEnabled: Boolean? = null,
     val paymentsEnabled: Boolean? = null,
     val masterRootPasscode: String? = null,
-    val presenterModeEnabled: Boolean? = null
+    val presenterModeEnabled: Boolean? = null,
+    /** Bumped by an admin to make every device re-download MIDI tunes and the tune list. */
+    val midiRefreshVersion: String? = null
 ) {
     val githubToken: String? get() = githubMidiToken
     val parsedMidiHymns: Set<String> by lazy { parseMeters(midiHymnsRanges) }
@@ -62,7 +64,8 @@ data class RemoteAppConfig(
         isRazorpayEnabled = isRazorpayEnabled ?: previous.isRazorpayEnabled,
         paymentsEnabled = paymentsEnabled ?: previous.paymentsEnabled,
         masterRootPasscode = masterRootPasscode ?: previous.masterRootPasscode,
-        presenterModeEnabled = presenterModeEnabled ?: previous.presenterModeEnabled
+        presenterModeEnabled = presenterModeEnabled ?: previous.presenterModeEnabled,
+        midiRefreshVersion = midiRefreshVersion ?: previous.midiRefreshVersion
     )
 
     override fun toString(): String {
@@ -132,6 +135,7 @@ object AppConfigKeys {
     const val PAYMENTS_ENABLED = "payments_enabled"
     const val MASTER_ROOT_PASSCODE = "master_root_passcode"
     const val PRESENTER_MODE_ENABLED = "presenter_mode_enabled"
+    const val MIDI_REFRESH_VERSION = "midi_refresh_version"
 }
 
 class AppConfigRepository(
@@ -173,7 +177,8 @@ class AppConfigRepository(
                 AppConfigKeys.IS_RAZORPAY_ENABLED,
                 AppConfigKeys.PAYMENTS_ENABLED,
                 AppConfigKeys.MASTER_ROOT_PASSCODE,
-                AppConfigKeys.PRESENTER_MODE_ENABLED
+                AppConfigKeys.PRESENTER_MODE_ENABLED,
+                AppConfigKeys.MIDI_REFRESH_VERSION
             )
         )
 
@@ -200,7 +205,8 @@ class AppConfigRepository(
             isRazorpayEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.IS_RAZORPAY_ENABLED]),
             paymentsEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PAYMENTS_ENABLED]),
             masterRootPasscode = raw[AppConfigKeys.MASTER_ROOT_PASSCODE]?.trim()?.takeIf { it.isNotEmpty() },
-            presenterModeEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PRESENTER_MODE_ENABLED])
+            presenterModeEnabled = appConfigService.parseBoolean(raw[AppConfigKeys.PRESENTER_MODE_ENABLED]),
+            midiRefreshVersion = raw[AppConfigKeys.MIDI_REFRESH_VERSION]?.trim()?.takeIf { it.isNotEmpty() }
         )
 
         if (!remoteConfig.masterRootPasscode.isNullOrEmpty()) {
@@ -246,7 +252,8 @@ class AppConfigRepository(
             isRazorpayEnabled = if (prefs?.contains("is_razorpay_enabled_cached") == true) prefs.getBoolean("is_razorpay_enabled_cached", false) else null,
             paymentsEnabled = if (prefs?.contains("payments_enabled_cached") == true) prefs.getBoolean("payments_enabled_cached", false) else null,
             masterRootPasscode = prefs?.getString("cached_master_root_passcode", null),
-            presenterModeEnabled = if (prefs?.contains("presenter_mode_enabled_cached") == true) prefs.getBoolean("presenter_mode_enabled_cached", false) else null
+            presenterModeEnabled = if (prefs?.contains("presenter_mode_enabled_cached") == true) prefs.getBoolean("presenter_mode_enabled_cached", false) else null,
+            midiRefreshVersion = prefs?.getString("midi_refresh_version_cached", null)
         )
     }
 
@@ -276,6 +283,7 @@ class AppConfigRepository(
             if (remoteConfig.isRazorpayEnabled != null) putBoolean("is_razorpay_enabled_cached", remoteConfig.isRazorpayEnabled)
             if (remoteConfig.paymentsEnabled != null) putBoolean("payments_enabled_cached", remoteConfig.paymentsEnabled)
             if (remoteConfig.presenterModeEnabled != null) putBoolean("presenter_mode_enabled_cached", remoteConfig.presenterModeEnabled)
+            if (remoteConfig.midiRefreshVersion != null) putString("midi_refresh_version_cached", remoteConfig.midiRefreshVersion)
 
             if (remoteConfig.isChristmasTime != null) putBoolean(PREF_CHRISTMAS_REMOTE, remoteConfig.isChristmasTime)
             if (remoteConfig.isMangaloreHymnsEnabled != null) putBoolean(PREF_MANGALORE_REMOTE, remoteConfig.isMangaloreHymnsEnabled)
@@ -335,7 +343,8 @@ class AppConfigRepository(
             masterRootPasscode = config.masterRootPasscode,
             presenterModeEnabled = if (prefs?.contains("app_config_override_presenter_mode_enabled") == true) {
                 prefs.getBoolean("app_config_override_presenter_mode_enabled", false)
-            } else config.presenterModeEnabled
+            } else config.presenterModeEnabled,
+            midiRefreshVersion = config.midiRefreshVersion
         )
         return overridden
     }

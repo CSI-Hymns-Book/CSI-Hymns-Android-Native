@@ -209,6 +209,9 @@ fun MainScreen(
     val favoritesPageIndex = activeScreens.indexOf(Screen.Favorites)
     
     var selectedHymn by rememberSaveable(stateSaver = HymnSaver) { mutableStateOf<Hymn?>(null) }
+    // True when the open hymn came from the M.T. list in Christmas mode, where the app
+    // section is not M.T. but the hymn still is.
+    var selectedHymnIsMt by rememberSaveable { mutableStateOf(false) }
     var selectedKeerthane by rememberSaveable(stateSaver = KeerthaneSaver) { mutableStateOf<Keerthane?>(null) }
     var selectedReaderType by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedCategory by rememberSaveable(stateSaver = PairSaver) { mutableStateOf<Pair<Int, String>?>(null) }
@@ -588,7 +591,9 @@ fun MainScreen(
                         onOpenKeerthanes = { showKeerthanesFromChristmas = true },
                         onOpenCarols = { showChristmasCarols = true },
                         onOpenMtHymns = { showMtHymnsFromChristmas = true },
-                        onMenuClick = { scope.launch { drawerState.open() } }
+                        onMenuClick = { scope.launch { drawerState.open() } },
+                        isVisible = !(showChristmasCarols || showHymnsFromChristmas ||
+                            showMtHymnsFromChristmas || showKeerthanesFromChristmas)
                     )
                 } else if (isMangaloreHymnsEnabled && sectionState == null) {
                     SectionSelectorScreen(
@@ -936,29 +941,14 @@ fun MainScreen(
                 onDismiss = { showHymnsFromChristmas = false }
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    HymnsScreen(
-                        onHymnClick = { hymn -> selectedHymn = hymn },
-                        onSettingsClick = { showHymnsFromChristmas = false },
-                        activeSection = AppSection.CSI,
-                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
-                    )
-                    ExpressiveOverlayScreen(
-                        item = selectedHymn,
-                        onDismiss = { 
-                            selectedHymn = null
-                            audioViewModel.stopAndReset()
-                        }
-                    ) { hymn ->
-                        HymnDetailScreen(
-                            hymn = hymn,
-                            isKeerthane = false,
-                            favoritesViewModel = favoritesViewModel,
-                            audioViewModel = audioViewModel,
-                            isMt = false,
-                            onBackClick = { 
-                                selectedHymn = null
-                                audioViewModel.stopAndReset()
-                            }
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.reyzie.hymns.ui.christmas.LocalSnowCapsVisible provides (selectedHymn == null)
+                    ) {
+                        HymnsScreen(
+                            onHymnClick = { hymn -> selectedHymn = hymn },
+                            onSettingsClick = { showHymnsFromChristmas = false },
+                            activeSection = AppSection.CSI,
+                            navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
                         )
                     }
                 }
@@ -969,29 +959,17 @@ fun MainScreen(
                 onDismiss = { showMtHymnsFromChristmas = false }
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    HymnsScreen(
-                        onHymnClick = { hymn -> selectedHymn = hymn },
-                        onSettingsClick = { showMtHymnsFromChristmas = false },
-                        activeSection = AppSection.MT,
-                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
-                    )
-                    ExpressiveOverlayScreen(
-                        item = selectedHymn,
-                        onDismiss = { 
-                            selectedHymn = null
-                            audioViewModel.stopAndReset()
-                        }
-                    ) { hymn ->
-                        HymnDetailScreen(
-                            hymn = hymn,
-                            isKeerthane = false,
-                            favoritesViewModel = favoritesViewModel,
-                            audioViewModel = audioViewModel,
-                            isMt = true,
-                            onBackClick = { 
-                                selectedHymn = null
-                                audioViewModel.stopAndReset()
-                            }
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.reyzie.hymns.ui.christmas.LocalSnowCapsVisible provides (selectedHymn == null)
+                    ) {
+                        HymnsScreen(
+                            onHymnClick = { hymn ->
+                                selectedHymnIsMt = true
+                                selectedHymn = hymn
+                            },
+                            onSettingsClick = { showMtHymnsFromChristmas = false },
+                            activeSection = AppSection.MT,
+                            navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
                         )
                     }
                 }
@@ -1002,34 +980,13 @@ fun MainScreen(
                 onDismiss = { showKeerthanesFromChristmas = false }
             ) {
                 Box(Modifier.fillMaxSize()) {
-                    KeerthaneScreen(
-                        onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
-                        onMenuClick = { showKeerthanesFromChristmas = false },
-                        navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
-                    )
-                    ExpressiveOverlayScreen(
-                        item = selectedKeerthane,
-                        onDismiss = { 
-                            selectedKeerthane = null
-                            audioViewModel.stopAndReset()
-                        }
-                    ) { keerthane ->
-                        val convertedHymn = Hymn(
-                            number = keerthane.number,
-                            title = keerthane.title,
-                            signature = keerthane.signature,
-                            lyrics = keerthane.lyrics,
-                            kannadaLyrics = keerthane.kannadaLyrics
-                        )
-                        HymnDetailScreen(
-                            hymn = convertedHymn,
-                            isKeerthane = true,
-                            favoritesViewModel = favoritesViewModel,
-                            audioViewModel = audioViewModel,
-                            onBackClick = { 
-                                selectedKeerthane = null
-                                audioViewModel.stopAndReset()
-                            }
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.reyzie.hymns.ui.christmas.LocalSnowCapsVisible provides (selectedKeerthane == null)
+                    ) {
+                        KeerthaneScreen(
+                            onKeerthaneClick = { keerthane -> selectedKeerthane = keerthane },
+                            onMenuClick = { showKeerthanesFromChristmas = false },
+                            navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
                         )
                     }
                 }
@@ -1092,6 +1049,7 @@ fun MainScreen(
                 item = selectedHymn,
                 onDismiss = { 
                     selectedHymn = null
+                    selectedHymnIsMt = false
                     audioViewModel.stopAndReset()
                 }
             ) { hymn ->
@@ -1100,9 +1058,10 @@ fun MainScreen(
                     isKeerthane = false,
                     favoritesViewModel = favoritesViewModel,
                     audioViewModel = audioViewModel,
-                    isMt = effectiveSection == AppSection.MT,
+                    isMt = selectedHymnIsMt || effectiveSection == AppSection.MT,
                     onBackClick = { 
                         selectedHymn = null
+                        selectedHymnIsMt = false
                         audioViewModel.stopAndReset()
                     }
                 )

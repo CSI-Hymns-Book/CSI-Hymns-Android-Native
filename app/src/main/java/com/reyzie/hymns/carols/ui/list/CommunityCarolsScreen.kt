@@ -1,6 +1,5 @@
 package com.reyzie.hymns.carols.ui.list
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,44 +12,30 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -62,13 +47,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.reyzie.hymns.carols.data.local.CarolReaderStore
 import com.reyzie.hymns.carols.data.model.CarolChurch
 import com.reyzie.hymns.carols.data.model.CarolPdf
 import com.reyzie.hymns.carols.data.model.CarolSong
@@ -78,14 +63,22 @@ import com.reyzie.hymns.carols.ui.create.ChurchAddMenuDialog
 import com.reyzie.hymns.carols.ui.create.CreateChurchDialog
 import com.reyzie.hymns.carols.ui.detail.CarolPdfDetailScreen
 import com.reyzie.hymns.carols.ui.detail.CarolSongDetailScreen
+import com.reyzie.hymns.ui.christmas.ChristmasDisplayFont
+import com.reyzie.hymns.ui.christmas.LocalSnowCapsVisible
+import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
 import com.reyzie.hymns.ui.motion.ExpressiveOverlayScreen
 import com.reyzie.hymns.ui.widgets.ChristmasScreenBackground
-import com.reyzie.hymns.ui.widgets.rememberChristmasScreenColors
-import com.reyzie.hymns.ui.widgets.ExpressiveCircularProgress
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
 import com.reyzie.hymns.utils.HapticFeedbackManager
 import kotlinx.coroutines.launch
 
+private val ListPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 100.dp)
+
+/**
+ * Community Carols: churches share carol lyrics and sheet music. The first view lists the
+ * churches (with the reader's favourite and recently opened carols on top); tapping one
+ * shows its songs and PDFs. Pull down anywhere to sync.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CommunityCarolsScreen(
@@ -95,6 +88,7 @@ fun CommunityCarolsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val store = remember { CarolReaderStore.getInstance(context) }
 
     val churches by viewModel.churches.collectAsState()
     val songs by viewModel.songs.collectAsState()
@@ -105,17 +99,19 @@ fun CommunityCarolsScreen(
     val error by viewModel.errorMessage.collectAsState()
     val syncHint by viewModel.syncHint.collectAsState()
     val selectedChurchId by viewModel.selectedChurchId.collectAsState()
-    val selectedChurch by viewModel.selectedChurch.collectAsState()
-    val activeChurch = selectedChurch
+    val activeChurch by viewModel.selectedChurch.collectAsState()
     val contentTab by viewModel.contentTab.collectAsState()
+    val sortOrder by viewModel.sortOrder.collectAsState()
+    val favouriteIds by store.favourites.collectAsState()
+    val recentIds by store.recents.collectAsState()
 
     var showCreateChurch by rememberSaveable { mutableStateOf(false) }
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAddSong by rememberSaveable { mutableStateOf(false) }
     var showAddPdf by rememberSaveable { mutableStateOf(false) }
     var deleteChurchTarget by remember { mutableStateOf<CarolChurch?>(null) }
-    var selectedSong by rememberSaveable { mutableStateOf<CarolSong?>(null) }
-    var selectedPdf by rememberSaveable { mutableStateOf<CarolPdf?>(null) }
+    var openSongId by rememberSaveable { mutableStateOf<String?>(null) }
+    var openPdfId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.ensureLocalLoaded()
@@ -128,388 +124,119 @@ fun CommunityCarolsScreen(
         }
     }
 
-    val filteredChurches = remember(churches, songs, pdfs, query) {
-        viewModel.filteredChurches(churches, songs, pdfs)
-    }
-    val churchSongs = remember(selectedChurchId, songs, query) {
+    val filteredChurches = remember(churches, songs, pdfs, query) { viewModel.filteredChurches(churches, songs, pdfs) }
+    val churchSongs = remember(selectedChurchId, songs, query, sortOrder) {
         selectedChurchId?.let { viewModel.filteredSongs(it) }.orEmpty()
     }
-    val churchPdfs = remember(selectedChurchId, pdfs, query) {
+    val churchPdfs = remember(selectedChurchId, pdfs, query, sortOrder) {
         selectedChurchId?.let { viewModel.filteredPdfs(it) }.orEmpty()
     }
+    val favouriteSongs = remember(songs, favouriteIds) { songs.filter { it.id in favouriteIds } }
+    val recentSongs = remember(songs, recentIds) { recentIds.mapNotNull { id -> songs.find { it.id == id } } }
+    val openSong = songs.find { it.id == openSongId }
+    val openPdf = pdfs.find { it.id == openPdfId }
+    val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
-    val christmasColors = rememberChristmasScreenColors()
-    val contentColor = christmasColors.onBackground
-    val contentColorMuted = christmasColors.onBackgroundMuted
+    val listPane: @Composable (Modifier) -> Unit = { modifier ->
+        CarolsListPane(
+            modifier = modifier,
+            isLoading = isInitialLoading && churches.isEmpty(),
+            isSyncing = isSyncing,
+            onRefresh = { viewModel.refresh(force = true) },
+            activeChurch = activeChurch,
+            contentTab = contentTab,
+            churches = filteredChurches,
+            churchSongs = churchSongs,
+            churchPdfs = churchPdfs,
+            favouriteSongs = if (query.isBlank()) favouriteSongs else emptyList(),
+            recentSongs = if (query.isBlank()) recentSongs else emptyList(),
+            favouriteIds = favouriteIds,
+            emptyState = {
+                EmptyChurchesState(syncHint, viewModel.isAuthenticated, onRefresh = { viewModel.refresh(force = true) })
+            },
+            churchStats = { viewModel.churchStats(it, songs, pdfs) },
+            viewModel = viewModel,
+            onOpenChurch = { viewModel.setSelectedChurch(it.id) },
+            onDeleteChurch = { deleteChurchTarget = it },
+            onOpenSong = { openSongId = it.id },
+            onOpenPdf = { openPdfId = it.id },
+        )
+    }
 
     ChristmasScreenBackground {
-        Box(Modifier.fillMaxSize()) {
+        CompositionLocalProvider(LocalSnowCapsVisible provides (openSong == null && openPdf == null)) {
             Scaffold(
                 containerColor = Color.Transparent,
                 topBar = {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                when {
-                                    activeChurch != null -> activeChurch.name
-                                    else -> "Community Carols 🎄"
-                                },
-                                fontWeight = FontWeight.ExtraBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = contentColor,
-                            )
+                    CarolsTopBar(
+                        title = activeChurch?.name ?: "Community Carols",
+                        canAdd = activeChurch != null && viewModel.isAuthenticated,
+                        onBack = {
+                            HapticFeedbackManager.smoothClick(context)
+                            if (activeChurch != null) viewModel.setSelectedChurch(null) else onBackClick()
                         },
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                if (activeChurch != null) viewModel.setSelectedChurch(null)
-                                else onBackClick()
-                            }) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back",
-                                    tint = contentColor,
-                                )
-                            }
-                        },
-                        actions = {
-                            IconButton(onClick = {
-                                HapticFeedbackManager.smoothClick(context)
-                                viewModel.refresh()
-                            }) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = "Refresh",
-                                    tint = contentColor,
-                                )
-                            }
-                            if (activeChurch != null && viewModel.isAuthenticated) {
-                                IconButton(onClick = { showAddMenu = true }) {
-                                    Icon(
-                                        Icons.Default.Add,
-                                        contentDescription = "Add",
-                                        tint = contentColor,
-                                    )
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = Color.Transparent,
-                            scrolledContainerColor = Color.Transparent,
-                        ),
+                        onAdd = { showAddMenu = true },
                     )
                 },
-            snackbarHost = { SnackbarHost(snackbar) },
-            floatingActionButton = {
-                if (activeChurch == null) {
-                    ExtendedFloatingActionButton(
-                        onClick = {
-                            HapticFeedbackManager.smoothClick(context)
-                            if (!viewModel.isAuthenticated) {
-                                scope.launch { snackbar.showSnackbar("Sign in to create a church.") }
-                            } else {
-                                showCreateChurch = true
-                            }
-                        },
-                        icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                        text = { Text(if (viewModel.isAuthenticated) "New Church" else "Sign in") },
-                        shape = RoundedCornerShape(24.dp),
-                        modifier = Modifier.navigationBarsPadding(),
+                snackbarHost = { SnackbarHost(snackbar) },
+                floatingActionButton = {
+                    if (activeChurch == null) {
+                        ExtendedFloatingActionButton(
+                            onClick = {
+                                HapticFeedbackManager.smoothClick(context)
+                                if (!viewModel.isAuthenticated) {
+                                    scope.launch { snackbar.showSnackbar("Sign in to add a church.") }
+                                } else {
+                                    showCreateChurch = true
+                                }
+                            },
+                            icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                            text = { Text(if (viewModel.isAuthenticated) "New church" else "Sign in") },
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.navigationBarsPadding(),
+                        )
+                    }
+                },
+            ) { padding ->
+                val header: @Composable () -> Unit = {
+                    CarolsHeader(
+                        query = query,
+                        onQueryChange = viewModel::onSearchChanged,
+                        activeChurch = activeChurch,
+                        contentTab = contentTab,
+                        songCount = churchSongs.size,
+                        pdfCount = churchPdfs.size,
+                        viewModel = viewModel,
                     )
                 }
-            },
-        ) { padding ->
-            val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
                 if (isLandscape) {
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // Left Pane: Search & Meta info
-                        Column(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .padding(start = 16.dp, top = 8.dp)
-                        ) {
-                            SearchField(
-                                query = query,
-                                onQueryChange = viewModel::onSearchChanged,
-                                placeholder = if (activeChurch == null) "Search churches/songs..." else "Search in this church...",
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            if (activeChurch == null) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "Select a church from the list to view its custom carol sheet-music and bilingual lyrics.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = contentColorMuted,
-                                        textAlign = TextAlign.Center
-                                    )
-                                }
-                            } else {
-                                activeChurch.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                                    Text(
-                                        desc,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = contentColorMuted,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                                        maxLines = 4,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                }
-                                SortChipRow(viewModel = viewModel)
-                                Spacer(Modifier.height(8.dp))
-                                StandardButtonGroup(
-                                    buttonCount = 2,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    highContrast = true,
-                                ) {
-                                    Button(
-                                        index = 0,
-                                        onClick = {
-                                            HapticFeedbackManager.smoothClick(context)
-                                            viewModel.setContentTab(CarolContentTab.SONGS)
-                                        },
-                                        icon = Icons.Default.MusicNote,
-                                        label = "Songs (${churchSongs.size})",
-                                        isSelected = contentTab == CarolContentTab.SONGS,
-                                    )
-                                    Button(
-                                        index = 1,
-                                        onClick = {
-                                            HapticFeedbackManager.smoothClick(context)
-                                            viewModel.setContentTab(CarolContentTab.PDFS)
-                                        },
-                                        icon = Icons.Default.PictureAsPdf,
-                                        label = "PDFs (${churchPdfs.size})",
-                                        isSelected = contentTab == CarolContentTab.PDFS,
-                                    )
-                                }
-                            }
-                        }
-
-                        // Right Pane: Lists
-                        Box(
-                            modifier = Modifier
-                                .weight(1.2f)
-                                .fillMaxHeight()
-                        ) {
-                            if (isInitialLoading && churches.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    ExpressiveCircularProgress()
-                                }
-                            } else if (activeChurch == null) {
-                                if (filteredChurches.isEmpty()) {
-                                    EmptyChurchesState(
-                                        syncHint = syncHint,
-                                        isAuthenticated = viewModel.isAuthenticated,
-                                        onRefresh = { viewModel.refresh() },
-                                    )
-                                } else {
-                                    LazyColumn(
-                                        contentPadding = PaddingValues(16.dp, 8.dp, 24.dp, 80.dp),
-                                    ) {
-                                        items(filteredChurches, key = { it.id }) { church ->
-                                            val (songCount, pdfCount) = viewModel.churchStats(church.id, songs, pdfs)
-                                            ChurchListCard(
-                                                church = church,
-                                                songCount = songCount,
-                                                pdfCount = pdfCount,
-                                                canDelete = viewModel.canDeleteChurch(church),
-                                                onTap = { viewModel.setSelectedChurch(church.id) },
-                                                onDelete = { deleteChurchTarget = church },
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                when (contentTab) {
-                                    CarolContentTab.SONGS -> {
-                                        if (churchSongs.isEmpty()) {
-                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                Text("No songs yet", color = contentColorMuted)
-                                            }
-                                        } else {
-                                            LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 24.dp, 80.dp)) {
-                                                items(churchSongs, key = { it.id }) { song ->
-                                                    SongRow(
-                                                        song = song,
-                                                        canDelete = viewModel.canDeleteSong(song),
-                                                        onOpen = { selectedSong = song },
-                                                        onDelete = { viewModel.deleteSong(song.id) },
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                    CarolContentTab.PDFS -> {
-                                        if (churchPdfs.isEmpty()) {
-                                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                Text("No PDFs yet", color = contentColorMuted)
-                                            }
-                                        } else {
-                                            LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 24.dp, 80.dp)) {
-                                                items(churchPdfs, key = { it.id }) { pdf ->
-                                                    PdfRow(
-                                                        pdf = pdf,
-                                                        canDelete = viewModel.canDeletePdf(pdf),
-                                                        onOpen = { selectedPdf = pdf },
-                                                        onDelete = { viewModel.deletePdf(pdf.id) },
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    Row(Modifier.fillMaxSize().padding(padding), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f).fillMaxHeight().padding(top = 8.dp)) { header() }
+                        listPane(Modifier.weight(1.2f).fillMaxHeight())
                     }
                 } else {
-                    Column(Modifier.fillMaxSize()) {
-                        SearchField(
-                            query = query,
-                            onQueryChange = viewModel::onSearchChanged,
-                            placeholder = if (activeChurch == null) "Search churches or songs..." else "Search in this church...",
-                        )
-
-                        if (isInitialLoading && churches.isEmpty()) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                ExpressiveCircularProgress()
-                            }
-                        } else if (activeChurch == null) {
-                            if (filteredChurches.isEmpty()) {
-                                EmptyChurchesState(
-                                    syncHint = syncHint,
-                                    isAuthenticated = viewModel.isAuthenticated,
-                                    onRefresh = { viewModel.refresh() },
-                                )
-                            } else {
-                                LazyColumn(
-                                    contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 100.dp),
-                                ) {
-                                    items(filteredChurches, key = { it.id }) { church ->
-                                        val (songCount, pdfCount) = viewModel.churchStats(church.id, songs, pdfs)
-                                        ChurchListCard(
-                                            church = church,
-                                            songCount = songCount,
-                                            pdfCount = pdfCount,
-                                            canDelete = viewModel.canDeleteChurch(church),
-                                            onTap = { viewModel.setSelectedChurch(church.id) },
-                                            onDelete = { deleteChurchTarget = church },
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            activeChurch.description?.takeIf { it.isNotBlank() }?.let { desc ->
-                                Text(
-                                    desc,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = contentColorMuted,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                )
-                            }
-                            SortChipRow(viewModel = viewModel)
-                            StandardButtonGroup(
-                                buttonCount = 2,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                highContrast = true,
-                            ) {
-                                Button(
-                                    index = 0,
-                                    onClick = {
-                                        HapticFeedbackManager.smoothClick(context)
-                                        viewModel.setContentTab(CarolContentTab.SONGS)
-                                    },
-                                    icon = Icons.Default.MusicNote,
-                                    label = "Songs (${churchSongs.size})",
-                                    isSelected = contentTab == CarolContentTab.SONGS,
-                                )
-                                Button(
-                                    index = 1,
-                                    onClick = {
-                                        HapticFeedbackManager.smoothClick(context)
-                                        viewModel.setContentTab(CarolContentTab.PDFS)
-                                    },
-                                    icon = Icons.Default.PictureAsPdf,
-                                    label = "PDFs (${churchPdfs.size})",
-                                    isSelected = contentTab == CarolContentTab.PDFS,
-                                )
-                            }
-                            when (contentTab) {
-                                CarolContentTab.SONGS -> {
-                                    if (churchSongs.isEmpty()) {
-                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Text("No songs yet", color = contentColorMuted)
-                                        }
-                                    } else {
-                                        LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
-                                            items(churchSongs, key = { it.id }) { song ->
-                                                SongRow(
-                                                    song = song,
-                                                    canDelete = viewModel.canDeleteSong(song),
-                                                    onOpen = { selectedSong = song },
-                                                    onDelete = { viewModel.deleteSong(song.id) },
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                CarolContentTab.PDFS -> {
-                                    if (churchPdfs.isEmpty()) {
-                                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Text("No PDFs yet", color = contentColorMuted)
-                                        }
-                                    } else {
-                                        LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 80.dp)) {
-                                            items(churchPdfs, key = { it.id }) { pdf ->
-                                                PdfRow(
-                                                    pdf = pdf,
-                                                    canDelete = viewModel.canDeletePdf(pdf),
-                                                    onOpen = { selectedPdf = pdf },
-                                                    onDelete = { viewModel.deletePdf(pdf.id) },
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                    Column(Modifier.fillMaxSize().padding(padding)) {
+                        header()
+                        listPane(Modifier.weight(1f).fillMaxWidth())
                     }
                 }
             }
         }
 
-        ExpressiveOverlayScreen(item = selectedSong, onDismiss = { selectedSong = null }) { song ->
+        ExpressiveOverlayScreen(item = openSong, onDismiss = { openSongId = null }) { song ->
+            val readerSongs = remember(song.churchId, churchSongs) {
+                churchSongs.takeIf { list -> list.any { it.id == song.id } } ?: viewModel.filteredSongs(song.churchId).ifEmpty { listOf(song) }
+            }
             CarolSongDetailScreen(
-                song = song,
-                churchName = activeChurch?.name.orEmpty(),
-                onBackClick = { selectedSong = null },
+                songs = readerSongs,
+                startSongId = song.id,
+                churchName = churches.find { it.id == song.churchId }?.name.orEmpty(),
+                onBackClick = { openSongId = null },
             )
         }
 
-        ExpressiveOverlayScreen(item = selectedPdf, onDismiss = { selectedPdf = null }) { pdf ->
-            CarolPdfDetailScreen(
-                title = pdf.title,
-                pdfUrl = pdf.pdfUrl,
-                onBackClick = { selectedPdf = null },
-            )
-        }
+        ExpressiveOverlayScreen(item = openPdf, onDismiss = { openPdfId = null }) { pdf ->
+            CarolPdfDetailScreen(title = pdf.title, pdfUrl = pdf.pdfUrl, onBackClick = { openPdfId = null })
         }
     }
 
@@ -529,20 +256,21 @@ fun CommunityCarolsScreen(
             onAddPdf = { showAddMenu = false; showAddPdf = true },
         )
     }
-    if (showAddSong && selectedChurchId != null) {
+    val churchId = selectedChurchId
+    if (showAddSong && churchId != null) {
         AddCarolSongDialog(
             onDismiss = { showAddSong = false },
             onAdd = { title, number, kn, en, scale ->
-                viewModel.addSong(selectedChurchId!!, title, number, kn, en, scale)
+                viewModel.addSong(churchId, title, number, kn, en, scale)
                 showAddSong = false
             },
         )
     }
-    if (showAddPdf && selectedChurchId != null) {
+    if (showAddPdf && churchId != null) {
         AddCarolPdfDialog(
             onDismiss = { showAddPdf = false },
             onAdd = { title, number, uri ->
-                viewModel.addPdf(selectedChurchId!!, title, number, uri)
+                viewModel.addPdf(churchId, title, number, uri)
                 showAddPdf = false
             },
         )
@@ -563,191 +291,172 @@ fun CommunityCarolsScreen(
     }
 }
 
-@Composable
-private fun SearchField(query: String, onQueryChange: (String) -> Unit, placeholder: String) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = RoundedCornerShape(28.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-    ) {
-        TextField(
-            value = query,
-            onValueChange = onQueryChange,
-            placeholder = { Text(placeholder) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
-                focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-            ),
-        )
-    }
-}
-
-@Composable
-private fun EmptyChurchesState(syncHint: String?, isAuthenticated: Boolean, onRefresh: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text("🏛️", fontSize = 48.sp)
-        Spacer(Modifier.height(12.dp))
-        Text("No churches yet", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            syncHint ?: if (isAuthenticated) "Tap + to create a church or refresh to sync." else "Sign in to contribute, or refresh to browse.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(20.dp))
-        OutlinedButton(onClick = onRefresh) {
-            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Sync")
-        }
-    }
-}
-
-@Composable
-private fun ChurchListCard(
-    church: CarolChurch,
-    songCount: Int,
-    pdfCount: Int,
-    canDelete: Boolean,
-    onTap: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).clickable(onClick = onTap),
-        shape = RoundedCornerShape(16.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("🏛️", fontSize = 28.sp)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(church.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    buildString {
-                        append("$songCount song${if (songCount == 1) "" else "s"}")
-                        if (pdfCount > 0) append(" · $pdfCount PDF${if (pdfCount == 1) "" else "s"}")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (canDelete) {
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete church")
-                }
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SortChipRow(viewModel: CommunityCarolsViewModel) {
-    val sortOrder by viewModel.sortOrder.collectAsState()
-    var expanded by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.End,
-    ) {
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-            AssistChip(
-                onClick = { expanded = true },
-                label = { Text(if (sortOrder == CarolSortOrder.NUMBER) "By Number" else "Newest") },
-                leadingIcon = { Icon(Icons.Default.FilterList, contentDescription = null) },
-                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+private fun CarolsTopBar(title: String, canAdd: Boolean, onBack: () -> Unit, onAdd: () -> Unit) {
+    val palette = rememberChristmasPalette()
+    TopAppBar(
+        title = {
+            Text(
+                title,
+                fontFamily = ChristmasDisplayFont,
+                style = MaterialTheme.typography.titleLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = palette.ink,
             )
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                DropdownMenuItem(text = { Text("By Song Number") }, onClick = {
-                    viewModel.setSortOrder(CarolSortOrder.NUMBER); expanded = false
-                })
-                DropdownMenuItem(text = { Text("Newest First") }, onClick = {
-                    viewModel.setSortOrder(CarolSortOrder.NEWEST); expanded = false
-                })
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = palette.ink)
+            }
+        },
+        actions = {
+            if (canAdd) {
+                IconButton(onClick = onAdd) {
+                    Icon(Icons.Default.Add, contentDescription = "Add a song or PDF", tint = palette.ink)
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent),
+    )
+}
+
+/** Search, plus (inside a church) its description, sort menu and the Songs/PDFs switch. */
+@Composable
+private fun CarolsHeader(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    activeChurch: CarolChurch?,
+    contentTab: CarolContentTab,
+    songCount: Int,
+    pdfCount: Int,
+    viewModel: CommunityCarolsViewModel,
+) {
+    val context = LocalContext.current
+    val palette = rememberChristmasPalette()
+    CarolsSearchField(
+        query = query,
+        onQueryChange = onQueryChange,
+        placeholder = if (activeChurch == null) "Search churches or carols…" else "Search this church…",
+    )
+    if (activeChurch == null) return
+    activeChurch.description?.takeIf { it.isNotBlank() }?.let { description ->
+        Text(
+            description,
+            style = MaterialTheme.typography.bodyMedium,
+            color = palette.inkMuted,
+            maxLines = 4,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+    }
+    SortChipRow(viewModel = viewModel)
+    StandardButtonGroup(
+        buttonCount = 2,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        highContrast = true,
+    ) {
+        Button(
+            index = 0,
+            onClick = {
+                HapticFeedbackManager.smoothClick(context)
+                viewModel.setContentTab(CarolContentTab.SONGS)
+            },
+            icon = Icons.Default.MusicNote,
+            label = "Songs ($songCount)",
+            isSelected = contentTab == CarolContentTab.SONGS,
+        )
+        Button(
+            index = 1,
+            onClick = {
+                HapticFeedbackManager.smoothClick(context)
+                viewModel.setContentTab(CarolContentTab.PDFS)
+            },
+            icon = Icons.Default.PictureAsPdf,
+            label = "PDFs ($pdfCount)",
+            isSelected = contentTab == CarolContentTab.PDFS,
+        )
+    }
+}
+
+/** The scrolling part: shimmer while loading, then churches, or a church's songs or PDFs. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CarolsListPane(
+    modifier: Modifier,
+    isLoading: Boolean,
+    isSyncing: Boolean,
+    onRefresh: () -> Unit,
+    activeChurch: CarolChurch?,
+    contentTab: CarolContentTab,
+    churches: List<CarolChurch>,
+    churchSongs: List<CarolSong>,
+    churchPdfs: List<CarolPdf>,
+    favouriteSongs: List<CarolSong>,
+    recentSongs: List<CarolSong>,
+    favouriteIds: Set<String>,
+    emptyState: @Composable () -> Unit,
+    churchStats: (String) -> Pair<Int, Int>,
+    viewModel: CommunityCarolsViewModel,
+    onOpenChurch: (CarolChurch) -> Unit,
+    onDeleteChurch: (CarolChurch) -> Unit,
+    onOpenSong: (CarolSong) -> Unit,
+    onOpenPdf: (CarolPdf) -> Unit,
+) {
+    PullToRefreshBox(isRefreshing = isSyncing, onRefresh = onRefresh, modifier = modifier) {
+        when {
+            isLoading -> CarolsShimmer()
+            activeChurch == null && churches.isEmpty() -> emptyState()
+            activeChurch == null -> LazyColumn(Modifier.fillMaxSize(), contentPadding = ListPadding) {
+                item(key = "your-carols") { YourCarolsStrip(favouriteSongs, recentSongs, onOpenSong) }
+                items(churches, key = { it.id }) { church ->
+                    val (songCount, pdfCount) = churchStats(church.id)
+                    ChurchListCard(
+                        church = church,
+                        songCount = songCount,
+                        pdfCount = pdfCount,
+                        canDelete = viewModel.canDeleteChurch(church),
+                        onTap = { onOpenChurch(church) },
+                        onDelete = { onDeleteChurch(church) },
+                    )
+                }
+            }
+            contentTab == CarolContentTab.SONGS && churchSongs.isEmpty() -> EmptyNote("No songs yet")
+            contentTab == CarolContentTab.SONGS -> LazyColumn(Modifier.fillMaxSize(), contentPadding = ListPadding) {
+                items(churchSongs, key = { it.id }) { song ->
+                    SongRow(
+                        song = song,
+                        isFavourite = song.id in favouriteIds,
+                        canDelete = viewModel.canDeleteSong(song),
+                        onOpen = { onOpenSong(song) },
+                        onDelete = { viewModel.deleteSong(song.id) },
+                    )
+                }
+            }
+            churchPdfs.isEmpty() -> EmptyNote("No PDFs yet")
+            else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = ListPadding) {
+                items(churchPdfs, key = { it.id }) { pdf ->
+                    PdfRow(
+                        pdf = pdf,
+                        canDelete = viewModel.canDeletePdf(pdf),
+                        onOpen = { onOpenPdf(pdf) },
+                        onDelete = { viewModel.deletePdf(pdf.id) },
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SongRow(song: CarolSong, canDelete: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
-    var confirmDelete by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable(onClick = onOpen),
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.MusicNote, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Row {
-                    song.songNumber?.let {
-                        Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
-                    }
-                    Text(song.title, fontWeight = FontWeight.SemiBold)
-                }
-                Text("Scale: ${song.scale}", style = MaterialTheme.typography.labelSmall)
-            }
-            if (canDelete) {
-                IconButton(onClick = { confirmDelete = true }) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete")
-                }
-            }
+private fun EmptyNote(text: String) {
+    val palette = rememberChristmasPalette()
+    // A scrollable list so pull-to-refresh still works on an empty church.
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = 80.dp)) {
+        item {
+            Text(text, color = palette.inkMuted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
         }
-    }
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete song?") },
-            text = { Text("Remove ${song.title}?") },
-            confirmButton = { TextButton(onClick = { onDelete(); confirmDelete = false }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-        )
-    }
-}
-
-@Composable
-private fun PdfRow(pdf: CarolPdf, canDelete: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
-    var confirmDelete by remember { mutableStateOf(false) }
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp).clickable(onClick = onOpen),
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Row {
-                    pdf.songNumber?.let {
-                        Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
-                    }
-                    Text(pdf.title, fontWeight = FontWeight.SemiBold)
-                }
-                Text("Tap to open PDF", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-            }
-            if (canDelete) {
-                IconButton(onClick = { confirmDelete = true }) {
-                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete")
-                }
-            }
-        }
-    }
-    if (confirmDelete) {
-        AlertDialog(
-            onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete PDF?") },
-            text = { Text("Remove ${pdf.title}?") },
-            confirmButton = { TextButton(onClick = { onDelete(); confirmDelete = false }) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } },
-        )
     }
 }

@@ -12,7 +12,13 @@ import androidx.core.content.ContextCompat
 import com.adyen.checkout.dropin.DropIn
 import com.reyzie.hymns.ui.screens.MainScreen
 import com.reyzie.hymns.ui.theme.CSIHymnsBookTheme
-import com.reyzie.hymns.ui.widgets.ChristmasAmbienceOverlay
+import com.reyzie.hymns.ui.christmas.ChristmasSnowfall
+import com.reyzie.hymns.ui.christmas.ChristmasToastHost
+import com.reyzie.hymns.ui.christmas.christmasTapCatcher
+import com.reyzie.hymns.ui.christmas.LocalChristmasAmbience
+import com.reyzie.hymns.ui.christmas.motion.ChristmasDeviceMotion
+import com.reyzie.hymns.ui.christmas.rememberChristmasAmbienceController
+import androidx.compose.runtime.CompositionLocalProvider
 import com.reyzie.hymns.BuildConfig
 import com.reyzie.hymns.data.SupabaseService
 import com.reyzie.hymns.data.AnalyticsService
@@ -101,6 +107,9 @@ class MainActivity : ComponentActivity() {
             val isAmoledBlack by settingsViewModel.isAmoledBlack.collectAsState()
             val themeColor by settingsViewModel.themeColor.collectAsState()
             val isChristmasMode by settingsViewModel.isChristmasMode.collectAsState()
+            val christmasEffects by settingsViewModel.christmasEffects.collectAsState()
+            val christmasEasterEggs by settingsViewModel.christmasEasterEggs.collectAsState()
+            val christmasSecretsFound by settingsViewModel.christmasSecretsFound.collectAsState()
             
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
@@ -115,14 +124,24 @@ class MainActivity : ComponentActivity() {
                 dynamicColor = false,
                 isChristmasMode = isChristmasMode
             ) {
-                Box(Modifier.fillMaxSize()) {
-                    MainScreen(dropInLauncher = dropInLauncher)
-                    if (isChristmasMode) {
-                        ChristmasAmbienceOverlay(
-                            modifier = Modifier.fillMaxSize(),
-                            intensity = com.reyzie.hymns.ui.widgets.SnowIntensity.Medium,
-                            showEasterEggs = true,
-                        )
+                val christmasAmbience = rememberChristmasAmbienceController(
+                    level = christmasEffects,
+                    easterEggsEnabled = christmasEasterEggs,
+                    foundSecrets = christmasSecretsFound,
+                    onSecretFound = settingsViewModel::addChristmasSecret,
+                )
+                CompositionLocalProvider(LocalChristmasAmbience provides christmasAmbience.takeIf { isChristmasMode }) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .then(if (isChristmasMode) Modifier.christmasTapCatcher(christmasAmbience) else Modifier)
+                    ) {
+                        MainScreen(dropInLauncher = dropInLauncher)
+                        if (isChristmasMode) {
+                            ChristmasSnowfall(christmasAmbience, Modifier.fillMaxSize())
+                            ChristmasDeviceMotion(christmasAmbience)
+                            ChristmasToastHost(christmasAmbience)
+                        }
                     }
                 }
             }
