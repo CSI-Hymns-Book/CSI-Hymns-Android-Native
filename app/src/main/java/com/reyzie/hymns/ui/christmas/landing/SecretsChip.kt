@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.christmas.landing
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,7 +73,7 @@ fun SecretsDialog(
 ) {
     var confirmReset by remember { mutableStateOf(false) }
     if (confirmReset) {
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { confirmReset = false },
             title = { Text("Reset all secrets?") },
             text = { Text("You'll forget the ${found.size} secret${if (found.size == 1) "" else "s"} you found and can discover them all again.") },
@@ -86,7 +87,7 @@ fun SecretsDialog(
             dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
         )
     }
-    AlertDialog(
+    FestiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Secrets in this season", fontFamily = ChristmasDisplayFont) },
         text = {

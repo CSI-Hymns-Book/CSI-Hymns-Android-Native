@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import com.reyzie.hymns.ui.christmas.DimChristmasSnow
 import com.reyzie.hymns.ui.christmas.lists.christmasReaderFrame
 import com.reyzie.hymns.ui.christmas.lists.isChristmasLook
@@ -2101,7 +2102,7 @@ fun AudioContributionDialog(
         }
     }
     
-    AlertDialog(
+    FestiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("No Audio Available") },
         text = {

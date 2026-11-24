@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -28,7 +29,7 @@ fun ReportIssueDialog(
     val jiraService = remember { JiraService() }
     val ticketsRepository = remember { TicketsRepository(context) }
 
-    AlertDialog(
+    FestiveAlertDialog(
         onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text("Report Issue") },
         text = {

@@ -88,6 +88,8 @@ object HapticFeedbackManager {
         val pattern = when (event) {
             is SnowHapticEvent.Slide -> SnowHaptics.slide(event.depth)
             is SnowHapticEvent.Shake -> SnowHaptics.shake(event.totalDepth)
+            SnowHapticEvent.GiftOpen -> SnowHaptics.giftOpen()
+            SnowHapticEvent.GiftLand -> SnowHaptics.giftLand()
         }
         val vibrator = getVibrator(context)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {

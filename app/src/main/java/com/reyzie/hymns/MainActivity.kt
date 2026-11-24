@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
             val christmasEffects by settingsViewModel.christmasEffects.collectAsState()
             val christmasEasterEggs by settingsViewModel.christmasEasterEggs.collectAsState()
             val christmasSecretsFound by settingsViewModel.christmasSecretsFound.collectAsState()
+            val christmasGiftsOpened by settingsViewModel.christmasGiftsOpened.collectAsState()
             
             val darkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
@@ -131,6 +132,8 @@ class MainActivity : ComponentActivity() {
                     foundSecrets = christmasSecretsFound,
                     onSecretFound = settingsViewModel::addChristmasSecret,
                     onSecretsReset = settingsViewModel::resetChristmasSecrets,
+                    giftsOpened = christmasGiftsOpened,
+                    onGiftsOpenedChanged = settingsViewModel::setChristmasGiftsOpened,
                 )
                 CompositionLocalProvider(LocalChristmasAmbience provides christmasAmbience.takeIf { isChristmasMode }) {
                     Box(

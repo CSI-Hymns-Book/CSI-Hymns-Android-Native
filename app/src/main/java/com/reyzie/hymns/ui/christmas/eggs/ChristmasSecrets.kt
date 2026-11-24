@@ -9,7 +9,8 @@ enum class ChristmasSecret(val hint: String) {
     LIGHTS("Press and hold “Merry Christmas”"),
     SHAKE("Shake the phone"),
     TILT("Tilt the phone"),
-    SANTA("Tap Santa’s sleigh as it flies past");
+    SANTA("Tap Santa’s sleigh as it flies past"),
+    GIFTS("Catch five of Santa’s gifts");
 
     companion object {
         /** Reads stored names, ignoring any that no longer exist. */

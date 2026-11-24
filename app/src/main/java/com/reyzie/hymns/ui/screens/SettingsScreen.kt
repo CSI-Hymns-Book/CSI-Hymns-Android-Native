@@ -2,6 +2,7 @@
 
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.ComponentActivity
@@ -421,7 +422,7 @@ fun SettingsScreen(
     }
 
     if (showClearCacheDialog) {
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { showClearCacheDialog = false },
             title = { Text("Clear all cache?") },
             text = {
@@ -464,7 +465,7 @@ fun SettingsScreen(
             14 to "Church Bells (Tubular)",
             52 to "Choir"
         )
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { showMidiInstrumentDialog = false },
             title = { Text("MIDI Playback Sound", fontWeight = FontWeight.Bold) },
             text = {
@@ -670,7 +671,7 @@ private fun ChristmasEffectsDialog(
     onSelect: (ChristmasEffectsLevel) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    FestiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Snow & effects", fontWeight = FontWeight.Bold) },
         text = {

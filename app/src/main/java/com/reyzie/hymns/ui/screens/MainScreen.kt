@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -448,7 +449,7 @@ fun MainScreen(
     }
 
     newReplyNotificationMsg?.let { msg ->
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { newReplyNotificationMsg = null },
             title = { Text("New Support Reply") },
             text = { Text("You received a new reply on your ticket (${msg.ticketKey}):\n\n\"${msg.message}\"") },
@@ -492,7 +493,7 @@ fun MainScreen(
         showAdminControls || showAuthOverlay
 
     if (forceUpdateDecision != null) {
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { /* Blocking */ },
             title = { Text("Update Required") },
             text = { Text(forceUpdateDecision?.message ?: "A new version of the app is available. Please update to continue using the app.") },

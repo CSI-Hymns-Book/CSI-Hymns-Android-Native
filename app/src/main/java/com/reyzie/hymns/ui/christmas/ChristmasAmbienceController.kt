@@ -17,6 +17,10 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalContext
 import com.reyzie.hymns.ui.christmas.eggs.ChristmasEffects
 import com.reyzie.hymns.ui.christmas.eggs.ChristmasSecret
+import com.reyzie.hymns.ui.christmas.eggs.GIFT_COLLECTOR_GOAL
+import com.reyzie.hymns.ui.christmas.eggs.Gift
+import com.reyzie.hymns.ui.christmas.eggs.GiftDrops
+import com.reyzie.hymns.ui.christmas.eggs.GiftSurprise
 import com.reyzie.hymns.ui.christmas.eggs.SantaFlight
 import com.reyzie.hymns.ui.christmas.eggs.SantaPose
 import com.reyzie.hymns.ui.christmas.landing.ChristmasCalendar
@@ -45,9 +49,20 @@ class ChristmasAmbienceController internal constructor(
     level: ChristmasEffectsLevel,
     easterEggsEnabled: Boolean,
     foundSecrets: Set<ChristmasSecret>,
-    val moment: ChristmasMoment,
+    giftsOpened: Int,
+    moment: ChristmasMoment,
     private val systemAnimationsOff: Boolean,
 ) {
+    /** Today's special day. Refreshed by the landing screen after midnight or a time zone change. */
+    var moment by mutableStateOf(moment)
+        private set
+
+    fun updateMoment(newMoment: ChristmasMoment) {
+        if (newMoment == moment) return
+        moment = newMoment
+        if (newMoment == ChristmasMoment.CHRISTMAS_EVE) nextSantaAtSeconds = minOf(nextSantaAtSeconds, clockSeconds + EVE_FIRST_SANTA_SECONDS)
+    }
+
     var level by mutableStateOf(level)
         internal set
     var easterEggsEnabled by mutableStateOf(easterEggsEnabled)
@@ -62,6 +77,13 @@ class ChristmasAmbienceController internal constructor(
 
     /** Called when the user resets all secrets, so the saved copy can be cleared. */
     internal var onSecretsReset: () -> Unit = {}
+
+    /** How many of Santa's gifts have been opened; five find the Gift collector secret. */
+    var giftsOpened by mutableIntStateOf(giftsOpened)
+        internal set
+
+    /** Called each time a gift is opened, with the new total, so it can be saved. */
+    internal var onGiftsOpenedChanged: (Int) -> Unit = {}
 
     /** Called when the snow does something the phone should vibrate for. */
     internal var onHaptic: (SnowHapticEvent) -> Unit = {}
@@ -100,6 +122,17 @@ class ChristmasAmbienceController internal constructor(
 
     val engine = SnowEngine()
     val effects = ChristmasEffects()
+
+    /** Santa's gifts, drawn by the snowfall layer. */
+    val gifts = GiftDrops()
+    private var giftFlightStartSeconds: Float? = null
+    private val pendingSurprises = ArrayList<PendingSurprise>()
+    private val giftSurfaceBuffer = ArrayList<SnowSurface>()
+
+    private class PendingSurprise(val dueSeconds: Float, val kind: GiftSurprise, val x: Float, val y: Float)
+
+    /** Snow and gifts only buzz the phone on the home and lists; reading screens stay still. */
+    private val hapticsAllowed: Boolean get() = dimRequests == 0
 
     private var santaStartSeconds: Float? = null
     private var nextSantaAtSeconds = if (moment == ChristmasMoment.CHRISTMAS_EVE) EVE_FIRST_SANTA_SECONDS else FIRST_SANTA_SECONDS
@@ -140,6 +173,7 @@ class ChristmasAmbienceController internal constructor(
         )
         effects.unit = engine.unit
         effects.step(dt)
+        advanceGifts(dt)
         if (abs(rawTilt) > SnowEngine.SLIDE_TILT_DEGREES) discover(ChristmasSecret.TILT)
         if (effectiveLevel != ChristmasEffectsLevel.OFF) {
             advanceSanta()
@@ -170,9 +204,53 @@ class ChristmasAmbienceController internal constructor(
             nextSantaAtSeconds = clockSeconds + Random.nextFloat() * SANTA_GAP_SPREAD_SECONDS + SANTA_GAP_SECONDS
             return
         }
+        if (giftFlightStartSeconds != start) {
+            giftFlightStartSeconds = start
+            gifts.startFlight()
+        }
+        gifts.flight(
+            progress = pose.progress,
+            x = pose.x + GIFT_SPAWN_DX_DP * engine.unit,
+            y = pose.y + GIFT_SPAWN_DY_DP * engine.unit,
+            allowed = eggsActive && hapticsAllowed,
+            paletteSeed = Random.nextInt(GiftDrops.PALETTE_COUNT),
+            unit = engine.unit,
+        )
         if (Random.nextFloat() < TRAIL_SPARKS_PER_FRAME) {
             effects.sparkle(pose.x - SLEIGH_TAIL_DP * engine.unit, pose.y + 4f * engine.unit, count = 1)
         }
+    }
+
+    /** Moves the gifts and plays any surprise whose moment has come. */
+    private fun advanceGifts(dt: Float) {
+        if (!gifts.isEmpty) {
+            giftSurfaceBuffer.clear()
+            // Every visible card catches gifts, even one whose snow has all slid off.
+            for (key in caps.keys) surfaceFor(key)?.let { giftSurfaceBuffer += it }
+            gifts.step(dt, giftSurfaceBuffer, engine.height, engine.unit) { x, y ->
+                effects.snowPuff(x, y - LANDING_PUFF_DP * engine.unit)
+                if (hapticsAllowed) onHaptic(SnowHapticEvent.GiftLand)
+            }
+        }
+        if (pendingSurprises.isNotEmpty()) {
+            val iterator = pendingSurprises.iterator()
+            while (iterator.hasNext()) {
+                val pending = iterator.next()
+                if (clockSeconds < pending.dueSeconds) continue
+                iterator.remove()
+                effects.surprise(pending.kind, pending.x, pending.y, engine.width)
+                giftsOpened += 1
+                onGiftsOpenedChanged(giftsOpened)
+                showToast("🎁 Gift ${minOf(giftsOpened, GIFT_COLLECTOR_GOAL)} of $GIFT_COLLECTOR_GOAL · ${pending.kind.title}")
+                if (giftsOpened >= GIFT_COLLECTOR_GOAL) discover(ChristmasSecret.GIFTS, "🎁 Gift collector")
+            }
+        }
+    }
+
+    private fun openGift(gift: Gift) {
+        effects.sparkle(gift.x, gift.y, count = 10)
+        if (hapticsAllowed) onHaptic(SnowHapticEvent.GiftOpen)
+        pendingSurprises += PendingSurprise(clockSeconds + SURPRISE_DELAY_SECONDS, GiftSurprise.pick(Random.nextFloat()), gift.x, gift.y)
     }
 
     private fun launchFireworks() {
@@ -192,6 +270,10 @@ class ChristmasAmbienceController internal constructor(
      */
     fun handleTap(x: Float, y: Float): Boolean {
         if (!eggsActive) return false
+        gifts.open(x, y, GiftDrops.TAP_RADIUS * engine.unit)?.let {
+            openGift(it)
+            return true
+        }
         val pose = santaPose()
         if (pose != null && SantaFlight.isHit(pose, x, y, engine.unit)) {
             effects.gifts(pose.x, pose.y)
@@ -220,6 +302,7 @@ class ChristmasAmbienceController internal constructor(
     /** Forgets every found secret (the saved copy is cleared by [onSecretsReset]). */
     fun resetSecrets() {
         foundSecrets = emptySet()
+        giftsOpened = 0
         onSecretsReset()
         showToast("Secrets reset · find them all again")
     }
@@ -241,7 +324,7 @@ class ChristmasAmbienceController internal constructor(
     fun shake() {
         if (effectiveLevel == ChristmasEffectsLevel.OFF) return
         shakeGeneration += 1
-        onHaptic(SnowHapticEvent.Shake(caps.values.filter { it.visible }.sumOf { it.depth.toDouble() }.toFloat()))
+        if (hapticsAllowed) onHaptic(SnowHapticEvent.Shake(caps.values.filter { it.visible }.sumOf { it.depth.toDouble() }.toFloat()))
         flurryUntilSeconds = clockSeconds + FLURRY_SECONDS
         discover(ChristmasSecret.SHAKE)
     }
@@ -276,7 +359,7 @@ class ChristmasAmbienceController internal constructor(
     internal fun spillFromCap(key: Any, direction: Int) {
         surfaceFor(key)?.let { engine.spill(it, direction.toFloat()) }
         val depth = caps[key]?.depth ?: return
-        if (slideThrottle.tryFire((clockSeconds * MILLIS_PER_SECOND).toLong())) onHaptic(SnowHapticEvent.Slide(depth))
+        if (hapticsAllowed && slideThrottle.tryFire((clockSeconds * MILLIS_PER_SECOND).toLong())) onHaptic(SnowHapticEvent.Slide(depth))
     }
 
     internal fun knockOffCap(key: Any, depth: Float) {
@@ -313,6 +396,10 @@ class ChristmasAmbienceController internal constructor(
         private const val SANTA_GAP_SPREAD_SECONDS = 30f
         private const val TRAIL_SPARKS_PER_FRAME = 0.6f
         private const val SLEIGH_TAIL_DP = 18f
+        private const val GIFT_SPAWN_DX_DP = 10f
+        private const val GIFT_SPAWN_DY_DP = 8f
+        private const val LANDING_PUFF_DP = 4f
+        private const val SURPRISE_DELAY_SECONDS = 0.38f
         private const val FIREWORK_LAUNCH_DP = 330f
         private const val EMOJI_HIT_RADIUS_DP = 22f
         private const val SLIDE_HAPTIC_GAP_MILLIS = 140L
@@ -333,6 +420,8 @@ fun rememberChristmasAmbienceController(
     foundSecrets: Set<ChristmasSecret>,
     onSecretFound: (ChristmasSecret) -> Unit,
     onSecretsReset: () -> Unit,
+    giftsOpened: Int,
+    onGiftsOpenedChanged: (Int) -> Unit,
 ): ChristmasAmbienceController {
     val context = LocalContext.current
     val controller = remember {
@@ -345,7 +434,8 @@ fun rememberChristmasAmbienceController(
             level = level,
             easterEggsEnabled = easterEggsEnabled,
             foundSecrets = foundSecrets,
-            moment = ChristmasCalendar.moment(LocalDate.now()),
+            giftsOpened = giftsOpened,
+            moment = ChristmasCalendar.moment(ChristmasCalendar.today()),
             systemAnimationsOff = animatorScale == 0f,
         )
     }
@@ -354,10 +444,12 @@ fun rememberChristmasAmbienceController(
         controller.easterEggsEnabled = easterEggsEnabled
         controller.onSecretFound = onSecretFound
         controller.onSecretsReset = onSecretsReset
+        controller.onGiftsOpenedChanged = onGiftsOpenedChanged
         controller.onHaptic = { event -> HapticFeedbackManager.snow(context, event) }
     }
     // The saved list is the source of truth; follow it whenever it changes (including a reset).
     LaunchedEffect(foundSecrets) { controller.foundSecrets = foundSecrets }
+    LaunchedEffect(giftsOpened) { controller.giftsOpened = giftsOpened }
     return controller
 }
 

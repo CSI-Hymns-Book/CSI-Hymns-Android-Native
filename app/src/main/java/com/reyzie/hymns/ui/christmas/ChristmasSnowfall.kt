@@ -31,8 +31,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import com.reyzie.hymns.ui.christmas.eggs.SurpriseEmojis
 import com.reyzie.hymns.ui.christmas.eggs.drawChristmasEffects
+import com.reyzie.hymns.ui.christmas.eggs.drawGifts
 import com.reyzie.hymns.ui.christmas.eggs.drawSanta
 import com.reyzie.hymns.ui.christmas.snow.SnowEngine
 import kotlinx.coroutines.isActive
@@ -44,6 +47,7 @@ private const val NANOS_PER_SECOND = 1_000_000_000f
 private const val MAX_FRAME_SECONDS = 0.05f
 private const val FLAKE_STROKE = 0.13f
 private const val SANTA_MIN_ALPHA = 0.4f
+private const val SURPRISE_EMOJI_SP = 40f
 
 /** The drifting emoji easter eggs from the original Christmas mode. */
 private val EasterEggEmojis = listOf("🎄", "⭐", "🔔", "🎁", "❄️", "🕯️", "🦌", "⛄")
@@ -79,6 +83,10 @@ fun ChristmasSnowfall(controller: ChristmasAmbienceController, modifier: Modifie
         EasterEggEmojis.map { textMeasurer.renderEmoji(it, pxDensity) }
     }
     val giftImage = remember(textMeasurer, pxDensity) { textMeasurer.renderEmoji("🎁", pxDensity) }
+    // Drawn large once, so they stay sharp when scaled to 24 to 40dp.
+    val surpriseImages = remember(textMeasurer, pxDensity) {
+        SurpriseEmojis.associateWith { textMeasurer.renderEmoji(it, pxDensity, SURPRISE_EMOJI_SP.sp) }
+    }
     val flakePath = remember { buildFlakePath() }
     val engine = controller.engine
 
@@ -104,7 +112,8 @@ fun ChristmasSnowfall(controller: ChristmasAmbienceController, modifier: Modifie
             drawEmojis(engine, emojiImages, level.emojiCount, palette.emojiAlpha * alpha)
         }
         controller.santaPose()?.let { drawSanta(it, controller.clockSeconds, palette.isNight || controller.darkSkyBehind, alpha.coerceAtLeast(SANTA_MIN_ALPHA)) }
-        drawChristmasEffects(controller.effects, giftImage)
+        drawGifts(controller.gifts)
+        drawChristmasEffects(controller.effects, giftImage, surpriseImages)
     }
 }
 
@@ -149,8 +158,8 @@ private fun DrawScope.drawEmojis(engine: SnowEngine, images: List<ImageBitmap>, 
  * Draws an emoji once into a small bitmap. Colour emoji ignore text alpha, and drawing
  * bitmaps with alpha each frame is far cheaper than a translucent layer over the screen.
  */
-private fun TextMeasurer.renderEmoji(emoji: String, density: Density): ImageBitmap {
-    val layout = measure(emoji, TextStyle(fontSize = 14.sp), density = density)
+private fun TextMeasurer.renderEmoji(emoji: String, density: Density, size: TextUnit = 14.sp): ImageBitmap {
+    val layout = measure(emoji, TextStyle(fontSize = size), density = density)
     val image = ImageBitmap(layout.size.width.coerceAtLeast(1), layout.size.height.coerceAtLeast(1))
     CanvasDrawScope().draw(density, LayoutDirection.Ltr, Canvas(image), Size(image.width.toFloat(), image.height.toFloat())) {
         drawText(layout)

@@ -81,6 +81,7 @@ import com.reyzie.hymns.ui.christmas.landing.ChristmasMoment
 import com.reyzie.hymns.ui.christmas.landing.HangingBell
 import com.reyzie.hymns.ui.christmas.landing.HeroEggState
 import com.reyzie.hymns.ui.christmas.landing.rememberSceneClock
+import com.reyzie.hymns.ui.christmas.landing.rememberToday
 import com.reyzie.hymns.ui.christmas.eggs.ChristmasSecret
 import com.reyzie.hymns.ui.christmas.eggs.StarTapCounter
 import com.reyzie.hymns.ui.christmas.eggs.StarTapResult
@@ -181,8 +182,10 @@ fun ChristmasLandingScreen(
     val palette = rememberChristmasPalette()
     val ambience = LocalChristmasAmbience.current
     val animate = ambience?.effectiveLevel != ChristmasEffectsLevel.OFF
-    val today = remember { LocalDate.now() }
-    val eggs = remember { HeroEggState(ChristmasCalendar.moment(today)) }
+    val today = rememberToday()
+    val moment = ChristmasCalendar.moment(today)
+    val eggs = remember(moment) { HeroEggState(moment) }
+    LaunchedEffect(moment) { ambience?.updateMoment(moment) }
     val actions = ChristmasCollectionActions(onOpenHymns, onOpenKeerthanes, onOpenCarols, onOpenMtHymns)
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     NightSkyOverHome(isActive = isVisible, needsLightIcons = !palette.isNight)

@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -109,7 +110,7 @@ fun CategoriesScreen(
         }
     ) { padding ->
         if (showCreateDialog) {
-            AlertDialog(
+            FestiveAlertDialog(
                 onDismissRequest = { showCreateDialog = false },
                 title = { Text("New Custom Category") },
                 text = {

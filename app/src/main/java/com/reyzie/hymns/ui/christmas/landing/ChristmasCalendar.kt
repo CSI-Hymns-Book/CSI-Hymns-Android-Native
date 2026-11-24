@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.christmas.landing
 
+import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
@@ -15,6 +16,12 @@ enum class ChristmasMoment { NONE, CHRISTMAS_EVE, CHRISTMAS_DAY, NEW_YEAR, EPIPH
 object ChristmasCalendar {
     private const val EPIPHANY_DAY = 6
     private val adventDateFormat = DateTimeFormatter.ofPattern("EEE d MMM", Locale.ENGLISH)
+
+    /**
+     * Today's date on the device's calendar. The clock is read on every call, so it follows the
+     * time zone the phone is in right now. Tests pass a fixed clock to try other zones.
+     */
+    fun today(clock: Clock = Clock.systemDefaultZone()): LocalDate = LocalDate.now(clock)
 
     private fun christmas(year: Int): LocalDate = LocalDate.of(year, Month.DECEMBER, 25)
 

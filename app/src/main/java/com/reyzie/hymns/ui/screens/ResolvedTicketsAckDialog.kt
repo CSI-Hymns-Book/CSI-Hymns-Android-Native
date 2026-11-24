@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -22,7 +23,7 @@ fun ResolvedTicketsAckDialog(
     items: List<ResolvedTicketAckItem>,
     onAcknowledge: () -> Unit
 ) {
-    AlertDialog(
+    FestiveAlertDialog(
         onDismissRequest = { },
         title = {
             Text(

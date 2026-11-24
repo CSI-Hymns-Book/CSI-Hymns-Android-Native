@@ -14,6 +14,12 @@ sealed interface SnowHapticEvent {
 
     /** The phone was shaken; [totalDepth] is all the snow knocked off, in full cards. */
     data class Shake(val totalDepth: Float) : SnowHapticEvent
+
+    /** One of Santa's gifts was opened: a soft double tap. */
+    data object GiftOpen : SnowHapticEvent
+
+    /** A gift landed on a card: one small thud. */
+    data object GiftLand : SnowHapticEvent
 }
 
 /**
@@ -36,6 +42,12 @@ object SnowHaptics {
     private const val SHAKE_MIN_AMPLITUDE = 110
     private const val SHAKE_AMPLITUDE_RANGE = 145
     private const val FADE_PER_PULSE = 0.72f
+
+    /** Two soft taps, the second a little firmer. */
+    fun giftOpen() = HapticPattern(listOf(0L, 18L, 70L, 18L), listOf(0, 150, 0, 230))
+
+    /** A single small thud. */
+    fun giftLand() = HapticPattern(listOf(0L, 16L), listOf(0, 110))
 
     fun slide(depth: Float): HapticPattern {
         val amplitude = SLIDE_MIN_AMPLITUDE + (depth.coerceIn(0f, 1f) * SLIDE_AMPLITUDE_RANGE).roundToInt()

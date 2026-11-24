@@ -135,6 +135,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     )
     val christmasSecretsFound: StateFlow<Set<ChristmasSecret>> = _christmasSecretsFound.asStateFlow()
 
+    private val _christmasGiftsOpened = MutableStateFlow(prefs.getInt(KEY_CHRISTMAS_GIFTS, 0))
+
+    /** How many of Santa's gifts have been opened so far (five open the Gift collector secret). */
+    val christmasGiftsOpened: StateFlow<Int> = _christmasGiftsOpened.asStateFlow()
+
+    fun setChristmasGiftsOpened(count: Int) {
+        prefs.edit().putInt(KEY_CHRISTMAS_GIFTS, count).apply()
+        _christmasGiftsOpened.value = count
+    }
+
     fun addChristmasSecret(secret: ChristmasSecret) {
         val updated = _christmasSecretsFound.value + secret
         if (updated == _christmasSecretsFound.value) return
@@ -144,8 +154,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     /** Forgets every easter egg found so far, so they can all be discovered again. */
     fun resetChristmasSecrets() {
-        prefs.edit().remove(KEY_CHRISTMAS_SECRETS).apply()
+        prefs.edit().remove(KEY_CHRISTMAS_SECRETS).remove(KEY_CHRISTMAS_GIFTS).apply()
         _christmasSecretsFound.value = emptySet()
+        _christmasGiftsOpened.value = 0
     }
 
     fun setChristmasEffects(level: ChristmasEffectsLevel) {
@@ -236,5 +247,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         const val KEY_CHRISTMAS_EFFECTS = "christmas_effects"
         const val KEY_CHRISTMAS_EASTER_EGGS = "christmas_easter_eggs"
         const val KEY_CHRISTMAS_SECRETS = "christmas_secrets_found"
+        const val KEY_CHRISTMAS_GIFTS = "christmas_gifts_opened"
     }
 }

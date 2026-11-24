@@ -2,7 +2,10 @@ package com.reyzie.hymns.ui.christmas.landing
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 class ChristmasCalendarTest {
 
@@ -67,5 +70,51 @@ class ChristmasMomentTest {
         assertEquals("32 days to Christmas", ChristmasCalendar.chipLabel(LocalDate.of(2026, 11, 23)))
         assertEquals("Christmas Eve · Santa is on his way", ChristmasCalendar.chipLabel(LocalDate.of(2026, 12, 24)))
         assertEquals("Epiphany · the wise men arrive", ChristmasCalendar.chipLabel(LocalDate.of(2027, 1, 6)))
+    }
+}
+
+
+class ChristmasCountdownZoneTest {
+    private fun todayAt(instant: String, zone: String) =
+        ChristmasCalendar.today(Clock.fixed(Instant.parse(instant), ZoneId.of(zone)))
+
+    private fun daysAt(instant: String, zone: String) =
+        ChristmasCalendar.countdownLabel(todayAt(instant, zone))
+
+    @Test
+    fun `the same moment is Christmas Eve in New York and Christmas Day in India`() {
+        val eve = "2026-12-24T20:00:00Z"
+        assertEquals(ChristmasMoment.CHRISTMAS_EVE, ChristmasCalendar.moment(todayAt(eve, "America/New_York")))
+        assertEquals(ChristmasMoment.CHRISTMAS_EVE, ChristmasCalendar.moment(todayAt(eve, "America/Los_Angeles")))
+        assertEquals(ChristmasMoment.CHRISTMAS_DAY, ChristmasCalendar.moment(todayAt(eve, "Asia/Kolkata")))
+        assertEquals(ChristmasMoment.CHRISTMAS_DAY, ChristmasCalendar.moment(todayAt(eve, "Pacific/Kiritimati")))
+    }
+
+    @Test
+    fun `the day count follows the local date in every zone`() {
+        val nov24 = "2026-11-24T10:00:00Z"
+        assertEquals("31 days to Christmas", daysAt(nov24, "America/New_York"))
+        assertEquals("31 days to Christmas", daysAt(nov24, "Asia/Kolkata"))
+        assertEquals("30 days to Christmas", daysAt(nov24, "Pacific/Kiritimati"))
+        assertEquals("32 days to Christmas", daysAt(nov24, "Pacific/Pago_Pago"))
+    }
+
+    @Test
+    fun `daylight saving changes do not shift the count`() {
+        assertEquals("55 days to Christmas", daysAt("2026-10-31T16:00:00Z", "America/New_York"))
+        assertEquals("299 days to Christmas", daysAt("2026-03-01T12:00:00Z", "Europe/London"))
+    }
+
+    @Test
+    fun `the day after Christmas counts to next year only once Christmastide ends`() {
+        assertEquals("Christmastide", daysAt("2026-12-26T12:00:00Z", "Asia/Kolkata"))
+        assertEquals("353 days to Christmas", daysAt("2027-01-06T12:00:00Z", "Asia/Kolkata"))
+    }
+
+    @Test
+    fun `advent text is the same wherever the phone is`() {
+        val nov24 = "2026-11-24T10:00:00Z"
+        assertEquals("Advent begins Sun 29 Nov", ChristmasCalendar.adventLabel(todayAt(nov24, "Asia/Kolkata")))
+        assertEquals("Advent begins Sun 29 Nov", ChristmasCalendar.adventLabel(todayAt(nov24, "Pacific/Kiritimati")))
     }
 }

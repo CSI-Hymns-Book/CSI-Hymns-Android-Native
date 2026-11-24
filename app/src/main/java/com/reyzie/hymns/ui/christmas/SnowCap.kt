@@ -118,7 +118,7 @@ fun Modifier.snowCap(
         }
 }
 
-private fun List<CapCommand>.toPath(pxPerDp: Float): Path = Path().also { path ->
+internal fun List<CapCommand>.toPath(pxPerDp: Float): Path = Path().also { path ->
     forEach { command ->
         when (command) {
             is CapCommand.MoveTo -> path.moveTo(command.x * pxPerDp, command.y * pxPerDp)

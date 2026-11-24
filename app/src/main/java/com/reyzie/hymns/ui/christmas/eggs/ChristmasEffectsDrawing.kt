@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.rotateRad
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
@@ -29,7 +30,7 @@ private val DayRim = Color(0xFF33405F)
 private val RudolphNose = Color(0xFFFF3B30)
 
 /** Draws sparkles, confetti, bell rings, fireworks and falling gifts. */
-fun DrawScope.drawChristmasEffects(effects: ChristmasEffects, gift: ImageBitmap) {
+fun DrawScope.drawChristmasEffects(effects: ChristmasEffects, gift: ImageBitmap, surpriseImages: Map<String, ImageBitmap> = emptyMap()) {
     effects.particles.forEach { p ->
         if (p.isWaiting) return@forEach
         val color = Color(p.color)
@@ -50,10 +51,78 @@ fun DrawScope.drawChristmasEffects(effects: ChristmasEffects, gift: ImageBitmap)
                 p.size,
                 StrokeCap.Round,
             )
+            EffectKind.EMOJI -> surpriseImages[p.emoji]?.let { drawSurpriseEmoji(p, it) }
             EffectKind.GIFT -> translate(p.x, p.y) {
                 rotateRad(p.rotation, pivot = Offset.Zero) {
                     drawImage(gift, topLeft = Offset(-gift.width / 2f, -gift.height / 2f), alpha = (p.fade * 3f).coerceAtMost(1f))
                 }
+            }
+        }
+    }
+}
+
+private const val TWO_PI = (2 * PI).toFloat()
+private val StarGlow = Color(0xFFFFD36B)
+
+private fun lerp(from: Float, to: Float, t: Float) = from + (to - from) * t.coerceIn(0f, 1f)
+
+/** Fades in over the first [inEnd] of its life and out over the last [outStart]..1. */
+private fun lifeAlpha(t: Float, inEnd: Float, outStart: Float): Float = when {
+    t < inEnd -> t / inEnd
+    t > outStart -> (1f - t) / (1f - outStart)
+    else -> 1f
+}.coerceIn(0f, 1f)
+
+/** One gift surprise emoji. Falling ones are integrated; the rest are drawn from their age. */
+private fun DrawScope.drawSurpriseEmoji(p: EffectParticle, image: ImageBitmap) {
+    val t = 1f - p.fade
+    val u = density
+    var x = p.x
+    var y = p.y
+    var scaleX = 1f
+    var scaleY = 1f
+    var rotation = p.rotation
+    var alpha = 1f
+    when (p.style) {
+        EmojiStyle.FALL -> alpha = (p.life * 3f).coerceIn(0f, 1f)
+        EmojiStyle.SWING -> {
+            rotation = sin(t * 3f * TWO_PI) * 0.5f * (1f - t * 0.6f) * p.spin
+            alpha = lifeAlpha(t, 0.1f, 0.85f)
+        }
+        EmojiStyle.POP -> {
+            val s = when {
+                t < 0.3f -> lerp(0.3f, 1.15f, t / 0.3f)
+                t < 0.5f -> lerp(1.15f, 0.95f, (t - 0.3f) / 0.2f)
+                else -> lerp(0.95f, 1f, (t - 0.5f) / 0.2f)
+            }
+            scaleX = s; scaleY = s
+            y = p.y - 34f * u * (t / 0.35f).coerceIn(0f, 1f)
+            alpha = lifeAlpha(t, 0.08f, 0.85f)
+        }
+        EmojiStyle.RISE -> {
+            val rise = p.vy
+            val drift = p.vx
+            val landing = (t / 0.7f).coerceIn(0f, 1f)
+            val eased = landing * landing * (3f - 2f * landing)
+            val after = ((t - 0.7f) / 0.3f).coerceIn(0f, 1f)
+            x = p.x + drift * after
+            y = p.y + rise * eased - 40f * u * after
+            val s = when {
+                t < 0.25f -> lerp(0.3f, 1.5f, t / 0.25f)
+                t < 0.7f -> lerp(1.5f, 1.2f, (t - 0.25f) / 0.45f)
+                else -> lerp(1.2f, 0.5f, after)
+            }
+            scaleX = s; scaleY = s
+            rotation = t * 3f * PI.toFloat()
+            alpha = lifeAlpha(t, 0.1f, 0.85f)
+            drawCircle(StarGlow.copy(alpha = 0.3f * alpha), p.size * 0.75f * s, Offset(x, y))
+        }
+    }
+    val k = p.size / image.height
+    translate(x, y) {
+        rotateRad(rotation, pivot = Offset.Zero) {
+            scale(scaleX * k, scaleY * k, pivot = Offset.Zero) {
+                drawImage(image, topLeft = Offset(-image.width / 2f, -image.height / 2f), alpha = alpha)
             }
         }
     }

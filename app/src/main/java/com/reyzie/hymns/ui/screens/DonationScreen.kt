@@ -2,6 +2,7 @@
 
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -571,7 +572,7 @@ fun DonationScreen(
             }
 
             if (isPaymentSuccess != null) {
-                AlertDialog(
+                FestiveAlertDialog(
                     onDismissRequest = {
                         isPaymentSuccess = null
                         paymentStatusMessage = null

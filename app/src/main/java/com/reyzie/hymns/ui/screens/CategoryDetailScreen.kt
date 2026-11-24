@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.festiveCap
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -92,6 +93,7 @@ fun CategoryDetailScreen(
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
+                modifier = Modifier.festiveCap(),
                 onClick = onAddSongsClick,
                 icon = { Icon(Icons.Default.LibraryAddCheck, contentDescription = "Add Songs") },
                 text = { Text("Add Songs") }
