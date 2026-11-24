@@ -157,6 +157,30 @@ class CarolsRepository private constructor(context: Context) {
         saved
     }
 
+    /** Saves an edit to a song's title, number, scale and lyrics. Who uploaded it and when stay as they were. */
+    suspend fun updateSong(
+        songId: String,
+        title: String,
+        songNumber: String?,
+        lyricsKannada: String,
+        lyricsEnglish: String?,
+        scale: String,
+    ): CarolSong = withContext(Dispatchers.IO) {
+        requireUserId()
+        val existing = _songs.value.find { it.id == songId } ?: throw IllegalStateException("That song is no longer here.")
+        val edited = existing.copy(
+            title = title.trim(),
+            songNumber = songNumber?.trim()?.takeIf { it.isNotEmpty() },
+            lyrics = buildBilingualLyrics(lyricsKannada, lyricsEnglish),
+            scale = scale,
+            updatedAt = Instant.now().toString(),
+        )
+        val saved = remote.updateSong(edited)
+        localDb.upsertSong(saved)
+        _songs.value = localDb.getAllSongs()
+        saved
+    }
+
     suspend fun addPdf(
         churchId: String,
         title: String,

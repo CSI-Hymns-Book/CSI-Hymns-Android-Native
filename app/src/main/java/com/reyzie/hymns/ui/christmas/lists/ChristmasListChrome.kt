@@ -96,6 +96,8 @@ fun ChristmasSongRow(
     badgeBackground: Color,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Makes the label a little bigger and bolder, for a song number that should stand out. */
+    emphasizeLabel: Boolean = false,
     trailing: @Composable RowScope.(ChristmasPalette) -> Unit = { palette -> DefaultChevron(palette) },
     badge: @Composable () -> Unit,
 ) {
@@ -139,8 +141,8 @@ fun ChristmasSongRow(
             Text(
                 label.uppercase(),
                 color = palette.gold,
-                fontSize = 10.5.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = if (emphasizeLabel) 12.5.sp else 10.5.sp,
+                fontWeight = if (emphasizeLabel) FontWeight.ExtraBold else FontWeight.Bold,
                 letterSpacing = 1.2.sp,
             )
             Text(

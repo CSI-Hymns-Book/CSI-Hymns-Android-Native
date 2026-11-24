@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -42,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.reyzie.hymns.carols.data.model.CarolSong
 import com.reyzie.hymns.carols.domain.splitBilingualLyrics
+import com.reyzie.hymns.carols.domain.splitStanzas
 import com.reyzie.hymns.ui.christmas.ChristmasDisplayFont
 import com.reyzie.hymns.ui.christmas.ChristmasPalette
 import com.reyzie.hymns.ui.widgets.StandardButtonGroup
@@ -51,14 +55,20 @@ import kotlinx.coroutines.launch
 /** Which language of a bilingual carol is shown. */
 enum class CarolLanguage { KANNADA, ENGLISH }
 
-private const val BASE_LYRIC_SP = 17f
-private const val LYRIC_LINE_HEIGHT = 1.5f
+internal const val BASE_LYRIC_SP = 17f
+private const val LYRIC_LINE_HEIGHT = 1.6f
 private const val PRESENT_LYRIC_SP = 30f
+private const val VERSE_GAP_DP = 22f
+private val ReadingWidth = 560.dp
+private val LandscapeReadingWidth = 920.dp
+
+/** Room kept clear at each side for the previous and next arrows. */
+private val ArrowGutter = 48.dp
 
 /**
- * One carol in the reader: church and number, the Kannada/English switch for bilingual
- * songs, and the lyrics at the reader's chosen size. Landscape shows both languages side
- * by side.
+ * One carol in the reader, centred: church, a gold number chip, the title, the scale, the
+ * Kannada/English switch for bilingual songs and then the lyrics verse by verse at the reader's
+ * chosen size. Landscape shows both languages side by side.
  */
 @Composable
 fun CarolLyricsPage(
@@ -70,56 +80,112 @@ fun CarolLyricsPage(
     onLanguageChange: (CarolLanguage) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val (kannada, english) = remember(song.id) { splitBilingualLyrics(song.lyrics) }
+    val (kannada, english) = remember(song.id, song.lyrics) { splitBilingualLyrics(song.lyrics) }
     val isLandscape = LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
     val lyricSize = (BASE_LYRIC_SP * textScale).sp
     val lyricStyle = MaterialTheme.typography.bodyLarge.copy(
         fontSize = lyricSize,
         lineHeight = lyricSize * LYRIC_LINE_HEIGHT,
         color = palette.ink,
+        textAlign = TextAlign.Center,
     )
-    Column(
+    val sideBySide = english != null && isLandscape
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 96.dp),
+            .verticalScroll(rememberScrollState()),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                if (churchName.isNotBlank()) {
-                    Text(churchName.uppercase(), color = palette.gold, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+        Column(
+            modifier = Modifier
+                .widthIn(max = if (sideBySide) LandscapeReadingWidth else ReadingWidth)
+                .fillMaxWidth()
+                .padding(horizontal = ArrowGutter)
+                .padding(top = 8.dp, bottom = 96.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            SongHeader(song, churchName, palette)
+            if (english != null && !isLandscape) {
+                LanguageSwitch(language, onLanguageChange, Modifier.padding(top = 16.dp))
+            }
+            Ornament(palette)
+            if (sideBySide) {
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    LyricColumn("ಕನ್ನಡ", kannada, palette, lyricStyle, textScale, Modifier.weight(1f))
+                    LyricColumn("English", english.orEmpty(), palette, lyricStyle, textScale, Modifier.weight(1f))
                 }
-                Text(
-                    song.title,
-                    color = palette.ink,
-                    fontFamily = ChristmasDisplayFont,
-                    fontSize = 26.sp,
-                    lineHeight = 31.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-                Text(
-                    listOfNotNull(song.songNumber?.let { "No. $it" }, song.scale.takeIf { it.isNotBlank() }).joinToString(" · "),
-                    color = palette.inkMuted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+            } else {
+                Verses(if (language == CarolLanguage.ENGLISH && english != null) english else kannada, lyricStyle, textScale)
             }
         }
-        if (english != null && !isLandscape) {
-            LanguageSwitch(language, onLanguageChange, Modifier.padding(top = 14.dp))
+    }
+}
+
+/** Church, number chip, title and scale, all centred. */
+@Composable
+private fun SongHeader(song: CarolSong, churchName: String, palette: ChristmasPalette) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        if (churchName.isNotBlank()) {
+            Text(
+                churchName.uppercase(),
+                color = palette.gold,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.3.sp,
+                textAlign = TextAlign.Center,
+            )
         }
-        Spacer(Modifier.height(18.dp))
-        if (english != null && isLandscape) {
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                LyricColumn("ಕನ್ನಡ", kannada, palette, lyricStyle, Modifier.weight(1f))
-                LyricColumn("English", english, palette, lyricStyle, Modifier.weight(1f))
-            }
-        } else {
-            val text = if (language == CarolLanguage.ENGLISH && english != null) english else kannada
-            Text(text, style = lyricStyle)
+        song.songNumber?.takeIf { it.isNotBlank() }?.let { number ->
+            Text(
+                "No. $number",
+                color = palette.gold,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .padding(top = 12.dp)
+                    .background(palette.gold.copy(alpha = 0.16f), RoundedCornerShape(50))
+                    .border(1.dp, palette.gold.copy(alpha = 0.6f), RoundedCornerShape(50))
+                    .padding(horizontal = 14.dp, vertical = 5.dp),
+            )
         }
+        Text(
+            song.title,
+            color = palette.ink,
+            fontFamily = ChristmasDisplayFont,
+            fontSize = 28.sp,
+            lineHeight = 35.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        song.scale.takeIf { it.isNotBlank() }?.let { scale ->
+            Text(
+                "Scale · $scale",
+                color = palette.inkMuted,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+/** A small gold flourish between the heading and the lyrics. */
+@Composable
+private fun Ornament(palette: ChristmasPalette) {
+    Text("✦", color = palette.gold.copy(alpha = 0.85f), fontSize = 14.sp, modifier = Modifier.padding(vertical = 18.dp))
+}
+
+/** The lyrics as separate verses, centred, with a clear gap between them. */
+@Composable
+private fun Verses(text: String, style: androidx.compose.ui.text.TextStyle, textScale: Float) {
+    val verses = remember(text) { splitStanzas(text).ifEmpty { listOf(text) } }
+    Column(
+        verticalArrangement = Arrangement.spacedBy((VERSE_GAP_DP * textScale).dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        verses.forEach { Text(it, style = style, modifier = Modifier.fillMaxWidth()) }
     }
 }
 
@@ -154,12 +220,13 @@ private fun LyricColumn(
     text: String,
     palette: ChristmasPalette,
     style: androidx.compose.ui.text.TextStyle,
+    textScale: Float,
     modifier: Modifier,
 ) {
-    Column(modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(heading, color = palette.gold, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        Text(text, style = style)
+        Spacer(Modifier.height(10.dp))
+        Verses(text, style, textScale)
     }
 }
 

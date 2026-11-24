@@ -66,17 +66,33 @@ class ChurchInitialsTest {
     }
 }
 
-class CarolShareTextTest {
+class CarolTextScaleSliderTest {
     @Test
-    fun `share text has title, church and lyrics`() {
-        val text = carolShareText(title = "Joy", number = "12", churchName = "Bethel", lyrics = "Line one")
-        assertEquals("Joy (No. 12)\nBethel\n\nLine one\n\nShared from CSI Kannada Hymns", text)
+    fun `snaps to the nearest five percent`() {
+        assertEquals(1.05f, CarolTextScale.snap(1.049f), 0.0001f)
+        assertEquals(1.1f, CarolTextScale.snap(1.08f), 0.0001f)
+        assertEquals(1.0f, CarolTextScale.snap(1.02f), 0.0001f)
     }
 
     @Test
-    fun `share text skips missing number and church`() {
-        val text = carolShareText(title = "Joy", number = null, churchName = "", lyrics = "L")
-        assertEquals("Joy\n\nL\n\nShared from CSI Kannada Hymns", text)
+    fun `snapping keeps the size within limits`() {
+        assertEquals(CarolTextScale.MIN, CarolTextScale.snap(0.1f), 0.0001f)
+        assertEquals(CarolTextScale.MAX, CarolTextScale.snap(5f), 0.0001f)
+    }
+
+    @Test
+    fun `the slider has a stop for every five percent`() {
+        val span = CarolTextScale.MAX - CarolTextScale.MIN
+        // 20 intervals means 19 stops between the two ends.
+        assertEquals(20, Math.round(span / CarolTextScale.SLIDER_STEP))
+        assertEquals(19, CarolTextScale.SLIDER_STOPS)
+    }
+
+    @Test
+    fun `shows the size as a percentage`() {
+        assertEquals("100%", CarolTextScale.percentLabel(1f))
+        assertEquals("115%", CarolTextScale.percentLabel(1.15f))
+        assertEquals("180%", CarolTextScale.percentLabel(9f))
     }
 }
 

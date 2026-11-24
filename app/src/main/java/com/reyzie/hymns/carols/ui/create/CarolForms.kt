@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -32,6 +34,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.reyzie.hymns.carols.data.model.CarolSong
+import com.reyzie.hymns.carols.domain.splitBilingualLyrics
 import com.reyzie.hymns.data.MusicalScales
 
 @Composable
@@ -74,24 +78,34 @@ fun CreateChurchDialog(
     )
 }
 
+/**
+ * The song form. With no [initial] song it adds a new one; with one it edits it, prefilled
+ * with its title, number, scale and lyrics (the Kannada and English halves separately).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddCarolSongDialog(
+fun CarolSongFormDialog(
     onDismiss: () -> Unit,
-    onAdd: (title: String, songNumber: String?, kannada: String, english: String?, scale: String) -> Unit,
+    onSave: (title: String, songNumber: String?, kannada: String, english: String?, scale: String) -> Unit,
+    initial: CarolSong? = null,
 ) {
-    var title by remember { mutableStateOf("") }
-    var number by remember { mutableStateOf("") }
-    var kannada by remember { mutableStateOf("") }
-    var english by remember { mutableStateOf("") }
-    var scale by remember { mutableStateOf("C Major") }
+    val (initialKannada, initialEnglish) = remember(initial?.id, initial?.lyrics) {
+        initial?.let { splitBilingualLyrics(it.lyrics) } ?: ("" to null)
+    }
+    var title by remember(initial?.id) { mutableStateOf(initial?.title.orEmpty()) }
+    var number by remember(initial?.id) { mutableStateOf(initial?.songNumber.orEmpty()) }
+    var kannada by remember(initial?.id) { mutableStateOf(initialKannada) }
+    var english by remember(initial?.id) { mutableStateOf(initialEnglish.orEmpty()) }
+    var scale by remember(initial?.id) { mutableStateOf(initial?.scale?.takeIf { it.isNotBlank() } ?: "C Major") }
     var scaleExpanded by remember { mutableStateOf(false) }
+    val scaleOptions = remember(scale) { (MusicalScales.allScales.take(12) + scale).distinct() }
+    val isEditing = initial != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Song") },
+        title = { Text(if (isEditing) "Edit Song" else "Add Song") },
         text = {
-            Column {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = number, onValueChange = { number = it }, label = { Text("Song number (optional)") }, modifier = Modifier.fillMaxWidth())
@@ -106,23 +120,22 @@ fun AddCarolSongDialog(
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                     )
                     DropdownMenu(expanded = scaleExpanded, onDismissRequest = { scaleExpanded = false }) {
-                        MusicalScales.allScales.take(12).forEach { option ->
+                        scaleOptions.forEach { option ->
                             DropdownMenuItem(text = { Text(option) }, onClick = { scale = option; scaleExpanded = false })
                         }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = kannada, onValueChange = { kannada = it }, label = { Text("Kannada lyrics") }, modifier = Modifier.fillMaxWidth().height(100.dp))
+                OutlinedTextField(value = kannada, onValueChange = { kannada = it }, label = { Text("Kannada lyrics") }, modifier = Modifier.fillMaxWidth().height(if (isEditing) 180.dp else 100.dp))
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = english, onValueChange = { english = it }, label = { Text("English (optional)") }, modifier = Modifier.fillMaxWidth().height(80.dp))
+                OutlinedTextField(value = english, onValueChange = { english = it }, label = { Text("English (optional)") }, modifier = Modifier.fillMaxWidth().height(if (isEditing) 140.dp else 80.dp))
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (title.isNotBlank() && kannada.isNotBlank()) {
-                    onAdd(title, number.ifBlank { null }, kannada, english.ifBlank { null }, scale)
-                }
-            }) { Text("Save") }
+            TextButton(
+                enabled = title.isNotBlank() && kannada.isNotBlank(),
+                onClick = { onSave(title.trim(), number.trim().ifBlank { null }, kannada, english.ifBlank { null }, scale) },
+            ) { Text(if (isEditing) "Save changes" else "Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )

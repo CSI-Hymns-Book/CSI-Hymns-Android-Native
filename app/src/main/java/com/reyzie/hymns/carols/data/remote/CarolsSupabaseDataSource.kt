@@ -11,6 +11,9 @@ import io.github.jan.supabase.postgrest.query.filter.*
 import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 class CarolsSupabaseDataSource(
     private val supabaseService: SupabaseService = SupabaseService.getInstance(),
@@ -88,21 +91,47 @@ class CarolsSupabaseDataSource(
         bucket.publicUrl(path)
     }
 
+    /**
+     * Saves the editable fields of a song. The server's row-level security decides who may do this;
+     * if it matched no row (you are not allowed) this throws instead of looking like it worked.
+     */
+    suspend fun updateSong(song: CarolSong): CarolSong = withContext(Dispatchers.IO) {
+        val saved = supabaseService.client.from("carol_songs").update(
+            buildJsonObject {
+                put("title", song.title)
+                if (song.songNumber == null) put("song_number", JsonNull) else put("song_number", song.songNumber)
+                put("lyrics", song.lyrics)
+                put("scale", song.scale)
+                put("updated_at", song.updatedAt)
+            },
+        ) {
+            select()
+            filter { eq("id", song.id) }
+        }.decodeList<CarolSong>()
+        saved.firstOrNull() ?: throw SecurityException("You can't edit this song.")
+    }
+
     suspend fun deleteChurch(id: String) = withContext(Dispatchers.IO) {
-        supabaseService.client.from("carol_churches").delete {
+        val removed = supabaseService.client.from("carol_churches").delete {
+            select()
             filter { eq("id", id) }
-        }
+        }.decodeList<CarolChurch>()
+        if (removed.isEmpty()) throw SecurityException("You can't delete this church.")
     }
 
     suspend fun deleteSong(id: String) = withContext(Dispatchers.IO) {
-        supabaseService.client.from("carol_songs").delete {
+        val removed = supabaseService.client.from("carol_songs").delete {
+            select()
             filter { eq("id", id) }
-        }
+        }.decodeList<CarolSong>()
+        if (removed.isEmpty()) throw SecurityException("You can't delete this song.")
     }
 
     suspend fun deletePdf(id: String) = withContext(Dispatchers.IO) {
-        supabaseService.client.from("carol_pdfs").delete {
+        val removed = supabaseService.client.from("carol_pdfs").delete {
+            select()
             filter { eq("id", id) }
-        }
+        }.decodeList<CarolPdf>()
+        if (removed.isEmpty()) throw SecurityException("You can't delete this PDF.")
     }
 }
