@@ -1,6 +1,7 @@
 package com.reyzie.hymns.ui.christmas.landing
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Clock
 import java.time.Instant
@@ -116,5 +117,41 @@ class ChristmasCountdownZoneTest {
         val nov24 = "2026-11-24T10:00:00Z"
         assertEquals("Advent begins Sun 29 Nov", ChristmasCalendar.adventLabel(todayAt(nov24, "Asia/Kolkata")))
         assertEquals("Advent begins Sun 29 Nov", ChristmasCalendar.adventLabel(todayAt(nov24, "Pacific/Kiritimati")))
+    }
+}
+
+
+class ChristmasCountdownSweepTest {
+    private fun everyDayOf(year: Int): List<LocalDate> =
+        generateSequence(LocalDate.of(year, 1, 1)) { d -> d.plusDays(1).takeIf { it.year == year } }.toList()
+
+    @Test
+    fun `Merry Christmas only appears on Christmas Day itself`() {
+        listOf(2026, 2027, 2028).flatMap(::everyDayOf).forEach { day ->
+            val isChristmasDay = day.monthValue == 12 && day.dayOfMonth == 25
+            assertEquals(
+                "countdown on $day",
+                isChristmasDay,
+                ChristmasCalendar.countdownLabel(day) == "Merry Christmas!",
+            )
+        }
+    }
+
+    @Test
+    fun `outside Christmastide the countdown is always a positive number of days`() {
+        listOf(2026, 2027, 2028).flatMap(::everyDayOf)
+            .filter { !ChristmasCalendar.isChristmastide(it) && !(it.monthValue == 12 && it.dayOfMonth == 25) }
+            .forEach { day ->
+                val label = ChristmasCalendar.countdownLabel(day)
+                val days = Regex("^(\\d+) days to Christmas$").find(label)?.groupValues?.get(1)?.toInt()
+                    ?: if (label == "Christmas is tomorrow") 1 else -1
+                assertTrue("countdown on $day was '$label'", days >= 1)
+            }
+    }
+
+    @Test
+    fun `the first weeks after Epiphany count to the next Christmas`() {
+        assertEquals("353 days to Christmas", ChristmasCalendar.countdownLabel(LocalDate.of(2027, 1, 6)))
+        assertEquals("352 days to Christmas", ChristmasCalendar.countdownLabel(LocalDate.of(2027, 1, 7)))
     }
 }

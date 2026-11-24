@@ -61,8 +61,12 @@ class SettledFlake internal constructor(
     var y = y; internal set
     val maxLife = life
 
-    /** Fades in quickly, then out over the last second. */
-    val alpha: Float get() = life.coerceIn(0f, 1f)
+    /** Fades in over its first moment on the card, then out over the last second. */
+    val alpha: Float get() = life.coerceIn(0f, 1f) * ((maxLife - life) / FADE_IN_SECONDS).coerceIn(0f, 1f)
+
+    private companion object {
+        const val FADE_IN_SECONDS = 0.25f
+    }
 }
 
 class SnowChunk internal constructor(x: Float, y: Float, vx: Float, vy: Float, val radius: Float) {

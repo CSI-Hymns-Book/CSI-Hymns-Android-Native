@@ -121,4 +121,25 @@ class SnowEngineTest {
 
         assertEquals(null, engine.popEmojiAt(-500f, -500f, radius = 10f, visibleCount = 8))
     }
+
+    @Test
+    fun `a settled flake fades in instead of appearing at full strength`() {
+        val flake = SettledFlake(surfaceKey = "card", x = 0f, y = 0f, radius = 2f, isFlake = false, rotation = 0f, life = 4f)
+
+        assertEquals(0f, flake.alpha, 0.001f)
+        flake.life = 3.875f
+        assertEquals(0.5f, flake.alpha, 0.001f)
+        flake.life = 3.5f
+        assertEquals(1f, flake.alpha, 0.001f)
+    }
+
+    @Test
+    fun `a settled flake still fades out over its last second`() {
+        val flake = SettledFlake(surfaceKey = "card", x = 0f, y = 0f, radius = 2f, isFlake = false, rotation = 0f, life = 4f)
+
+        flake.life = 0.5f
+        assertEquals(0.5f, flake.alpha, 0.001f)
+        flake.life = 0f
+        assertEquals(0f, flake.alpha, 0.001f)
+    }
 }

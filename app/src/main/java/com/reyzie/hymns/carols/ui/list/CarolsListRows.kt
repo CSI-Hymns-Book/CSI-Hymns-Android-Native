@@ -149,6 +149,7 @@ fun ChurchListCard(
     onDelete: () -> Unit,
 ) {
     val palette = rememberChristmasPalette()
+    var confirmDelete by remember { mutableStateOf(false) }
     ChristmasSongRow(
         label = if (isDefault) "Default · ${churchCountLabel(songCount, pdfCount)}" else churchCountLabel(songCount, pdfCount),
         title = church.name,
@@ -157,9 +158,18 @@ fun ChurchListCard(
         onClick = onTap,
         trailing = { p ->
             DefaultChurchButton(church.name, isDefault, p, onToggleDefault)
-            if (canDelete) DeleteButton("Delete ${church.name}", p, onDelete) else Chevron(p)
+            if (canDelete) DeleteButton("Delete ${church.name}", p) { confirmDelete = true } else Chevron(p)
         },
     ) { ChurchAvatar(church.name, palette) }
+    if (confirmDelete) {
+        // A church takes its songs and PDFs with it, so it asks first like they do.
+        ConfirmDelete(
+            "Delete church?",
+            "Remove ${church.name} and its ${churchCountLabel(songCount, pdfCount)}? This cannot be undone.",
+            onConfirm = onDelete,
+            onDismiss = { confirmDelete = false },
+        )
+    }
 }
 
 /** Round avatar with the church's initials on a colour picked from its name. */
