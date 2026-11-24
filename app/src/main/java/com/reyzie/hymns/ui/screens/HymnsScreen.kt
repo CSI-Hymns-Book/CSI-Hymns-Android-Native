@@ -45,6 +45,16 @@ import com.reyzie.hymns.ui.widgets.JumpToMeterSheet
 import com.reyzie.hymns.ui.widgets.SyncStatusDialog
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
+import com.reyzie.hymns.ui.christmas.ChristmasDisplayFont
+import com.reyzie.hymns.ui.christmas.landing.HymnBookHollyIcon
+import com.reyzie.hymns.ui.christmas.landing.PianoBowIcon
+import com.reyzie.hymns.ui.christmas.lists.CHRISTMAS_FIELD_CORNER_DP
+import com.reyzie.hymns.ui.christmas.lists.ChristmasFieldShape
+import com.reyzie.hymns.ui.christmas.lists.ChristmasListBackdrop
+import com.reyzie.hymns.ui.christmas.lists.ChristmasSongRow
+import com.reyzie.hymns.ui.christmas.lists.christmasGlass
+import com.reyzie.hymns.ui.christmas.lists.isChristmasLook
+import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,7 +97,10 @@ fun HymnsScreen(
 
     val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
 
+    val christmasLook = isChristmasLook()
+    ChristmasListBackdrop {
     Scaffold(
+        containerColor = if (christmasLook) Color.Transparent else MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
@@ -128,11 +141,12 @@ fun HymnsScreen(
                 if (!isLandscape) {
                     // Modern Search Bar (Portrait Static)
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        color = if (christmasLook) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
                         shape = RoundedCornerShape(28.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .then(if (christmasLook) Modifier.christmasGlass(ChristmasFieldShape, CHRISTMAS_FIELD_CORNER_DP, high = true) else Modifier)
                     ) {
                         TextField(
                             value = searchQuery,
@@ -243,11 +257,12 @@ fun HymnsScreen(
                         }
                         item {
                             Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                color = if (christmasLook) Color.Transparent else MaterialTheme.colorScheme.surfaceContainerHigh,
                                 shape = RoundedCornerShape(28.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp)
+                                    .then(if (christmasLook) Modifier.christmasGlass(ChristmasFieldShape, CHRISTMAS_FIELD_CORNER_DP, high = true) else Modifier)
                             ) {
                                 TextField(
                                     value = searchQuery,
@@ -352,7 +367,7 @@ fun HymnsScreen(
                                             .padding(vertical = 8.dp),
                                         shape = RoundedCornerShape(12.dp),
                                         colors = CardDefaults.cardColors(
-                                            containerColor = MaterialTheme.colorScheme.surface
+                                            containerColor = if (christmasLook) Color.Transparent else MaterialTheme.colorScheme.surface
                                         ),
                                         elevation = CardDefaults.cardElevation(0.dp)
                                     ) {
@@ -367,7 +382,8 @@ fun HymnsScreen(
                                                 },
                                                 style = MaterialTheme.typography.titleMedium.copy(
                                                     fontWeight = FontWeight.Bold,
-                                                    color = MaterialTheme.colorScheme.primary
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontFamily = if (christmasLook) ChristmasDisplayFont else null
                                                 ),
                                                 modifier = Modifier.padding(bottom = 8.dp)
                                             )
@@ -387,6 +403,8 @@ fun HymnsScreen(
                 }
             }
         }
+    }
+
     }
 
     if (showJumpToMeter) {
@@ -412,6 +430,10 @@ fun HymnsScreen(
 
 @Composable
 fun HymnListTile(hymn: Hymn, isMt: Boolean = false, onClick: () -> Unit) {
+    if (isChristmasLook()) {
+        ChristmasHymnRow(hymn, isMt, onClick)
+        return
+    }
     val context = LocalContext.current
     Card(
         modifier = Modifier
@@ -480,6 +502,25 @@ fun HymnListTile(hymn: Hymn, isMt: Boolean = false, onClick: () -> Unit) {
                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                 modifier = Modifier.size(24.dp)
             )
+        }
+    }
+}
+
+/** Christmas-mode hymn row: holly hymn book (or a piano with a bow for M.T.) and a snow cap. */
+@Composable
+private fun ChristmasHymnRow(hymn: Hymn, isMt: Boolean, onClick: () -> Unit) {
+    val palette = rememberChristmasPalette()
+    ChristmasSongRow(
+        label = if (isMt) "M.T. ${hymn.number}" else "Hymn ${hymn.number}",
+        title = hymn.title,
+        subtitle = hymn.signature.takeIf { it.isNotEmpty() }?.let { if (isMt) "M.T. $it" else it },
+        badgeBackground = if (isMt) palette.emberBackground else palette.pineBackground,
+        onClick = onClick,
+    ) {
+        if (isMt) {
+            PianoBowIcon(palette.ember, 28.dp)
+        } else {
+            HymnBookHollyIcon(palette.pine, palette.hollyLeaf, 30.dp, animate = false)
         }
     }
 }

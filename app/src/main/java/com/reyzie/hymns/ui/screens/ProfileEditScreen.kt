@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.content.ClipData
 import android.content.Intent
 import androidx.compose.foundation.layout.Column
@@ -69,7 +70,8 @@ fun ProfileEditScreen(
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
+        FestiveAlertDialog(
+            destructive = true,
             onDismissRequest = { if (!deactivating) showDeleteConfirm = false },
             title = { Text("Deactivate this account?") },
             text = {
@@ -105,7 +107,7 @@ fun ProfileEditScreen(
     }
 
     errorMessage?.let { message ->
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { errorMessage = null },
             title = { Text("Couldn’t complete") },
             text = { Text(message) },

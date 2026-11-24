@@ -25,8 +25,6 @@ class HymnsRepository(context: Context) {
         .build()
     private val gson = Gson()
     private val appConfigRepository = AppConfigRepository(context = appContext)
-    private var cachedMidiFileNames: List<String>? = null
-    private var cachedMidiListFingerprint: String? = null
 
     suspend fun loadHymns(section: AppSection = AppSection.CSI): List<Hymn> = withContext(Dispatchers.IO) {
         store.ensureSeeded()
@@ -215,6 +213,7 @@ class HymnsRepository(context: Context) {
             .edit()
             .remove("cached_midi_files_json")
             .remove("cached_midi_files_fingerprint")
+            .remove("cached_midi_files_at")
             .apply()
         Log.d(TAG, "Invalidated MIDI file name cache")
     }
@@ -227,12 +226,15 @@ class HymnsRepository(context: Context) {
 
         if (!forceRefresh &&
             fingerprint == cachedMidiListFingerprint &&
-            !cachedMidiFileNames.isNullOrEmpty()
+            !cachedMidiFileNames.isNullOrEmpty() &&
+            System.currentTimeMillis() - prefs.getLong("cached_midi_files_at", 0L) < MIDI_LIST_TTL_MS
         ) {
             return@withContext cachedMidiFileNames!!
         }
 
-        if (!forceRefresh && fingerprint == storedFingerprint) {
+        val listFetchedAt = prefs.getLong("cached_midi_files_at", 0L)
+        val listIsFresh = System.currentTimeMillis() - listFetchedAt < MIDI_LIST_TTL_MS
+        if (!forceRefresh && fingerprint == storedFingerprint && listIsFresh) {
             val cachedJson = prefs.getString("cached_midi_files_json", null)
             if (!cachedJson.isNullOrBlank()) {
                 val listFromPrefs = parseGitHubContentsNames(cachedJson)
@@ -262,6 +264,7 @@ class HymnsRepository(context: Context) {
                     prefs.edit()
                         .putString("cached_midi_files_json", response)
                         .putString("cached_midi_files_fingerprint", fingerprint)
+                        .putLong("cached_midi_files_at", System.currentTimeMillis())
                         .apply()
                     return@withContext parsed
                 } else {
@@ -351,5 +354,16 @@ class HymnsRepository(context: Context) {
 
     companion object {
         private const val TAG = "HymnsRepository"
+        private const val MIDI_LIST_TTL_MS = 6L * 60 * 60 * 1000
+
+        // Shared by every repository instance, so clearing the cache takes effect everywhere.
+        @Volatile private var cachedMidiFileNames: List<String>? = null
+        @Volatile private var cachedMidiListFingerprint: String? = null
+
+        /** Forgets the in-memory tune list so the next lookup reads (or downloads) it again. */
+        fun clearMidiListMemory() {
+            cachedMidiFileNames = null
+            cachedMidiListFingerprint = null
+        }
     }
 }

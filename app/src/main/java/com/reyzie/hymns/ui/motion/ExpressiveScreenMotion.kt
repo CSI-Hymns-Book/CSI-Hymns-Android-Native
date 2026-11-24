@@ -34,15 +34,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.util.lerp
+import com.reyzie.hymns.ui.christmas.LocalChristmasAmbience
 import com.reyzie.hymns.utils.MotionSpecs
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.absoluteValue
 
 /** Slide + scale preview while the system back gesture is in progress. */
-fun Modifier.expressivePredictiveBackTransform(progress: Float): Modifier = graphicsLayer {
+fun Modifier.expressivePredictiveBackTransform(progress: Float, zoomOnly: Boolean = false): Modifier = graphicsLayer {
     val p = progress.coerceIn(0f, 1f)
-    translationX = size.width * p * 0.28f
-    val scale = lerp(1f, 0.94f, p)
+    // Christmas screens zoom instead of sliding, so the gesture only shrinks the screen.
+    if (!zoomOnly) translationX = size.width * p * 0.28f
+    val scale = lerp(1f, if (zoomOnly) CHRISTMAS_BACK_SCALE else 0.94f, p)
     scaleX = scale
     scaleY = scale
     alpha = lerp(1f, 0.88f, p)
@@ -56,14 +58,17 @@ fun Modifier.expressivePredictiveBackTransform(progress: Float): Modifier = grap
 fun PredictiveExpressiveBackHandler(
     enabled: Boolean,
     onBack: () -> Unit,
-    onProgress: (Float) -> Unit = {}
+    onProgress: (Float) -> Unit = {},
+    resetOnComplete: Boolean = true
 ) {
     PredictiveBackHandler(enabled = enabled) { progressEvents ->
         try {
             progressEvents.collect { event ->
                 onProgress(event.progress)
             }
-            onProgress(0f)
+            // Keeping the final progress lets the exit animation carry on from where the gesture
+            // left the screen, instead of snapping back first.
+            if (resetOnComplete) onProgress(0f)
             onBack()
         } catch (_: CancellationException) {
             onProgress(0f)
@@ -115,6 +120,21 @@ fun expressiveBackExit(): ExitTransition =
     ) + fadeOut(tween(MotionSpecs.DurationShort)) +
         scaleOut(targetScale = 0.94f, animationSpec = tween(MotionSpecs.DurationShort))
 
+/** Christmas mode: screens zoom in from slightly smaller with a soft bounce, instead of sliding in. */
+fun christmasZoomEnter(): EnterTransition =
+    scaleIn(
+        initialScale = 0.8f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow)
+    ) + fadeIn(tween(MotionSpecs.DurationMedium, easing = MotionSpecs.EmphasizedDecelerate))
+
+private const val CHRISTMAS_BACK_SCALE = 0.92f
+
+fun christmasZoomExit(): ExitTransition =
+    scaleOut(
+        targetScale = 0.94f,
+        animationSpec = tween(MotionSpecs.DurationMedium, easing = MotionSpecs.Emphasized)
+    ) + fadeOut(tween(MotionSpecs.DurationShort, easing = MotionSpecs.Emphasized))
+
 /** Bottom audio panel — slide up + fade + subtle scale. */
 fun expressiveAudioPlayerEnter(): EnterTransition =
     expandVertically(
@@ -165,9 +185,14 @@ fun <T> ExpressiveOverlayScreen(
 ) {
     var displayed by remember { mutableStateOf<T?>(item) }
     var visible by remember { mutableStateOf(item != null) }
+    var swipeProgress by remember { mutableFloatStateOf(0f) }
+    var swipeActive by remember { mutableStateOf(false) }
 
+    val christmas = LocalChristmasAmbience.current != null
     LaunchedEffect(item) {
         if (item != null) {
+            swipeProgress = 0f
+            swipeActive = false
             displayed = item
             visible = true
         } else if (displayed != null) {
@@ -183,8 +208,6 @@ fun <T> ExpressiveOverlayScreen(
     }
 
     val show = displayed != null && visible
-    var swipeProgress by remember { mutableFloatStateOf(0f) }
-    var swipeActive by remember { mutableStateOf(false) }
 
     val animatedSwipe by animateFloatAsState(
         targetValue = swipeProgress,
@@ -205,20 +228,21 @@ fun <T> ExpressiveOverlayScreen(
             onProgress = { progress ->
                 swipeActive = progress > 0f
                 swipeProgress = progress
-            }
+            },
+            resetOnComplete = !christmas
         )
     }
 
     AnimatedVisibility(
         visible = show,
-        enter = expressiveForwardEnter(),
-        exit = expressiveBackExit(),
+        enter = if (christmas) christmasZoomEnter() else expressiveForwardEnter(),
+        exit = if (christmas) christmasZoomExit() else expressiveBackExit(),
         modifier = modifier.fillMaxSize()
     ) {
         Box(
             Modifier
                 .fillMaxSize()
-                .expressivePredictiveBackTransform(animatedSwipe)
+                .expressivePredictiveBackTransform(animatedSwipe, zoomOnly = christmas)
                 .background(MaterialTheme.colorScheme.background)
         ) {
             displayed?.let { content(it) }

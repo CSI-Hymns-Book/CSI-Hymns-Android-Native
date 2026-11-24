@@ -1,5 +1,6 @@
 package com.reyzie.hymns.carols.ui.detail
 
+import com.reyzie.hymns.ui.christmas.DimChristmasSnow
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -26,6 +27,7 @@ fun CarolPdfDetailScreen(
     pdfUrl: String,
     onBackClick: () -> Unit,
 ) {
+    DimChristmasSnow()
     val colors = rememberChristmasScreenColors()
 
     ChristmasScreenBackground {

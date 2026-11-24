@@ -2,6 +2,7 @@
 
 package com.reyzie.hymns.ui.widgets
 
+import com.reyzie.hymns.ui.christmas.chrome.festiveCap
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -95,7 +96,7 @@ fun HymnsFloatingToolbar(
                     },
                     shape = MaterialTheme.shapes.large,
                     elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp),
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(56.dp).festiveCap(width = 30.dp, offsetX = (-6).dp, offsetY = (-14).dp)
                 ) {
                     Icon(
                         imageVector = if (isFavoritesSelected) {

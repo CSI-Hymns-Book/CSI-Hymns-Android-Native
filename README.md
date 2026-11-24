@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Material%203%20Expressive-6750A4?style=flat&logo=materialdesign&logoColor=white" alt="Material 3" />
   <img src="https://img.shields.io/badge/minSdk-26-green?style=flat" alt="minSdk 26" />
   <img src="https://img.shields.io/badge/targetSdk-36-green?style=flat" alt="targetSdk 36" />
-  <img src="https://img.shields.io/badge/version-5.2.0-blue?style=flat" alt="v5.2.0" />
+  <img src="https://img.shields.io/badge/version-5.3.0-blue?style=flat" alt="v5.3.0" />
 </p>
 
 ---
@@ -23,7 +23,7 @@
 
 **CSI Hymns Book** is the Android-native rewrite of the CSI Hymns & Lyrics app (formerly Flutter). It helps congregations browse CSI hymns, keerthanes, and Mangalore Tunes (M.T.) hymns; read bilingual lyrics; flip through stanzas like a book; play MIDI or fallback audio; cast to Chromecast; manage favorites and custom categories; follow the Order of Service; receive announcements; and celebrate Christmas with community carols — all with a modern, tactile UI.
 
-This repository is the **Kotlin / Jetpack Compose** native rewrite of the original CSI Hymns & Lyrics app. Current Play/build version is **5.2.0** (`versionCode` 35).
+This repository is the **Kotlin / Jetpack Compose** native rewrite of the original CSI Hymns & Lyrics app. Current Play/build version is **5.3.0** (`versionCode` 36).
 
 ---
 
@@ -387,5 +387,5 @@ See the full [LICENSE](LICENSE) file for complete details.
 ---
 
 <p align="center">
-  <sub>Built with care for congregational worship · Kotlin Native · v5.2.0</sub>
+  <sub>Built with care for congregational worship · Kotlin Native · v5.3.0</sub>
 </p>

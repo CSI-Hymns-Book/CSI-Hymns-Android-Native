@@ -17,7 +17,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import com.reyzie.hymns.ui.christmas.ChristmasDisplayFont
+import com.reyzie.hymns.ui.christmas.lists.isChristmasLook
+import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
+import com.reyzie.hymns.ui.christmas.snowCap
 import com.reyzie.hymns.utils.HapticFeedbackManager
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,18 +38,24 @@ fun ExpressiveScreenTopBar(
     actions: @Composable () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val christmasLook = isChristmasLook()
     TopAppBar(
         modifier = modifier.windowInsetsPadding(WindowInsets.statusBars),
         title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
+            if (christmasLook) {
+                ChristmasTitle(title)
+            } else {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
         },
         navigationIcon = {
             IconButton(
+                modifier = if (christmasLook) Modifier.snowCap(cornerDp = 24f) else Modifier,
                 onClick = {
                     HapticFeedbackManager.smoothClick(context)
                     onMenuClick()
@@ -61,5 +75,23 @@ fun ExpressiveScreenTopBar(
             titleContentColor = MaterialTheme.colorScheme.onSurface,
             navigationIconContentColor = MaterialTheme.colorScheme.onSurface
         )
+    )
+}
+
+/** Christmas title: the display serif with a small gold star before it. */
+@Composable
+private fun ChristmasTitle(title: String) {
+    val palette = rememberChristmasPalette()
+    Text(
+        text = buildAnnotatedString {
+            withStyle(SpanStyle(color = palette.gold)) { append("✦  ") }
+            append(title)
+        },
+        style = MaterialTheme.typography.titleLarge,
+        fontFamily = ChristmasDisplayFont,
+        fontWeight = FontWeight.Medium,
+        color = palette.ink,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }

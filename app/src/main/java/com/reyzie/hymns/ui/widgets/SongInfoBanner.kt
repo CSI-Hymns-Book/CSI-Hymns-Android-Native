@@ -16,6 +16,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import com.reyzie.hymns.ui.christmas.lists.isChristmasLook
+import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
+import com.reyzie.hymns.ui.christmas.snowCap
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -39,12 +42,14 @@ fun SongInfoBanner(
     modifier: Modifier = Modifier,
     actionContent: @Composable (RowScope.() -> Unit)? = null
 ) {
+    val christmasLook = isChristmasLook()
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .then(if (christmasLook) Modifier.snowCap(cornerDp = 16f) else Modifier),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        color = if (christmasLook) rememberChristmasPalette().glassHigh else MaterialTheme.colorScheme.surfaceContainerHigh,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 1.dp
     ) {

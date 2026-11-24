@@ -1,5 +1,10 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
+import com.reyzie.hymns.ui.christmas.DimChristmasSnow
+import com.reyzie.hymns.ui.christmas.lists.christmasReaderFrame
+import com.reyzie.hymns.ui.christmas.lists.isChristmasLook
+import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
 import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -90,6 +95,7 @@ fun HymnDetailScreen(
     isMt: Boolean = false,
     onBackClick: () -> Unit
 ) {
+    DimChristmasSnow()
     val context = LocalContext.current
     val readingProgressService = remember { ReadingProgressService(context) }
     var selectedLanguage by remember { mutableStateOf("Kannada") }
@@ -115,7 +121,8 @@ fun HymnDetailScreen(
     val currentUserEmail = com.reyzie.hymns.data.SupabaseService.getInstance().currentUser?.email
     val isAdmin = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.TUNE_METER_VIEW)
     val isSuperAdmin = com.reyzie.hymns.data.AdminPrefs.hasAnyAdminRole(context, currentUserEmail, remoteAppConfig.adminEmails)
-    val isPresenterModeEnabled = isSuperAdmin && (remoteAppConfig.presenterModeEnabled == true || prefs.getBoolean("presenter_mode_enabled", false))
+    val hasMediaControl = com.reyzie.hymns.data.AdminPrefs.hasRole(context, currentUserEmail, remoteAppConfig.adminEmails, com.reyzie.hymns.data.AdminPrefs.AdminRole.MEDIA_CONTROL)
+    val isPresenterModeEnabled = hasMediaControl && (remoteAppConfig.presenterModeEnabled == true || prefs.getBoolean("presenter_mode_enabled", false))
     
     val repository = remember { com.reyzie.hymns.data.HymnsRepository(context) }
     var csiHymnsMap by remember { mutableStateOf<Map<Int, Hymn>>(emptyMap()) }
@@ -322,10 +329,16 @@ fun HymnDetailScreen(
         }
     }
 
-    Scaffold { innerPadding ->
+    val christmasLook = isChristmasLook()
+    Scaffold(
+        modifier = Modifier.christmasReaderFrame(),
+        containerColor = if (christmasLook) Color.Transparent else MaterialTheme.colorScheme.background,
+    ) { innerPadding ->
         val isLandscape = androidx.compose.ui.platform.LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         val isDarkTheme = isSystemInDarkTheme()
-        val controlsCardColor = if (isDarkTheme) {
+        val controlsCardColor = if (christmasLook) {
+            rememberChristmasPalette().glassHigh
+        } else if (isDarkTheme) {
             MaterialTheme.colorScheme.surfaceContainerLowest
         } else {
             MaterialTheme.colorScheme.surfaceBright
@@ -2089,7 +2102,7 @@ fun AudioContributionDialog(
         }
     }
     
-    AlertDialog(
+    FestiveAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("No Audio Available") },
         text = {

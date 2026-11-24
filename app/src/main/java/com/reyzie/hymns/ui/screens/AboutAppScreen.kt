@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.Image
@@ -216,7 +217,7 @@ fun AboutAppScreen(
     }
 
     if (showPasscodeDialog) {
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { showPasscodeDialog = false },
             title = { Text("Root Admin Authentication", fontWeight = FontWeight.Bold) },
             text = {

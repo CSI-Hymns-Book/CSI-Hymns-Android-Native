@@ -132,7 +132,8 @@ class MidiFileCache private constructor(context: Context) {
                 config.midiHymnsRanges.orEmpty(),
                 config.midiKeerthanesRanges.orEmpty(),
                 config.disableOggFallback.orEmpty(),
-                config.audioBackupUrl.orEmpty()
+                config.audioBackupUrl.orEmpty(),
+                config.midiRefreshVersion.orEmpty()
             ).joinToString("|")
             return sha256Hex(raw).take(16)
         }

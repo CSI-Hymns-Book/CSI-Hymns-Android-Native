@@ -1,5 +1,6 @@
 package com.reyzie.hymns.ui.screens
 
+import com.reyzie.hymns.ui.christmas.chrome.FestiveAlertDialog
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -222,7 +223,7 @@ fun PrivacyCentreScreen(
     }
 
     if (showPushDeclineDialog) {
-        AlertDialog(
+        FestiveAlertDialog(
             onDismissRequest = { showPushDeclineDialog = false },
             title = { Text("Notifications are important") },
             text = {
@@ -258,7 +259,8 @@ fun PrivacyCentreScreen(
     }
 
     if (showWithdrawConfirm) {
-        AlertDialog(
+        FestiveAlertDialog(
+            destructive = true,
             onDismissRequest = { showWithdrawConfirm = false },
             title = { Text("Withdraw consent?") },
             text = {

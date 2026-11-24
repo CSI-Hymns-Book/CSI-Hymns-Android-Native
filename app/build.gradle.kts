@@ -29,8 +29,8 @@ android {
         applicationId = "com.reyzie.hymns"
         minSdk = 26
         targetSdk = 36
-        versionCode = 35
-        versionName = "5.2.0"
+        versionCode = 36
+        versionName = "5.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         

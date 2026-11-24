@@ -1022,6 +1022,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             finalUrl = "https://api.github.com/repos/Reynold29/midi-vault/contents/$encodedPath"
         }
 
+        var notFound = false
         fun executeRequest(authHeaderVal: String?): ByteArray? {
             try {
                 val url = java.net.URL(finalUrl)
@@ -1060,6 +1061,7 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
                 if (responseCode in 200..299) {
                     return connection.inputStream.use { it.readBytes() }
                 }
+                if (responseCode == 404) notFound = true
                 android.util.Log.w("AudioViewModel", "Request $finalUrl failed with HTTP $responseCode")
             } catch (e: Exception) {
                 android.util.Log.w("AudioViewModel", "Exception during executeRequest for $finalUrl", e)
@@ -1085,6 +1087,8 @@ class AudioViewModel(application: Application) : AndroidViewModel(application) {
             return@withContext result
         }
 
+        // A missing file is reported as "not available yet", not as a broken audio track.
+        if (notFound) throw java.io.FileNotFoundException("MIDI not found (404): $targetUrl")
         throw java.io.IOException("Failed to download MIDI from $targetUrl (finalUrl: $finalUrl)")
     }
 }
