@@ -21,7 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -61,7 +61,7 @@ import com.reyzie.hymns.carols.data.model.CarolChurch
 import com.reyzie.hymns.carols.data.model.CarolPdf
 import com.reyzie.hymns.carols.data.model.CarolSong
 import com.reyzie.hymns.carols.ui.create.AddCarolPdfDialog
-import com.reyzie.hymns.carols.ui.create.AddCarolSongDialog
+import com.reyzie.hymns.carols.ui.create.CarolSongFormDialog
 import com.reyzie.hymns.carols.ui.create.ChurchAddMenuDialog
 import com.reyzie.hymns.carols.ui.create.CreateChurchDialog
 import com.reyzie.hymns.carols.ui.detail.CarolPdfDetailScreen
@@ -115,7 +115,8 @@ fun CommunityCarolsScreen(
     var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAddSong by rememberSaveable { mutableStateOf(false) }
     var showAddPdf by rememberSaveable { mutableStateOf(false) }
-    var deleteChurchTarget by remember { mutableStateOf<CarolChurch?>(null) }
+    var editSongTarget by remember { mutableStateOf<CarolSong?>(null) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
     var openSongId by rememberSaveable { mutableStateOf<String?>(null) }
     var openPdfId by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -133,6 +134,8 @@ fun CommunityCarolsScreen(
     BackHandler(enabled = activeChurch != null && openSongId == null && openPdfId == null) {
         viewModel.setSelectedChurch(null)
     }
+    // A church's search box starts closed each time you open a church.
+    LaunchedEffect(activeChurch?.id) { searchOpen = false }
     LaunchedEffect(error) {
         error?.let {
             snackbar.showSnackbar(it)
@@ -180,6 +183,7 @@ fun CommunityCarolsScreen(
             isLoading = isInitialLoading && churches.isEmpty(),
             isSyncing = isSyncing,
             onRefresh = { viewModel.refresh(force = true) },
+            query = query,
             activeChurch = activeChurch,
             contentTab = contentTab,
             churches = filteredChurches,
@@ -196,7 +200,8 @@ fun CommunityCarolsScreen(
             churchStats = { viewModel.churchStats(it, songs, pdfs) },
             viewModel = viewModel,
             onOpenChurch = { viewModel.setSelectedChurch(it.id) },
-            onDeleteChurch = { deleteChurchTarget = it },
+            onDeleteChurch = { viewModel.deleteChurch(it.id) },
+            onEditSong = { editSongTarget = it },
             onOpenSong = { openSongId = it.id },
             onOpenPdf = { openPdfId = it.id },
         )
@@ -210,6 +215,12 @@ fun CommunityCarolsScreen(
                     CarolsTopBar(
                         title = activeChurch?.name ?: "Community Carols",
                         canAdd = activeChurch != null && viewModel.isAuthenticated,
+                        canSearch = activeChurch != null,
+                        onSearch = {
+                            HapticFeedbackManager.smoothClick(context)
+                            searchOpen = !searchOpen
+                            if (!searchOpen) viewModel.onSearchChanged("")
+                        },
                         onBack = {
                             HapticFeedbackManager.smoothClick(context)
                             if (activeChurch != null) viewModel.setSelectedChurch(null) else onBackClick()
@@ -241,6 +252,11 @@ fun CommunityCarolsScreen(
                     CarolsHeader(
                         query = query,
                         onQueryChange = viewModel::onSearchChanged,
+                        searchOpen = searchOpen,
+                        onCloseSearch = {
+                            searchOpen = false
+                            viewModel.onSearchChanged("")
+                        },
                         activeChurch = activeChurch,
                         contentTab = contentTab,
                         songCount = churchSongs.size,
@@ -271,6 +287,8 @@ fun CommunityCarolsScreen(
                 startSongId = song.id,
                 churchName = churches.find { it.id == song.churchId }?.name.orEmpty(),
                 onBackClick = { openSongId = null },
+                canEdit = viewModel::canEditSong,
+                onEdit = { editSongTarget = it },
             )
         }
 
@@ -297,9 +315,9 @@ fun CommunityCarolsScreen(
     }
     val churchId = selectedChurchId
     if (showAddSong && churchId != null) {
-        AddCarolSongDialog(
+        CarolSongFormDialog(
             onDismiss = { showAddSong = false },
-            onAdd = { title, number, kn, en, scale ->
+            onSave = { title, number, kn, en, scale ->
                 viewModel.addSong(churchId, title, number, kn, en, scale)
                 showAddSong = false
             },
@@ -314,18 +332,14 @@ fun CommunityCarolsScreen(
             },
         )
     }
-    deleteChurchTarget?.let { church ->
-        AlertDialog(
-            onDismissRequest = { deleteChurchTarget = null },
-            title = { Text("Delete church?") },
-            text = { Text("Delete ${church.name} and all its songs and PDFs?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteChurch(church.id)
-                    deleteChurchTarget = null
-                }) { Text("Delete") }
+    editSongTarget?.let { song ->
+        CarolSongFormDialog(
+            initial = song,
+            onDismiss = { editSongTarget = null },
+            onSave = { title, number, kn, en, scale ->
+                viewModel.updateSong(song.id, title, number, kn, en, scale)
+                editSongTarget = null
             },
-            dismissButton = { TextButton(onClick = { deleteChurchTarget = null }) { Text("Cancel") } },
         )
     }
 }
@@ -333,7 +347,7 @@ fun CommunityCarolsScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CarolsTopBar(title: String, canAdd: Boolean, onBack: () -> Unit, onAdd: () -> Unit) {
+private fun CarolsTopBar(title: String, canAdd: Boolean, canSearch: Boolean, onSearch: () -> Unit, onBack: () -> Unit, onAdd: () -> Unit) {
     val palette = rememberChristmasPalette()
     TopAppBar(
         title = {
@@ -352,6 +366,11 @@ private fun CarolsTopBar(title: String, canAdd: Boolean, onBack: () -> Unit, onA
             }
         },
         actions = {
+            if (canSearch) {
+                IconButton(onClick = onSearch) {
+                    Icon(Icons.Default.Search, contentDescription = "Search this church", tint = palette.ink)
+                }
+            }
             if (canAdd) {
                 IconButton(onClick = onAdd) {
                     Icon(Icons.Default.Add, contentDescription = "Add a song or PDF", tint = palette.ink)
@@ -367,6 +386,8 @@ private fun CarolsTopBar(title: String, canAdd: Boolean, onBack: () -> Unit, onA
 private fun CarolsHeader(
     query: String,
     onQueryChange: (String) -> Unit,
+    searchOpen: Boolean,
+    onCloseSearch: () -> Unit,
     activeChurch: CarolChurch?,
     contentTab: CarolContentTab,
     songCount: Int,
@@ -376,12 +397,19 @@ private fun CarolsHeader(
     val context = LocalContext.current
     val palette = rememberChristmasPalette()
     ReturnToCallerChip(Modifier.padding(start = 16.dp, top = 4.dp, bottom = 2.dp))
-    CarolsSearchField(
-        query = query,
-        onQueryChange = onQueryChange,
-        placeholder = if (activeChurch == null) "Search churches or carols…" else "Search this church…",
-    )
-    if (activeChurch == null) return
+    if (activeChurch == null) {
+        CarolsSearchField(query, onQueryChange, placeholder = "Search churches or carols, in English or ಕನ್ನಡ…")
+        return
+    }
+    if (searchOpen) {
+        CarolsSearchField(
+            query = query,
+            onQueryChange = onQueryChange,
+            placeholder = "Title, number, scale or lyrics, in English or ಕನ್ನಡ…",
+            autoFocus = true,
+            onClose = onCloseSearch,
+        )
+    }
     activeChurch.description?.takeIf { it.isNotBlank() }?.let { description ->
         Text(
             description,
@@ -429,6 +457,7 @@ private fun CarolsListPane(
     isLoading: Boolean,
     isSyncing: Boolean,
     onRefresh: () -> Unit,
+    query: String,
     activeChurch: CarolChurch?,
     contentTab: CarolContentTab,
     churches: List<CarolChurch>,
@@ -444,6 +473,7 @@ private fun CarolsListPane(
     viewModel: CommunityCarolsViewModel,
     onOpenChurch: (CarolChurch) -> Unit,
     onDeleteChurch: (CarolChurch) -> Unit,
+    onEditSong: (CarolSong) -> Unit,
     onOpenSong: (CarolSong) -> Unit,
     onOpenPdf: (CarolPdf) -> Unit,
 ) {
@@ -467,14 +497,17 @@ private fun CarolsListPane(
                     )
                 }
             }
-            contentTab == CarolContentTab.SONGS && churchSongs.isEmpty() -> EmptyNote("No songs yet")
+            contentTab == CarolContentTab.SONGS && churchSongs.isEmpty() ->
+                EmptyNote(if (query.isBlank()) "No songs yet" else "No songs match \"$query\"")
             contentTab == CarolContentTab.SONGS -> LazyColumn(Modifier.fillMaxSize(), contentPadding = ListPadding) {
                 items(churchSongs, key = { it.id }) { song ->
                     SongRow(
                         song = song,
                         isFavourite = song.id in favouriteIds,
+                        canEdit = viewModel.canEditSong(song),
                         canDelete = viewModel.canDeleteSong(song),
                         onOpen = { onOpenSong(song) },
+                        onEdit = { onEditSong(song) },
                         onDelete = { viewModel.deleteSong(song.id) },
                     )
                 }

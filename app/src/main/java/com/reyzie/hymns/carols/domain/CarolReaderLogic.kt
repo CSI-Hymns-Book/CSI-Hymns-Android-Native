@@ -25,11 +25,21 @@ object CarolTextScale {
     private const val STEP = 0.1f
     private const val PRECISION = 10f
 
+    /** The slider moves in steps of 0.05, which is 19 stops between [MIN] and [MAX]. */
+    const val SLIDER_STEP = 0.05f
+    const val SLIDER_STOPS = 19
+
     fun bigger(scale: Float): Float = clamp(round(scale + STEP))
 
     fun smaller(scale: Float): Float = clamp(round(scale - STEP))
 
     fun clamp(scale: Float): Float = scale.coerceIn(MIN, MAX)
+
+    /** The slider position rounded to the nearest 0.05 and kept within limits. */
+    fun snap(scale: Float): Float = clamp((scale / SLIDER_STEP).roundToInt() * SLIDER_STEP)
+
+    /** "110%" for a scale of 1.1. */
+    fun percentLabel(scale: Float): String = "${(clamp(scale) * 100).roundToInt()}%"
 
     private fun round(value: Float): Float = (value * PRECISION).roundToInt() / PRECISION
 }
@@ -47,15 +57,6 @@ fun churchInitials(name: String): String {
 
 /** A stable colour slot for a church, so its avatar keeps the same colour every time. */
 fun churchColorSlot(name: String, slotCount: Int): Int = abs(name.trim().lowercase().hashCode() % slotCount)
-
-/** Plain text used when sharing a carol's lyrics to another app. */
-fun carolShareText(title: String, number: String?, churchName: String, lyrics: String): String = buildString {
-    append(title)
-    if (!number.isNullOrBlank()) append(" (No. $number)")
-    if (churchName.isNotBlank()) append("\n").append(churchName)
-    append("\n\n").append(lyrics.trim())
-    append("\n\nShared from CSI Kannada Hymns")
-}
 
 /** Splits lyrics into verses at blank lines, for showing one verse at a time. */
 fun splitStanzas(lyrics: String): List<String> =

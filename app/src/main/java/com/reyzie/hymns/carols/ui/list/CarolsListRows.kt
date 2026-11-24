@@ -27,7 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FilterList
-import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -56,6 +58,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -82,20 +87,42 @@ import com.reyzie.hymns.ui.christmas.rememberChristmasPalette
 private const val SHIMMER_MILLIS = 1_200
 private const val SHIMMER_ROWS = 6
 
-/** Search box for churches and songs, frosted glass with a snow cap. */
+/**
+ * Search box for churches and songs, frosted glass with a snow cap. Typing English finds Kannada
+ * songs and the other way round. With [onClose] it has a close button and can take focus on open.
+ */
 @Composable
-fun CarolsSearchField(query: String, onQueryChange: (String) -> Unit, placeholder: String) {
+fun CarolsSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    autoFocus: Boolean = false,
+    onClose: (() -> Unit)? = null,
+) {
     val palette = rememberChristmasPalette()
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(autoFocus) { if (autoFocus) focus.requestFocus() }
     TextField(
         value = query,
         onValueChange = onQueryChange,
-        placeholder = { Text(placeholder, color = palette.inkMuted) },
+        placeholder = { Text(placeholder, color = palette.inkMuted, maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = palette.gold) },
+        trailingIcon = {
+            when {
+                onClose != null -> IconButton(onClick = onClose) {
+                    Icon(Icons.Default.Close, contentDescription = "Close search", tint = palette.inkMuted)
+                }
+                query.isNotEmpty() -> IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear search", tint = palette.inkMuted)
+                }
+            }
+        },
         singleLine = true,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .christmasGlass(ChristmasFieldShape, CHRISTMAS_FIELD_CORNER_DP, high = true),
+            .christmasGlass(ChristmasFieldShape, CHRISTMAS_FIELD_CORNER_DP, high = true)
+            .focusRequester(focus),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.Transparent,
             unfocusedContainerColor = Color.Transparent,
@@ -158,7 +185,7 @@ fun ChurchListCard(
         onClick = onTap,
         trailing = { p ->
             DefaultChurchButton(church.name, isDefault, p, onToggleDefault)
-            if (canDelete) DeleteButton("Delete ${church.name}", p) { confirmDelete = true } else Chevron(p)
+            if (canDelete) RowOverflowMenu(church.name, p, onEdit = null, onDelete = { confirmDelete = true }) else Chevron(p)
         },
     ) { ChurchAvatar(church.name, palette) }
     if (confirmDelete) {
@@ -226,22 +253,43 @@ fun SortChipRow(viewModel: CommunityCarolsViewModel) {
     }
 }
 
-/** A carol song row with a gold star when it is a favourite. */
+/**
+ * A carol song row with a gold star when it is a favourite. People who may manage the song get a
+ * three-dot menu with Edit and Delete; everyone else sees a chevron.
+ */
 @Composable
-fun SongRow(song: CarolSong, isFavourite: Boolean, canDelete: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
+fun SongRow(
+    song: CarolSong,
+    isFavourite: Boolean,
+    canEdit: Boolean,
+    canDelete: Boolean,
+    onOpen: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
     val palette = rememberChristmasPalette()
     var confirmDelete by remember { mutableStateOf(false) }
     ChristmasSongRow(
-        label = song.songNumber?.let { "No. $it" } ?: "Carol",
+        label = song.songNumber?.takeIf { it.isNotBlank() }?.let { "No. $it" } ?: "Carol",
         title = song.title,
         subtitle = song.scale.takeIf { it.isNotBlank() }?.let { "Scale: $it" },
         badgeBackground = palette.pineBackground,
+        emphasizeLabel = !song.songNumber.isNullOrBlank(),
         onClick = onOpen,
         trailing = { p ->
             if (isFavourite) Icon(Icons.Default.Star, contentDescription = "Favourite", tint = p.gold, modifier = Modifier.size(18.dp))
-            if (canDelete) DeleteButton("Delete ${song.title}", p) { confirmDelete = true } else Chevron(p)
+            if (canEdit || canDelete) {
+                RowOverflowMenu(
+                    song.title,
+                    p,
+                    onEdit = if (canEdit) onEdit else null,
+                    onDelete = if (canDelete) ({ confirmDelete = true }) else null,
+                )
+            } else {
+                Chevron(p)
+            }
         },
-    ) { Icon(Icons.Default.MusicNote, contentDescription = null, tint = palette.pine) }
+    ) { CarolSongIcon(palette) }
     if (confirmDelete) {
         ConfirmDelete("Delete song?", "Remove ${song.title}?", onConfirm = onDelete, onDismiss = { confirmDelete = false })
     }
@@ -258,7 +306,9 @@ fun PdfRow(pdf: CarolPdf, canDelete: Boolean, onOpen: () -> Unit, onDelete: () -
         subtitle = "Tap to open PDF",
         badgeBackground = palette.emberBackground,
         onClick = onOpen,
-        trailing = { p -> if (canDelete) DeleteButton("Delete ${pdf.title}", p) { confirmDelete = true } else Chevron(p) },
+        trailing = { p ->
+            if (canDelete) RowOverflowMenu(pdf.title, p, onEdit = null, onDelete = { confirmDelete = true }) else Chevron(p)
+        },
     ) { Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = palette.ember) }
     if (confirmDelete) {
         ConfirmDelete("Delete PDF?", "Remove ${pdf.title}?", onConfirm = onDelete, onDismiss = { confirmDelete = false })
@@ -356,10 +406,39 @@ private fun DefaultChurchButton(churchName: String, isDefault: Boolean, palette:
     }
 }
 
+/**
+ * Three-dot menu at the end of a row. Edit and Delete live here, out of sight, so nothing on the
+ * list invites an accidental delete. A null action leaves its item out.
+ */
 @Composable
-private fun DeleteButton(label: String, palette: ChristmasPalette, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        Icon(Icons.Default.DeleteOutline, contentDescription = label, tint = palette.inkMuted)
+private fun RowOverflowMenu(name: String, palette: ChristmasPalette, onEdit: (() -> Unit)?, onDelete: (() -> Unit)?) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(Icons.Default.MoreVert, contentDescription = "More options for $name", tint = palette.inkMuted)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            if (onEdit != null) {
+                DropdownMenuItem(
+                    text = { Text("Edit") },
+                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        onEdit()
+                    },
+                )
+            }
+            if (onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text("Delete") },
+                    leadingIcon = { Icon(Icons.Default.DeleteOutline, contentDescription = null) },
+                    onClick = {
+                        open = false
+                        onDelete()
+                    },
+                )
+            }
+        }
     }
 }
 

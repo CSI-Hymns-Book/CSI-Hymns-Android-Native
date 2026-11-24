@@ -9,6 +9,7 @@ import com.reyzie.hymns.carols.data.model.CarolChurch
 import com.reyzie.hymns.carols.data.model.CarolPdf
 import com.reyzie.hymns.carols.data.model.CarolSong
 import com.reyzie.hymns.carols.data.repository.CarolsRepository
+import com.reyzie.hymns.carols.domain.CarolSearch
 import com.reyzie.hymns.carols.domain.CarolsPermissions
 import com.reyzie.hymns.data.SupabaseService
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -90,6 +91,7 @@ class CommunityCarolsViewModel(application: Application) : AndroidViewModel(appl
         _selectedChurchId.value = churchId
         _selectedChurch.value = churchId?.let { id -> repository.churchById(id) }
         _contentTab.value = CarolContentTab.SONGS
+        _searchQuery.value = "" // the search box belongs to one view at a time
     }
 
     fun refreshIfNeeded() {
@@ -173,7 +175,37 @@ class CommunityCarolsViewModel(application: Application) : AndroidViewModel(appl
         }
     }
 
+    fun updateSong(
+        songId: String,
+        title: String,
+        songNumber: String?,
+        lyricsKannada: String,
+        lyricsEnglish: String?,
+        scale: String,
+    ) {
+        val song = songs.value.find { it.id == songId } ?: return
+        if (!canEditSong(song)) {
+            _errorMessage.value = "You can't edit this song."
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.updateSong(songId, title, songNumber, lyricsKannada, lyricsEnglish, scale)
+            } catch (e: SecurityException) {
+                _errorMessage.value = e.message
+            } catch (e: Exception) {
+                Log.e(TAG, "updateSong failed", e)
+                _errorMessage.value = e.message ?: "Could not save the song."
+            }
+        }
+    }
+
     fun deleteChurch(churchId: String) {
+        val church = repository.churchById(churchId) ?: return
+        if (!canDeleteChurch(church)) {
+            _errorMessage.value = "You can't delete this church."
+            return
+        }
         viewModelScope.launch {
             try {
                 repository.deleteChurch(churchId)
@@ -185,6 +217,11 @@ class CommunityCarolsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun deleteSong(songId: String) {
+        val song = songs.value.find { it.id == songId } ?: return
+        if (!canDeleteSong(song)) {
+            _errorMessage.value = "You can't delete this song."
+            return
+        }
         viewModelScope.launch {
             try {
                 repository.deleteSong(songId)
@@ -195,6 +232,11 @@ class CommunityCarolsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun deletePdf(pdfId: String) {
+        val pdf = pdfs.value.find { it.id == pdfId } ?: return
+        if (!canDeletePdf(pdf)) {
+            _errorMessage.value = "You can't delete this PDF."
+            return
+        }
         viewModelScope.launch {
             try {
                 repository.deletePdf(pdfId)
@@ -208,34 +250,31 @@ class CommunityCarolsViewModel(application: Application) : AndroidViewModel(appl
         CarolsPermissions.canDeleteChurch(church, userId, userEmail)
 
     fun canDeleteSong(song: CarolSong): Boolean =
-        CarolsPermissions.canDeleteSong(song, userId, userEmail)
+        CarolsPermissions.canDeleteSong(repository.churchById(song.churchId), userId, userEmail)
 
     fun canDeletePdf(pdf: CarolPdf): Boolean =
-        CarolsPermissions.canDeletePdf(pdf, userId, userEmail)
+        CarolsPermissions.canDeletePdf(repository.churchById(pdf.churchId), userId, userEmail)
+
+    fun canEditSong(song: CarolSong): Boolean =
+        CarolsPermissions.canEditSong(song, repository.churchById(song.churchId), userId, userEmail)
 
     fun filteredChurches(
         allChurches: List<CarolChurch>,
         allSongs: List<CarolSong>,
         allPdfs: List<CarolPdf>,
     ): List<CarolChurch> {
-        val q = _searchQuery.value.trim().lowercase()
+        val q = _searchQuery.value.trim()
         if (q.isEmpty()) return allChurches.sortedBy { it.name.lowercase() }
         return allChurches.filter { church ->
-            church.name.lowercase().contains(q) ||
-                church.description?.lowercase()?.contains(q) == true ||
-                allSongs.any { it.churchId == church.id && (it.title.lowercase().contains(q) || it.songNumber?.contains(q) == true) } ||
-                allPdfs.any { it.churchId == church.id && (it.title.lowercase().contains(q) || it.songNumber?.contains(q) == true) }
+            CarolSearch.matchesFields(listOf(church.name, church.description), q) ||
+                allSongs.any { it.churchId == church.id && CarolSearch.matches(it, q) } ||
+                allPdfs.any { it.churchId == church.id && CarolSearch.matchesFields(listOf(it.title, it.songNumber), q) }
         }.sortedBy { it.name.lowercase() }
     }
 
     fun filteredSongs(churchId: String): List<CarolSong> {
-        val q = _searchQuery.value.trim().lowercase()
-        var list = repository.songsForChurch(churchId)
-        if (q.isNotEmpty()) {
-            list = list.filter {
-                it.title.lowercase().contains(q) || it.songNumber?.lowercase()?.contains(q) == true
-            }
-        }
+        val q = _searchQuery.value.trim()
+        val list = CarolSearch.filterSongs(repository.songsForChurch(churchId), q)
         return when (_sortOrder.value) {
             CarolSortOrder.NEWEST -> list.sortedByDescending { it.updatedAt ?: it.createdAt }
             CarolSortOrder.NUMBER -> list.sortedWith(
@@ -247,13 +286,8 @@ class CommunityCarolsViewModel(application: Application) : AndroidViewModel(appl
     }
 
     fun filteredPdfs(churchId: String): List<CarolPdf> {
-        val q = _searchQuery.value.trim().lowercase()
-        var list = repository.pdfsForChurch(churchId)
-        if (q.isNotEmpty()) {
-            list = list.filter {
-                it.title.lowercase().contains(q) || it.songNumber?.lowercase()?.contains(q) == true
-            }
-        }
+        val q = _searchQuery.value.trim()
+        val list = repository.pdfsForChurch(churchId).filter { CarolSearch.matchesFields(listOf(it.title, it.songNumber), q) }
         return when (_sortOrder.value) {
             CarolSortOrder.NEWEST -> list.sortedByDescending { it.updatedAt ?: it.createdAt }
             CarolSortOrder.NUMBER -> list.sortedWith(
